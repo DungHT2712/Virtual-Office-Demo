@@ -13,8 +13,9 @@ import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
+import { extractBaseCharacterName } from '../characters/Player'
 import Network from '../services/Network'
-import { IPlayer } from '../../../types/IOfficeState'
+import { IPlayer, OutfitType } from '../../../types/IOfficeState'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import { ItemType } from '../../../types/Items'
 
@@ -189,6 +190,7 @@ export default class Game extends Phaser.Scene {
       genericObjectsOnCollideGroup,
       basementGroup,
       vendingMachines,
+      chairs,
     ])
 
     // Hiệu ứng vòng tròn đánh dấu vị trí click chuột
@@ -200,7 +202,15 @@ export default class Game extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       // Chỉ xử lý click chuột trái và khi đã đăng nhập vào phòng
       if (pointer.rightButtonDown() || !this.myPlayer || !this.pathfinder) return
-      if (!store.getState().user.loggedIn) return
+      if (this.myPlayer.playerBehavior === PlayerBehavior.SITTING) return
+
+      const state = store.getState()
+      if (!state.user.loggedIn) return
+      if (state.computer.computerDialogOpen || state.whiteboard.whiteboardDialogOpen) return
+
+      // Bỏ qua nếu click vào các phần tử DOM giao diện HTML (Chat, Dialog, Button...)
+      const evtTarget = pointer.event?.target as HTMLElement | null
+      if (evtTarget && evtTarget !== this.game.canvas) return
 
       // Tọa độ chân nhân vật làm gốc tìm đường
       const footY = this.myPlayer.y + this.myPlayer.height * 0.25
@@ -285,22 +295,32 @@ export default class Game extends Phaser.Scene {
 
   // function to add new player to the otherPlayer group
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
-    const baseTexture =
-      ['adam', 'ash', 'lucy', 'nancy'].find((c) => newPlayer.anim.startsWith(c)) || 'adam'
-    const otherPlayer = this.add.otherPlayer(newPlayer.x, newPlayer.y, baseTexture, id, newPlayer.name)
+    const baseCharacter = extractBaseCharacterName(newPlayer.anim)
+    const otherPlayer = this.add.otherPlayer(
+      newPlayer.x,
+      newPlayer.y,
+      baseCharacter,
+      id,
+      newPlayer.name
+    )
     this.otherPlayers.add(otherPlayer)
     this.otherPlayerMap.set(id, otherPlayer)
-    if (newPlayer.skinColor || newPlayer.hairColor || newPlayer.outfitType || newPlayer.outfitColor) {
-      otherPlayer.skinColor = newPlayer.skinColor || '#f5cfa0'
-      otherPlayer.hairColor = newPlayer.hairColor || '#4a3728'
-      otherPlayer.outfitType = (newPlayer.outfitType as any) || 'casual'
-      otherPlayer.outfitColor = newPlayer.outfitColor || '#3b82f6'
-      otherPlayer.applyAppearance(baseTexture, {
-        skinColor: otherPlayer.skinColor,
-        hairColor: otherPlayer.hairColor,
-        outfitType: otherPlayer.outfitType,
-        outfitColor: otherPlayer.outfitColor,
-      })
+
+    otherPlayer.characterName = baseCharacter
+    if (newPlayer.skinColor) otherPlayer.skinColor = newPlayer.skinColor
+    if (newPlayer.hairColor) otherPlayer.hairColor = newPlayer.hairColor
+    if (newPlayer.outfitType) otherPlayer.outfitType = newPlayer.outfitType as OutfitType
+    if (newPlayer.outfitColor) otherPlayer.outfitColor = newPlayer.outfitColor
+
+    otherPlayer.applyAppearance(baseCharacter, {
+      skinColor: otherPlayer.skinColor,
+      hairColor: otherPlayer.hairColor,
+      outfitType: otherPlayer.outfitType,
+      outfitColor: otherPlayer.outfitColor,
+    })
+
+    if (newPlayer.anim) {
+      otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
     }
   }
 

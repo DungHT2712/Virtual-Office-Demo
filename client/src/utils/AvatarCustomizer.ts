@@ -73,8 +73,13 @@ function recolorPixel(
 ): RGB {
   const [h, s, l] = rgbToHsl(r, g, b)
 
-  // Giữ nguyên viền đen mắt/miệng cực tối
-  if (l < 0.12) {
+  // Giữ nguyên viền đen mắt/miệng trên khuôn mặt (localY <= 24)
+  if (l < 0.08 && localY <= 24) {
+    return { r, g, b }
+  }
+
+  // Giữ viền nét cực tối viền ngoài sprite
+  if (l < 0.04) {
     return { r, g, b }
   }
 
@@ -115,7 +120,7 @@ function recolorPixel(
     }
 
     // Xử lý kiểu trang phục (casual / suit / dress)
-    const shade = Math.min(1.25, Math.max(0.55, l / 0.5))
+    const shade = Math.min(1.25, Math.max(0.45, l / 0.5))
 
     if (outfitType === 'suit') {
       // Đồ vest: quần và áo khoác đồng màu đậm lịch lãm
@@ -142,12 +147,19 @@ function recolorPixel(
       }
     }
 
-    // Casual (Quần áo bình thường): đổi màu áo (localY 25..36), giữ tông quần hài hòa
+    // Casual (Quần áo bình thường): đổi màu áo (localY 25..36), quần (localY 37..42) phối màu denim hài hòa
     if (localY <= 36) {
       return {
         r: Math.min(255, Math.round(outfitRgb.r * shade)),
         g: Math.min(255, Math.round(outfitRgb.g * shade)),
         b: Math.min(255, Math.round(outfitRgb.b * shade)),
+      }
+    } else if (localY <= 42) {
+      const pantShade = Math.min(1.1, Math.max(0.4, l / 0.45))
+      return {
+        r: Math.min(255, Math.round((outfitRgb.r * 0.45 + 30) * pantShade)),
+        g: Math.min(255, Math.round((outfitRgb.g * 0.45 + 35) * pantShade)),
+        b: Math.min(255, Math.round((outfitRgb.b * 0.45 + 50) * pantShade)),
       }
     }
     return { r, g, b }
@@ -187,17 +199,19 @@ function applyOutfitOverlayToFrame(
       for (let dx = -Math.round(2 * scale); dx <= Math.round(2 * scale); dx++) {
         const px = centerX + dx
         const idx = (py * canvasW + px) * 4
-        if (data[idx + 3] > 128) {
+        if (data[idx + 3] > 60) {
           if (Math.abs(dx) <= Math.max(0, Math.floor(0.6 * scale)) && ly >= tieStartY && ly <= tieEndY) {
-            // Cà vạt điểm nhấn
-            data[idx] = 210
-            data[idx + 1] = 45
-            data[idx + 2] = 45
+            // Cà vạt điểm nhấn đỏ tươi nổi bật
+            data[idx] = 220
+            data[idx + 1] = 38
+            data[idx + 2] = 38
+            data[idx + 3] = 255
           } else if (Math.abs(dx) <= Math.max(1, Math.round(1 * scale)) && ly <= shirtEndY) {
-            // Áo sơ mi trắng bên trong vest
-            data[idx] = 245
-            data[idx + 1] = 245
-            data[idx + 2] = 250
+            // Áo sơ mi trắng tinh tế bên trong vest
+            data[idx] = 248
+            data[idx + 1] = 250
+            data[idx + 2] = 252
+            data[idx + 3] = 255
           }
         }
       }

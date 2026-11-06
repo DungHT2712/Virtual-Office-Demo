@@ -218,10 +218,14 @@ export default class MyPlayer extends Player {
           const dx = target.x - this.x
           const dy = target.y - (this.y + this.height * 0.25)
           const dist = Math.hypot(dx, dy)
+          const isFinal = this.pathWaypoints.length === 1
+          const reachThreshold = isFinal ? 8 : 12
 
-          if (dist < 6) {
+          if (dist <= reachThreshold) {
             this.pathWaypoints.shift()
             if (this.pathWaypoints.length === 0) {
+              this.setPosition(target.x, target.y - this.height * 0.25)
+              this.playerContainer.setPosition(target.x, target.y - this.height * 0.25 - 30)
               this.setVelocity(0, 0)
               this.playContainerBody.setVelocity(0, 0)
               const parts = this.anims.currentAnim.key.split('_')

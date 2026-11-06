@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import Player from './Player'
+import Player, { extractBaseCharacterName } from './Player'
 import MyPlayer from './MyPlayer'
 import { sittingShiftData } from './Player'
 import WebRTC from '../web/WebRTC'
@@ -73,10 +73,10 @@ export default class OtherPlayer extends Player {
 
       case 'anim':
         if (typeof value === 'string') {
-          const detectedBase = ['adam', 'ash', 'lucy', 'nancy'].find((c) => value.startsWith(c))
-          if (detectedBase && detectedBase !== this.baseTexture) {
-            this.baseTexture = detectedBase
-            this.applyAppearance(this.baseTexture, {
+          const detectedBase = extractBaseCharacterName(value)
+          if (detectedBase && detectedBase !== this.characterName) {
+            this.characterName = detectedBase
+            this.applyAppearance(this.characterName, {
               skinColor: this.skinColor,
               hairColor: this.hairColor,
               outfitType: this.outfitType,
@@ -84,12 +84,12 @@ export default class OtherPlayer extends Player {
             })
           }
           const animParts = value.split('_')
-          const animState = animParts[animParts.length - 2]
-          const animDir = animParts[animParts.length - 1]
+          const animState = animParts[animParts.length - 2] || 'idle'
+          const animDir = animParts[animParts.length - 1] || 'down'
           const customAnimKey = `${this.playerTexture}_${animState}_${animDir}`
           if (this.anims.animationManager.exists(customAnimKey)) {
             this.anims.play(customAnimKey, true)
-          } else {
+          } else if (this.anims.animationManager.exists(value)) {
             this.anims.play(value, true)
           }
         }
@@ -98,7 +98,7 @@ export default class OtherPlayer extends Player {
       case 'skinColor':
         if (typeof value === 'string') {
           this.skinColor = value
-          this.applyAppearance(this.baseTexture, {
+          this.applyAppearance(this.characterName, {
             skinColor: this.skinColor,
             hairColor: this.hairColor,
             outfitType: this.outfitType,
@@ -110,7 +110,7 @@ export default class OtherPlayer extends Player {
       case 'hairColor':
         if (typeof value === 'string') {
           this.hairColor = value
-          this.applyAppearance(this.baseTexture, {
+          this.applyAppearance(this.characterName, {
             skinColor: this.skinColor,
             hairColor: this.hairColor,
             outfitType: this.outfitType,
@@ -122,7 +122,7 @@ export default class OtherPlayer extends Player {
       case 'outfitType':
         if (typeof value === 'string') {
           this.outfitType = value as OutfitType
-          this.applyAppearance(this.baseTexture, {
+          this.applyAppearance(this.characterName, {
             skinColor: this.skinColor,
             hairColor: this.hairColor,
             outfitType: this.outfitType,
@@ -134,7 +134,7 @@ export default class OtherPlayer extends Player {
       case 'outfitColor':
         if (typeof value === 'string') {
           this.outfitColor = value
-          this.applyAppearance(this.baseTexture, {
+          this.applyAppearance(this.characterName, {
             skinColor: this.skinColor,
             hairColor: this.hairColor,
             outfitType: this.outfitType,

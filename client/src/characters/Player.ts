@@ -13,10 +13,19 @@ export const sittingShiftData = {
   right: [0, -8, 10],
 }
 
+export function extractBaseCharacterName(textureOrAnim: string): string {
+  if (!textureOrAnim) return 'adam'
+  const firstPart = textureOrAnim.split('_')[0].toLowerCase()
+  if (['adam', 'ash', 'lucy', 'nancy'].includes(firstPart)) {
+    return firstPart
+  }
+  return 'adam'
+}
+
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   playerId: string
   playerTexture: string
-  baseTexture: string
+  characterName: string
   playerBehavior = PlayerBehavior.IDLE
   readyToConnect = false
   videoConnected = false
@@ -36,8 +45,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, texture, frame)
 
     this.playerId = id
+    this.characterName = extractBaseCharacterName(texture)
     this.playerTexture = texture
-    this.baseTexture = texture
     this.setDepth(this.y)
 
     this.anims.play(`${this.playerTexture}_idle_down`, true)
@@ -105,8 +114,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   applyAppearance(baseCharacter: string, config: IAvatarCustomization) {
-    this.baseTexture = baseCharacter
-    const newTextureKey = ensureCustomAvatarTexture(this.scene, baseCharacter, config)
+    this.characterName = extractBaseCharacterName(baseCharacter)
+    const newTextureKey = ensureCustomAvatarTexture(this.scene, this.characterName, config)
     const currentAnimParts = this.anims.currentAnim?.key.split('_')
     const animState = currentAnimParts ? currentAnimParts[currentAnimParts.length - 2] : 'idle'
     const animDir = currentAnimParts ? currentAnimParts[currentAnimParts.length - 1] : 'down'
