@@ -76,12 +76,7 @@ export default class OtherPlayer extends Player {
           const detectedBase = extractBaseCharacterName(value)
           if (detectedBase && detectedBase !== this.characterName) {
             this.characterName = detectedBase
-            this.applyAppearance(this.characterName, {
-              skinColor: this.skinColor,
-              hairColor: this.hairColor,
-              outfitType: this.outfitType,
-              outfitColor: this.outfitColor,
-            })
+            this.refreshCustomTexture()
           }
           const animParts = value.split('_')
           const animState = animParts[animParts.length - 2] || 'idle'
@@ -98,48 +93,32 @@ export default class OtherPlayer extends Player {
       case 'skinColor':
         if (typeof value === 'string') {
           this.skinColor = value
-          this.applyAppearance(this.characterName, {
-            skinColor: this.skinColor,
-            hairColor: this.hairColor,
-            outfitType: this.outfitType,
-            outfitColor: this.outfitColor,
-          })
+          this.avatarCustomization.skinColor = value
+          this.refreshCustomTexture()
         }
         break
 
       case 'hairColor':
         if (typeof value === 'string') {
           this.hairColor = value
-          this.applyAppearance(this.characterName, {
-            skinColor: this.skinColor,
-            hairColor: this.hairColor,
-            outfitType: this.outfitType,
-            outfitColor: this.outfitColor,
-          })
+          this.avatarCustomization.hairColor = value
+          this.refreshCustomTexture()
         }
         break
 
       case 'outfitType':
         if (typeof value === 'string') {
           this.outfitType = value as OutfitType
-          this.applyAppearance(this.characterName, {
-            skinColor: this.skinColor,
-            hairColor: this.hairColor,
-            outfitType: this.outfitType,
-            outfitColor: this.outfitColor,
-          })
+          this.avatarCustomization.outfitType = this.outfitType
+          this.refreshCustomTexture()
         }
         break
 
       case 'outfitColor':
         if (typeof value === 'string') {
           this.outfitColor = value
-          this.applyAppearance(this.characterName, {
-            skinColor: this.skinColor,
-            hairColor: this.hairColor,
-            outfitType: this.outfitType,
-            outfitColor: this.outfitColor,
-          })
+          this.avatarCustomization.outfitColor = value
+          this.refreshCustomTexture()
         }
         break
 

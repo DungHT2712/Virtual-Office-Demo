@@ -33,6 +33,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   playerContainer: Phaser.GameObjects.Container
   private playerDialogBubble: Phaser.GameObjects.Container
   private timeoutID?: number
+  avatarCustomization: IAvatarCustomization = {
+    skinColor: '#f5cfa0',
+    hairColor: '#4a3728',
+    outfitType: 'casual',
+    outfitColor: '#3b82f6',
+  }
 
   constructor(
     scene: Phaser.Scene,
@@ -113,16 +119,27 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }, 6000)
   }
 
+  refreshCustomTexture() {
+    this.playerTexture = ensureCustomAvatarTexture(
+      this.scene,
+      this.characterName,
+      this.avatarCustomization
+    )
+    this.setTexture(this.playerTexture)
+    if (this.anims.currentAnim) {
+      const parts = this.anims.currentAnim.key.split('_')
+      const animSuffix = parts.slice(parts.length - 2).join('_')
+      const newAnimKey = `${this.playerTexture}_${animSuffix}`
+      if (this.anims.currentAnim.key !== newAnimKey && this.scene.anims.exists(newAnimKey)) {
+        this.anims.play(newAnimKey, true)
+      }
+    }
+  }
+
   applyAppearance(baseCharacter: string, config: IAvatarCustomization) {
     this.characterName = extractBaseCharacterName(baseCharacter)
-    const newTextureKey = ensureCustomAvatarTexture(this.scene, this.characterName, config)
-    const currentAnimParts = this.anims.currentAnim?.key.split('_')
-    const animState = currentAnimParts ? currentAnimParts[currentAnimParts.length - 2] : 'idle'
-    const animDir = currentAnimParts ? currentAnimParts[currentAnimParts.length - 1] : 'down'
-
-    this.playerTexture = newTextureKey
-    this.setTexture(newTextureKey)
-    this.anims.play(`${newTextureKey}_${animState}_${animDir}`, true)
+    this.avatarCustomization = { ...config }
+    this.refreshCustomTexture()
   }
 
   private clearDialogBubble() {
