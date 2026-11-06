@@ -35,7 +35,7 @@ export default class Network {
       process.env.NODE_ENV === 'production'
         ? import.meta.env.VITE_SERVER_URL
         : `${protocol}//${window.location.hostname}:2567`
-    this.client = new Client(endpoint)
+    this.client = new Client('ws://localhost:2567')
     this.joinLobbyRoom().then(() => {
       store.dispatch(setLobbyJoined(true))
     })
@@ -237,8 +237,28 @@ export default class Network {
   }
 
   // method to send player name to Colyseus server
-  updatePlayerName(currentName: string) {
-    this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
+  updatePlayerName(
+    currentName: string,
+    customization?: {
+      skinColor: string
+      hairColor: string
+      outfitType: string
+      outfitColor: string
+    }
+  ) {
+    this.room?.send(Message.UPDATE_PLAYER_NAME, {
+      name: currentName,
+      ...(customization || {}),
+    })
+  }
+
+  updatePlayerCustomization(customization: {
+    skinColor?: string
+    hairColor?: string
+    outfitType?: string
+    outfitColor?: string
+  }) {
+    this.room?.send(Message.UPDATE_PLAYER_CUSTOMIZATION, customization)
   }
 
   // method to send ready-to-connect signal to Colyseus server

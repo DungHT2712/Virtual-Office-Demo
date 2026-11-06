@@ -110,12 +110,49 @@ export class SkyOffice extends Room<OfficeState> {
     )
 
     // when receiving updatePlayerName message, call the PlayerUpdateNameCommand
-    this.onMessage(Message.UPDATE_PLAYER_NAME, (client, message: { name: string }) => {
-      this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
+    this.onMessage(
+      Message.UPDATE_PLAYER_NAME,
+      (
         client,
-        name: message.name,
-      })
-    })
+        message: {
+          name: string
+          skinColor?: string
+          hairColor?: string
+          outfitType?: string
+          outfitColor?: string
+        }
+      ) => {
+        this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
+          client,
+          name: message.name,
+          skinColor: message.skinColor,
+          hairColor: message.hairColor,
+          outfitType: message.outfitType,
+          outfitColor: message.outfitColor,
+        })
+      }
+    )
+
+    // when receiving updatePlayerCustomization message
+    this.onMessage(
+      Message.UPDATE_PLAYER_CUSTOMIZATION,
+      (
+        client,
+        message: {
+          skinColor?: string
+          hairColor?: string
+          outfitType?: string
+          outfitColor?: string
+        }
+      ) => {
+        const player = this.state.players.get(client.sessionId)
+        if (!player) return
+        if (message.skinColor) player.skinColor = message.skinColor
+        if (message.hairColor) player.hairColor = message.hairColor
+        if (message.outfitType) player.outfitType = message.outfitType
+        if (message.outfitColor) player.outfitColor = message.outfitColor
+      }
+    )
 
     // when a player is ready to connect, call the PlayerReadyToConnectCommand
     this.onMessage(Message.READY_TO_CONNECT, (client) => {

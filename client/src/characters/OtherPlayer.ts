@@ -4,6 +4,7 @@ import MyPlayer from './MyPlayer'
 import { sittingShiftData } from './Player'
 import WebRTC from '../web/WebRTC'
 import { Event, phaserEvents } from '../events/EventCenter'
+import { OutfitType } from '../../../types/IOfficeState'
 
 export default class OtherPlayer extends Player {
   private targetPosition: [number, number]
@@ -12,6 +13,10 @@ export default class OtherPlayer extends Player {
   private connected = false
   private playContainerBody: Phaser.Physics.Arcade.Body
   private myPlayer?: MyPlayer
+  skinColor = '#f5cfa0'
+  hairColor = '#4a3728'
+  outfitType: OutfitType = 'casual'
+  outfitColor = '#3b82f6'
 
   constructor(
     scene: Phaser.Scene,
@@ -68,7 +73,73 @@ export default class OtherPlayer extends Player {
 
       case 'anim':
         if (typeof value === 'string') {
-          this.anims.play(value, true)
+          const detectedBase = ['adam', 'ash', 'lucy', 'nancy'].find((c) => value.startsWith(c))
+          if (detectedBase && detectedBase !== this.baseTexture) {
+            this.baseTexture = detectedBase
+            this.applyAppearance(this.baseTexture, {
+              skinColor: this.skinColor,
+              hairColor: this.hairColor,
+              outfitType: this.outfitType,
+              outfitColor: this.outfitColor,
+            })
+          }
+          const animParts = value.split('_')
+          const animState = animParts[animParts.length - 2]
+          const animDir = animParts[animParts.length - 1]
+          const customAnimKey = `${this.playerTexture}_${animState}_${animDir}`
+          if (this.anims.animationManager.exists(customAnimKey)) {
+            this.anims.play(customAnimKey, true)
+          } else {
+            this.anims.play(value, true)
+          }
+        }
+        break
+
+      case 'skinColor':
+        if (typeof value === 'string') {
+          this.skinColor = value
+          this.applyAppearance(this.baseTexture, {
+            skinColor: this.skinColor,
+            hairColor: this.hairColor,
+            outfitType: this.outfitType,
+            outfitColor: this.outfitColor,
+          })
+        }
+        break
+
+      case 'hairColor':
+        if (typeof value === 'string') {
+          this.hairColor = value
+          this.applyAppearance(this.baseTexture, {
+            skinColor: this.skinColor,
+            hairColor: this.hairColor,
+            outfitType: this.outfitType,
+            outfitColor: this.outfitColor,
+          })
+        }
+        break
+
+      case 'outfitType':
+        if (typeof value === 'string') {
+          this.outfitType = value as OutfitType
+          this.applyAppearance(this.baseTexture, {
+            skinColor: this.skinColor,
+            hairColor: this.hairColor,
+            outfitType: this.outfitType,
+            outfitColor: this.outfitColor,
+          })
+        }
+        break
+
+      case 'outfitColor':
+        if (typeof value === 'string') {
+          this.outfitColor = value
+          this.applyAppearance(this.baseTexture, {
+            skinColor: this.skinColor,
+            hairColor: this.hairColor,
+            outfitType: this.outfitType,
+            outfitColor: this.outfitColor,
+          })
         }
         break
 
@@ -110,9 +181,9 @@ export default class OtherPlayer extends Player {
     this.lastUpdateTimestamp = t
     this.setDepth(this.y) // change player.depth based on player.y
     const animParts = this.anims.currentAnim.key.split('_')
-    const animState = animParts[1]
+    const animState = animParts[animParts.length - 2]
     if (animState === 'sit') {
-      const animDir = animParts[2]
+      const animDir = animParts[animParts.length - 1]
       const sittingShift = sittingShiftData[animDir]
       if (sittingShift) {
         // set hardcoded depth (differs between directions) if player sits down

@@ -14,6 +14,10 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
+  @type('string') skinColor = '#f5cfa0'
+  @type('string') hairColor = '#4a3728'
+  @type('string') outfitType = 'casual'
+  @type('string') outfitColor = '#3b82f6'
 }
 
 export class Computer extends Schema implements IComputer {

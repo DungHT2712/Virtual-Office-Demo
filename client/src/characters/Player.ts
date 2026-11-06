@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
+import { IAvatarCustomization } from '../../../types/IOfficeState'
+import { ensureCustomAvatarTexture } from '../utils/AvatarCustomizer'
 /**
  * shifting distance for sitting animation
  * format: direction: [xShift, yShift, depthShift]
@@ -14,6 +16,7 @@ export const sittingShiftData = {
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   playerId: string
   playerTexture: string
+  baseTexture: string
   playerBehavior = PlayerBehavior.IDLE
   readyToConnect = false
   videoConnected = false
@@ -34,6 +37,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.playerId = id
     this.playerTexture = texture
+    this.baseTexture = texture
     this.setDepth(this.y)
 
     this.anims.play(`${this.playerTexture}_idle_down`, true)
@@ -98,6 +102,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.timeoutID = window.setTimeout(() => {
       this.clearDialogBubble()
     }, 6000)
+  }
+
+  applyAppearance(baseCharacter: string, config: IAvatarCustomization) {
+    this.baseTexture = baseCharacter
+    const newTextureKey = ensureCustomAvatarTexture(this.scene, baseCharacter, config)
+    const currentAnimParts = this.anims.currentAnim?.key.split('_')
+    const animState = currentAnimParts ? currentAnimParts[currentAnimParts.length - 2] : 'idle'
+    const animDir = currentAnimParts ? currentAnimParts[currentAnimParts.length - 1] : 'down'
+
+    this.playerTexture = newTextureKey
+    this.setTexture(newTextureKey)
+    this.anims.play(`${newTextureKey}_${animState}_${animDir}`, true)
   }
 
   private clearDialogBubble() {

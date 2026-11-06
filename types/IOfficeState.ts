@@ -1,5 +1,14 @@
 import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
 
+export type OutfitType = 'casual' | 'suit' | 'dress'
+
+export interface IAvatarCustomization {
+  skinColor: string
+  hairColor: string
+  outfitType: OutfitType
+  outfitColor: string
+}
+
 export interface IPlayer extends Schema {
   name: string
   x: number
@@ -7,6 +16,10 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  skinColor: string
+  hairColor: string
+  outfitType: string
+  outfitColor: string
 }
 
 export interface IComputer extends Schema {

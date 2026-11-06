@@ -21,6 +21,7 @@ import { ItemType } from '../../../types/Items'
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
+import { Pathfinder } from '../utils/Pathfinder'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -34,6 +35,8 @@ export default class Game extends Phaser.Scene {
   private otherPlayerMap = new Map<string, OtherPlayer>()
   computerMap = new Map<string, Computer>()
   private whiteboardMap = new Map<string, Whiteboard>()
+  private pathfinder?: Pathfinder
+  private targetMarker?: Phaser.GameObjects.Arc
 
   constructor() {
     super('game')
@@ -129,12 +132,22 @@ export default class Game extends Phaser.Scene {
     })
 
     // import other objects from Tiled map to Phaser
-    this.addGroupFromTiled('Wall', 'tiles_wall', 'FloorAndGround', false)
+    const wallGroup = this.addGroupFromTiled('Wall', 'tiles_wall', 'FloorAndGround', false)
     this.addGroupFromTiled('Objects', 'office', 'Modern_Office_Black_Shadow', false)
-    this.addGroupFromTiled('ObjectsOnCollide', 'office', 'Modern_Office_Black_Shadow', true)
+    const objectsOnCollideGroup = this.addGroupFromTiled(
+      'ObjectsOnCollide',
+      'office',
+      'Modern_Office_Black_Shadow',
+      true
+    )
     this.addGroupFromTiled('GenericObjects', 'generic', 'Generic', false)
-    this.addGroupFromTiled('GenericObjectsOnCollide', 'generic', 'Generic', true)
-    this.addGroupFromTiled('Basement', 'basement', 'Basement', true)
+    const genericObjectsOnCollideGroup = this.addGroupFromTiled(
+      'GenericObjectsOnCollide',
+      'generic',
+      'Generic',
+      true
+    )
+    const basementGroup = this.addGroupFromTiled('Basement', 'basement', 'Basement', true)
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
@@ -169,6 +182,54 @@ export default class Game extends Phaser.Scene {
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
+
+    this.pathfinder = new Pathfinder(this.map, groundLayer, [
+      wallGroup,
+      objectsOnCollideGroup,
+      genericObjectsOnCollideGroup,
+      basementGroup,
+      vendingMachines,
+    ])
+
+    // Hiệu ứng vòng tròn đánh dấu vị trí click chuột
+    this.targetMarker = this.add.circle(0, 0, 8, 0x42eacb, 0.65)
+    this.targetMarker.setStrokeStyle(2, 0xffffff, 0.9)
+    this.targetMarker.setVisible(false)
+    this.targetMarker.setDepth(9999)
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Chỉ xử lý click chuột trái và khi đã đăng nhập vào phòng
+      if (pointer.rightButtonDown() || !this.myPlayer || !this.pathfinder) return
+      if (!store.getState().user.loggedIn) return
+
+      // Tọa độ chân nhân vật làm gốc tìm đường
+      const footY = this.myPlayer.y + this.myPlayer.height * 0.25
+      const path = this.pathfinder.findPath(
+        this.myPlayer.x,
+        footY,
+        pointer.worldX,
+        pointer.worldY
+      )
+
+      if (path.length > 0) {
+        this.myPlayer.setMovePath(path)
+        const finalPoint = path[path.length - 1]
+        if (this.targetMarker) {
+          this.targetMarker.setPosition(finalPoint.x, finalPoint.y)
+          this.targetMarker.setVisible(true)
+          this.tweens.killTweensOf(this.targetMarker)
+          this.targetMarker.setScale(1)
+          this.targetMarker.setAlpha(0.85)
+          this.tweens.add({
+            targets: this.targetMarker,
+            scale: 1.5,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => this.targetMarker?.setVisible(false),
+          })
+        }
+      }
+    })
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
@@ -219,13 +280,28 @@ export default class Game extends Phaser.Scene {
     })
     if (this.myPlayer && collidable)
       this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], group)
+    return group
   }
 
   // function to add new player to the otherPlayer group
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
-    const otherPlayer = this.add.otherPlayer(newPlayer.x, newPlayer.y, 'adam', id, newPlayer.name)
+    const baseTexture =
+      ['adam', 'ash', 'lucy', 'nancy'].find((c) => newPlayer.anim.startsWith(c)) || 'adam'
+    const otherPlayer = this.add.otherPlayer(newPlayer.x, newPlayer.y, baseTexture, id, newPlayer.name)
     this.otherPlayers.add(otherPlayer)
     this.otherPlayerMap.set(id, otherPlayer)
+    if (newPlayer.skinColor || newPlayer.hairColor || newPlayer.outfitType || newPlayer.outfitColor) {
+      otherPlayer.skinColor = newPlayer.skinColor || '#f5cfa0'
+      otherPlayer.hairColor = newPlayer.hairColor || '#4a3728'
+      otherPlayer.outfitType = (newPlayer.outfitType as any) || 'casual'
+      otherPlayer.outfitColor = newPlayer.outfitColor || '#3b82f6'
+      otherPlayer.applyAppearance(baseTexture, {
+        skinColor: otherPlayer.skinColor,
+        hairColor: otherPlayer.hairColor,
+        outfitType: otherPlayer.outfitType,
+        outfitColor: otherPlayer.outfitColor,
+      })
+    }
   }
 
   // function to remove the player who left from the otherPlayer group

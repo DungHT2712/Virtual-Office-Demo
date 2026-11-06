@@ -15,11 +15,15 @@ import { ItemType } from '../../../types/Items'
 import { NavKeys } from '../../../types/KeyboardState'
 import { JoystickMovement } from '../components/Joystick'
 import { openURL } from '../utils/helpers'
+import { GridPoint } from '../utils/Pathfinder'
+import { IAvatarCustomization } from '../../../types/IOfficeState'
 
 export default class MyPlayer extends Player {
   private playContainerBody: Phaser.Physics.Arcade.Body
   private chairOnSit?: Chair
   public joystickMovement?: JoystickMovement
+  private pathWaypoints: GridPoint[] = []
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -40,6 +44,21 @@ export default class MyPlayer extends Player {
 
   setPlayerTexture(texture: string) {
     this.playerTexture = texture
+    this.anims.play(`${this.playerTexture}_idle_down`, true)
+    phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, this.anims.currentAnim.key)
+  }
+
+  setMovePath(waypoints: GridPoint[]) {
+    if (this.playerBehavior === PlayerBehavior.SITTING) return
+    this.pathWaypoints = waypoints
+  }
+
+  clearMovePath() {
+    this.pathWaypoints = []
+  }
+
+  setCharacterCustomization(texture: string, config: IAvatarCustomization) {
+    this.applyAppearance(texture, config)
     this.anims.play(`${this.playerTexture}_idle_down`, true)
     phaserEvents.emit(Event.MY_PLAYER_TEXTURE_CHANGE, this.x, this.y, this.anims.currentAnim.key)
   }
@@ -126,57 +145,121 @@ export default class MyPlayer extends Player {
           return
         }
 
-        const speed = 200
-        let vx = 0
-        let vy = 0
+        const isManualMoving =
+          cursors.left?.isDown ||
+          cursors.A?.isDown ||
+          cursors.right?.isDown ||
+          cursors.D?.isDown ||
+          cursors.up?.isDown ||
+          cursors.W?.isDown ||
+          cursors.down?.isDown ||
+          cursors.S?.isDown ||
+          (this.joystickMovement?.isMoving ?? false)
 
-        let joystickLeft = false
-        let joystickRight = false
-        let joystickUp = false
-        let joystickDown = false
+        if (isManualMoving) {
+          this.clearMovePath()
 
-        if (this.joystickMovement?.isMoving) {
-          joystickLeft = this.joystickMovement.direction.left
-          joystickRight = this.joystickMovement.direction.right
-          joystickUp = this.joystickMovement.direction.up
-          joystickDown = this.joystickMovement.direction.down
-        }
+          const speed = 200
+          let vx = 0
+          let vy = 0
 
-        if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) vx -= speed
-        if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) vx += speed
-        if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-          vy -= speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
-        if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-          vy += speed
-          this.setDepth(this.y) //change player.depth if player.y changes
-        }
-        // update character velocity
-        this.setVelocity(vx, vy)
-        this.body.velocity.setLength(speed)
-        // also update playerNameContainer velocity
-        this.playContainerBody.setVelocity(vx, vy)
-        this.playContainerBody.velocity.setLength(speed)
+          let joystickLeft = false
+          let joystickRight = false
+          let joystickUp = false
+          let joystickDown = false
 
-        // update animation according to velocity and send new location and anim to server
-        if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
-        if (vx > 0) {
-          this.play(`${this.playerTexture}_run_right`, true)
-        } else if (vx < 0) {
-          this.play(`${this.playerTexture}_run_left`, true)
-        } else if (vy > 0) {
-          this.play(`${this.playerTexture}_run_down`, true)
-        } else if (vy < 0) {
-          this.play(`${this.playerTexture}_run_up`, true)
+          if (this.joystickMovement?.isMoving) {
+            joystickLeft = this.joystickMovement.direction.left
+            joystickRight = this.joystickMovement.direction.right
+            joystickUp = this.joystickMovement.direction.up
+            joystickDown = this.joystickMovement.direction.down
+          }
+
+          if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) vx -= speed
+          if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) vx += speed
+          if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
+            vy -= speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+          if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
+            vy += speed
+            this.setDepth(this.y) //change player.depth if player.y changes
+          }
+          // update character velocity
+          this.setVelocity(vx, vy)
+          this.body.velocity.setLength(speed)
+          // also update playerNameContainer velocity
+          this.playContainerBody.setVelocity(vx, vy)
+          this.playContainerBody.velocity.setLength(speed)
+
+          // update animation according to velocity and send new location and anim to server
+          if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+          if (vx > 0) {
+            this.play(`${this.playerTexture}_run_right`, true)
+          } else if (vx < 0) {
+            this.play(`${this.playerTexture}_run_left`, true)
+          } else if (vy > 0) {
+            this.play(`${this.playerTexture}_run_down`, true)
+          } else if (vy < 0) {
+            this.play(`${this.playerTexture}_run_up`, true)
+          } else {
+            const parts = this.anims.currentAnim.key.split('_')
+            parts[parts.length - 2] = 'idle'
+            const newAnim = parts.join('_')
+            // this prevents idle animation keeps getting called
+            if (this.anims.currentAnim.key !== newAnim) {
+              this.play(parts.join('_'), true)
+              // send new location and anim to server
+              network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+            }
+          }
+        } else if (this.pathWaypoints.length > 0) {
+          const target = this.pathWaypoints[0]
+          const dx = target.x - this.x
+          const dy = target.y - (this.y + this.height * 0.25)
+          const dist = Math.hypot(dx, dy)
+
+          if (dist < 6) {
+            this.pathWaypoints.shift()
+            if (this.pathWaypoints.length === 0) {
+              this.setVelocity(0, 0)
+              this.playContainerBody.setVelocity(0, 0)
+              const parts = this.anims.currentAnim.key.split('_')
+              parts[parts.length - 2] = 'idle'
+              this.play(parts.join('_'), true)
+              network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+            }
+          } else {
+            const speed = 200
+            const vx = (dx / dist) * speed
+            const vy = (dy / dist) * speed
+            this.setVelocity(vx, vy)
+            this.playContainerBody.setVelocity(vx, vy)
+            this.setDepth(this.y)
+
+            if (Math.abs(vx) > Math.abs(vy)) {
+              if (vx > 0) {
+                this.play(`${this.playerTexture}_run_right`, true)
+              } else {
+                this.play(`${this.playerTexture}_run_left`, true)
+              }
+            } else {
+              if (vy > 0) {
+                this.play(`${this.playerTexture}_run_down`, true)
+              } else {
+                this.play(`${this.playerTexture}_run_up`, true)
+              }
+            }
+            network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+          }
         } else {
+          this.setVelocity(0, 0)
+          this.playContainerBody.setVelocity(0, 0)
           const parts = this.anims.currentAnim.key.split('_')
-          parts[1] = 'idle'
+          parts[parts.length - 2] = 'idle'
           const newAnim = parts.join('_')
-          // this prevents idle animation keeps getting called
           if (this.anims.currentAnim.key !== newAnim) {
             this.play(parts.join('_'), true)
-            // send new location and anim to server
             network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
           }
         }
@@ -186,7 +269,7 @@ export default class MyPlayer extends Player {
         // back to idle if player press E while sitting
         if (Phaser.Input.Keyboard.JustDown(keyE)) {
           const parts = this.anims.currentAnim.key.split('_')
-          parts[1] = 'idle'
+          parts[parts.length - 2] = 'idle'
           this.play(parts.join('_'), true)
           this.playerBehavior = PlayerBehavior.IDLE
           this.chairOnSit?.clearDialogBox()

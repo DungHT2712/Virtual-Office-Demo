@@ -1,9 +1,17 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { sanitizeId } from '../util'
 import { BackgroundMode } from '../../../types/BackgroundMode'
+import { OutfitType } from '../../../types/IOfficeState'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
+
+export interface UserCustomizationState {
+  skinColor: string
+  hairColor: string
+  outfitType: OutfitType
+  outfitColor: string
+}
 
 export function getInitialBackgroundMode() {
   const currentHour = new Date().getHours()
@@ -19,6 +27,10 @@ export const userSlice = createSlice({
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
+    skinColor: '#f5cfa0',
+    hairColor: '#4a3728',
+    outfitType: 'casual' as OutfitType,
+    outfitColor: '#3b82f6',
   },
   reducers: {
     toggleBackgroundMode: (state) => {
@@ -47,6 +59,20 @@ export const userSlice = createSlice({
     setShowJoystick: (state, action: PayloadAction<boolean>) => {
       state.showJoystick = action.payload
     },
+    setAvatarCustomization: (
+      state,
+      action: PayloadAction<{
+        skinColor?: string
+        hairColor?: string
+        outfitType?: OutfitType
+        outfitColor?: string
+      }>
+    ) => {
+      if (action.payload.skinColor !== undefined) state.skinColor = action.payload.skinColor
+      if (action.payload.hairColor !== undefined) state.hairColor = action.payload.hairColor
+      if (action.payload.outfitType !== undefined) state.outfitType = action.payload.outfitType
+      if (action.payload.outfitColor !== undefined) state.outfitColor = action.payload.outfitColor
+    },
   },
 })
 
@@ -58,6 +84,7 @@ export const {
   setPlayerNameMap,
   removePlayerNameMap,
   setShowJoystick,
+  setAvatarCustomization,
 } = userSlice.actions
 
 export default userSlice.reducer
