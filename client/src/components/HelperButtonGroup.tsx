@@ -14,12 +14,11 @@ import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 import GitHubIcon from '@mui/icons-material/GitHub'
 import TwitterIcon from '@mui/icons-material/Twitter'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
-import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
-import NearMeIcon from '@mui/icons-material/NearMe'
 import KeyboardIcon from '@mui/icons-material/Keyboard'
+import NearMeIcon from '@mui/icons-material/NearMe'
 
 import { BackgroundMode } from '../../../types/BackgroundMode'
-import { setShowJoystick, setMovementMode, toggleBackgroundMode, MovementMode } from '../stores/UserStore'
+import { MovementMode, setMovementMode, toggleBackgroundMode } from '../stores/UserStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { getAvatarString, getColorByString } from '../util'
 
@@ -132,13 +131,9 @@ export default function HelperButtonGroup() {
                 dispatch(setMovementMode(nextMode))
               }}
             >
-              {movementMode === 'joystick' ? (
-                <VideogameAssetIcon />
-              ) : movementMode === 'wasd' ? (
-                <KeyboardIcon />
-              ) : (
-                <NearMeIcon />
-              )}
+              {movementMode === 'joystick' && <VideogameAssetIcon />}
+              {movementMode === 'wasd' && <KeyboardIcon />}
+              {movementMode === 'mouse' && <NearMeIcon />}
             </StyledFab>
           </Tooltip>
         )}

@@ -24,6 +24,9 @@ export default class MyPlayer extends Player {
   public joystickMovement?: JoystickMovement
   private pathWaypoints: GridPoint[] = []
 
+  public virtualButtonE: boolean = false
+  public virtualButtonR: boolean = false
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -78,7 +81,13 @@ export default class MyPlayer extends Player {
 
     const item = playerSelector.selectedItem
 
-    if (Phaser.Input.Keyboard.JustDown(keyR)) {
+    const isEJustDown = Phaser.Input.Keyboard.JustDown(keyE) || this.virtualButtonE
+    const isRJustDown = Phaser.Input.Keyboard.JustDown(keyR) || this.virtualButtonR
+
+    this.virtualButtonE = false
+    this.virtualButtonR = false
+
+    if (isRJustDown) {
       switch (item?.itemType) {
         case ItemType.COMPUTER:
           const computer = item as Computer
@@ -99,7 +108,7 @@ export default class MyPlayer extends Player {
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         // if press E in front of selected chair
-        if (Phaser.Input.Keyboard.JustDown(keyE) && item?.itemType === ItemType.CHAIR) {
+        if (isEJustDown && item?.itemType === ItemType.CHAIR) {
           const chairItem = item as Chair
           /**
            * move player to the chair and play sit animation
@@ -145,50 +154,30 @@ export default class MyPlayer extends Player {
           return
         }
 
-        const isManualMoving =
-          cursors.left?.isDown ||
-          cursors.A?.isDown ||
-          cursors.right?.isDown ||
-          cursors.D?.isDown ||
-          cursors.up?.isDown ||
-          cursors.W?.isDown ||
-          cursors.down?.isDown ||
-          cursors.S?.isDown ||
-          (this.joystickMovement?.isMoving ?? false)
+        const movementMode = store.getState().user.movementMode
+
+        let isManualMoving = false
+        const speed = 200
+        let vx = 0
+        let vy = 0
+
+        if (movementMode === 'wasd') {
+          if (cursors.left?.isDown || cursors.A?.isDown) { vx -= speed; isManualMoving = true }
+          if (cursors.right?.isDown || cursors.D?.isDown) { vx += speed; isManualMoving = true }
+          if (cursors.up?.isDown || cursors.W?.isDown) { vy -= speed; isManualMoving = true; this.setDepth(this.y) }
+          if (cursors.down?.isDown || cursors.S?.isDown) { vy += speed; isManualMoving = true; this.setDepth(this.y) }
+        } else if (movementMode === 'joystick' && this.joystickMovement?.isMoving) {
+          isManualMoving = true
+          if (this.joystickMovement.direction.left) vx -= speed
+          if (this.joystickMovement.direction.right) vx += speed
+          if (this.joystickMovement.direction.up) { vy -= speed; this.setDepth(this.y) }
+          if (this.joystickMovement.direction.down) { vy += speed; this.setDepth(this.y) }
+        }
 
         if (isManualMoving) {
           this.clearMovePath()
-
-          const speed = 200
-          let vx = 0
-          let vy = 0
-
-          let joystickLeft = false
-          let joystickRight = false
-          let joystickUp = false
-          let joystickDown = false
-
-          if (this.joystickMovement?.isMoving) {
-            joystickLeft = this.joystickMovement.direction.left
-            joystickRight = this.joystickMovement.direction.right
-            joystickUp = this.joystickMovement.direction.up
-            joystickDown = this.joystickMovement.direction.down
-          }
-
-          if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) vx -= speed
-          if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) vx += speed
-          if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-            vy -= speed
-            this.setDepth(this.y) //change player.depth if player.y changes
-          }
-          if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-            vy += speed
-            this.setDepth(this.y) //change player.depth if player.y changes
-          }
-          // update character velocity
-          this.setVelocity(vx, vy)
           this.body.velocity.setLength(speed)
-          // also update playerNameContainer velocity
+          this.setVelocity(vx, vy)
           this.playContainerBody.setVelocity(vx, vy)
           this.playContainerBody.velocity.setLength(speed)
 
@@ -213,7 +202,7 @@ export default class MyPlayer extends Player {
               network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
             }
           }
-        } else if (this.pathWaypoints.length > 0) {
+        } else if (this.pathWaypoints.length > 0 && movementMode === 'mouse') {
           const target = this.pathWaypoints[0]
           const dx = target.x - this.x
           const dy = target.y - (this.y + this.height * 0.25)
@@ -271,7 +260,7 @@ export default class MyPlayer extends Player {
 
       case PlayerBehavior.SITTING:
         // back to idle if player press E while sitting
-        if (Phaser.Input.Keyboard.JustDown(keyE)) {
+        if (isEJustDown) {
           const parts = this.anims.currentAnim.key.split('_')
           parts[parts.length - 2] = 'idle'
           this.play(parts.join('_'), true)

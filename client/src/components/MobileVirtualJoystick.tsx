@@ -86,36 +86,21 @@ export default function MobileVirtualJoystick() {
     game.myPlayer?.handleJoystickMovement(movement)
   }
 
-  const triggerKey = (keyName: string) => {
-    const scene = phaserGame.scene.keys.game as Game
-    if (!scene || !scene.input || !scene.input.keyboard) return
-    scene.input.keyboard.emit(`keydown-${keyName}`)
-    window.dispatchEvent(
-      new KeyboardEvent('keydown', {
-        key: keyName.toLowerCase(),
-        code: `Key${keyName}`,
-        bubbles: true,
-      })
-    )
-    window.setTimeout(() => {
-      window.dispatchEvent(
-        new KeyboardEvent('keyup', {
-          key: keyName.toLowerCase(),
-          code: `Key${keyName}`,
-          bubbles: true,
-        })
-      )
-    }, 100)
+  const triggerAction = (action: 'E' | 'R') => {
+    if (game && game.myPlayer) {
+      if (action === 'E') game.myPlayer.virtualButtonE = true
+      if (action === 'R') game.myPlayer.virtualButtonR = true
+    }
   }
 
   return (
     <>
       {!(showChat && hasSmallScreen) && showJoystick && (
         <LeftActionBackdrop>
-          <ActionButton onClick={() => triggerKey('E')} title="Sit / Leave (E)">
+          <ActionButton onClick={() => triggerAction('E')} title="Sit / Leave (E)">
             E
           </ActionButton>
-          <ActionButton onClick={() => triggerKey('R')} title="Use Computer / Whiteboard (R)">
+          <ActionButton onClick={() => triggerAction('R')} title="Use Computer / Whiteboard (R)">
             R
           </ActionButton>
         </LeftActionBackdrop>

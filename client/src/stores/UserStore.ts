@@ -29,7 +29,7 @@ export const userSlice = createSlice({
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
-    movementMode: 'mouse' as MovementMode,
+    movementMode: (window.innerWidth < 650 ? 'joystick' : 'mouse') as MovementMode,
     skinColor: '#f5cfa0',
     hairColor: '#4a3728',
     outfitType: 'casual' as OutfitType,
