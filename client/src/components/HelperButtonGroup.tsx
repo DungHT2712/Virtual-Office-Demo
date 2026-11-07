@@ -29,11 +29,17 @@ const Backdrop = styled.div`
   bottom: 16px;
   right: 16px;
   align-items: flex-end;
+  pointer-events: none !important;
 
   .wrapper-group {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    pointer-events: auto;
+  }
+
+  & > * {
+    pointer-events: auto;
   }
 `
 

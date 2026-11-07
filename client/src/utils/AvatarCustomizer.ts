@@ -95,8 +95,9 @@ function recolorPixel(
         b: Math.min(255, Math.round(skinRgb.b * shade)),
       }
     } else {
-      // Mở rộng toàn bộ vùng tóc để không bị sót phần lõi bên trong
-      const shade = Math.min(1.35, Math.max(0.40, l / 0.50))
+      // Sửa đổi 1: Bắt toàn bộ dải sáng để tô cả phần lõi (Lightness l) của tóc
+      // Lấy màu gốc của tóc, sử dụng độ tương phản cao hơn
+      const shade = Math.min(1.5, Math.max(0.3, l / 0.5))
       return {
         r: Math.min(255, Math.round(hairRgb.r * shade)),
         g: Math.min(255, Math.round(hairRgb.g * shade)),

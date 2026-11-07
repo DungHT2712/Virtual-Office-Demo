@@ -14,6 +14,7 @@ const Backdrop = styled.div`
   right: 32px;
   max-height: 50%;
   max-width: 100%;
+  pointer-events: none !important;
 `
 
 const Wrapper = styled.div`
@@ -22,11 +23,13 @@ const Wrapper = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 `
 
 const JoystickWrapper = styled.div`
   margin-top: auto;
   align-self: flex-end;
+  pointer-events: auto;
 `
 export const minimumScreenWidthSize = 650 //px
 

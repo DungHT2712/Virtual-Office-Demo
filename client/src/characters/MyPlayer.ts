@@ -19,7 +19,6 @@ import { GridPoint } from '../utils/Pathfinder'
 import { IAvatarCustomization } from '../../../types/IOfficeState'
 
 export default class MyPlayer extends Player {
-  private playContainerBody: Phaser.Physics.Arcade.Body
   private chairOnSit?: Chair
   public joystickMovement?: JoystickMovement
   private pathWaypoints: GridPoint[] = []
@@ -36,7 +35,7 @@ export default class MyPlayer extends Player {
     frame?: string | number
   ) {
     super(scene, x, y, texture, id, frame)
-    this.playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
+    // Đã gỡ bỏ playContainerBody
   }
 
   setPlayerName(name: string) {
@@ -126,8 +125,7 @@ export default class MyPlayer extends Player {
                   chairItem.x + sittingShiftData[chairItem.itemDirection][0],
                   chairItem.y + sittingShiftData[chairItem.itemDirection][1]
                 ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
-                // also update playerNameContainer velocity and position
-                this.playContainerBody.setVelocity(0, 0)
+                // Cập nhật thủ công tọa độ (Không set velocity nữa)
                 this.playerContainer.setPosition(
                   chairItem.x + sittingShiftData[chairItem.itemDirection][0],
                   chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
@@ -178,8 +176,6 @@ export default class MyPlayer extends Player {
           this.clearMovePath()
           this.body.velocity.setLength(speed)
           this.setVelocity(vx, vy)
-          this.playContainerBody.setVelocity(vx, vy)
-          this.playContainerBody.velocity.setLength(speed)
 
           // update animation according to velocity and send new location and anim to server
           if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
@@ -214,9 +210,7 @@ export default class MyPlayer extends Player {
             this.pathWaypoints.shift()
             if (this.pathWaypoints.length === 0) {
               this.setPosition(target.x, target.y - this.height * 0.25)
-              this.playerContainer.setPosition(target.x, target.y - this.height * 0.25 - 30)
               this.setVelocity(0, 0)
-              this.playContainerBody.setVelocity(0, 0)
               const parts = this.anims.currentAnim.key.split('_')
               parts[parts.length - 2] = 'idle'
               this.play(parts.join('_'), true)
@@ -227,7 +221,6 @@ export default class MyPlayer extends Player {
             const vx = (dx / dist) * speed
             const vy = (dy / dist) * speed
             this.setVelocity(vx, vy)
-            this.playContainerBody.setVelocity(vx, vy)
             this.setDepth(this.y)
 
             if (Math.abs(vx) > Math.abs(vy)) {
@@ -247,7 +240,6 @@ export default class MyPlayer extends Player {
           }
         } else {
           this.setVelocity(0, 0)
-          this.playContainerBody.setVelocity(0, 0)
           const parts = this.anims.currentAnim.key.split('_')
           parts[parts.length - 2] = 'idle'
           const newAnim = parts.join('_')
@@ -256,6 +248,9 @@ export default class MyPlayer extends Player {
             network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
           }
         }
+
+        // Sửa đổi 3.1: Neo cứng tọa độ của tên theo tọa độ hiện tại của nhân vật
+        this.playerContainer.setPosition(this.x, this.y - 30)
         break
 
       case PlayerBehavior.SITTING:

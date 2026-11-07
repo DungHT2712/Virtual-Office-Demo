@@ -26,6 +26,7 @@ const Backdrop = styled.div`
   width: 500px;
   max-height: 50%;
   max-width: 100%;
+  pointer-events: none !important;
 `
 
 const Wrapper = styled.div`
@@ -34,10 +35,12 @@ const Wrapper = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
 `
 
 const FabWrapper = styled.div`
   margin-top: auto;
+  pointer-events: auto;
 `
 
 const ChatHeader = styled.div`

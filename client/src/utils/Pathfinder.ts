@@ -173,6 +173,10 @@ export class Pathfinder {
     if (!validTarget) return []
 
     if (validStart.x === validTarget.x && validStart.y === validTarget.y) {
+      const dist = Math.hypot(targetWorldX - startWorldX, targetWorldY - startWorldY)
+      if (dist > 8 && this.isWalkable(rawTargetTile.x, rawTargetTile.y)) {
+        return [{ x: targetWorldX, y: targetWorldY }]
+      }
       return []
     }
 
@@ -213,6 +217,9 @@ export class Pathfinder {
         while (curr && (curr.x !== validStart.x || curr.y !== validStart.y)) {
           path.unshift(this.tileToWorldCenter(curr.x, curr.y))
           curr = curr.parent
+        }
+        if (path.length > 0 && this.isWalkable(rawTargetTile.x, rawTargetTile.y)) {
+          path[path.length - 1] = { x: targetWorldX, y: targetWorldY }
         }
         return path
       }

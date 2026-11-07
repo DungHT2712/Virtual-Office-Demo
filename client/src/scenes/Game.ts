@@ -155,8 +155,8 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.zoom = 1.5
     this.cameras.main.startFollow(this.myPlayer, true)
 
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], groundLayer)
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], vendingMachines)
+    this.physics.add.collider(this.myPlayer, groundLayer)
+    this.physics.add.collider(this.myPlayer, vendingMachines)
 
     this.physics.add.overlap(
       this.playerSelector,
@@ -200,8 +200,8 @@ export default class Game extends Phaser.Scene {
     this.targetMarker.setDepth(9999)
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // Chỉ xử lý click chuột trái và khi đã đăng nhập vào phòng
-      if (pointer.rightButtonDown() || !this.myPlayer || !this.pathfinder) return
+      // Sửa đổi 2: Bắt buộc chỉ xử lý click chuột TRÁI (button === 0)
+      if (pointer.button !== 0 || !this.myPlayer || !this.pathfinder) return
       if (this.myPlayer.playerBehavior === PlayerBehavior.SITTING) return
 
       const state = store.getState()
@@ -211,15 +211,21 @@ export default class Game extends Phaser.Scene {
 
       // Bỏ qua nếu click vào các phần tử DOM giao diện HTML (Chat, Dialog, Button...)
       const evtTarget = pointer.event?.target as HTMLElement | null
-      if (evtTarget && evtTarget !== this.game.canvas) return
+      if (evtTarget && evtTarget !== this.game.canvas && evtTarget.tagName !== 'CANVAS') return
 
       // Tọa độ chân nhân vật làm gốc tìm đường
       const footY = this.myPlayer.y + this.myPlayer.height * 0.25
+
+      // Chuyển đổi chính xác toạ độ màn hình sang toạ độ World theo Camera chính của Game (tính cả Zoom 1.5x & Scroll)
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+      const worldX = worldPoint.x
+      const worldY = worldPoint.y
+
       const path = this.pathfinder.findPath(
         this.myPlayer.x,
         footY,
-        pointer.worldX,
-        pointer.worldY
+        worldX,
+        worldY
       )
 
       if (path.length > 0) {
@@ -290,7 +296,7 @@ export default class Game extends Phaser.Scene {
         .setDepth(actualY)
     })
     if (this.myPlayer && collidable)
-      this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], group)
+      this.physics.add.collider(this.myPlayer, group)
     return group
   }
 
