@@ -206,6 +206,7 @@ export default class Game extends Phaser.Scene {
 
       const state = store.getState()
       if (!state.user.loggedIn) return
+      if (state.user.movementMode !== 'mouse') return
       if (state.computer.computerDialogOpen || state.whiteboard.whiteboardDialogOpen) return
 
       // Bỏ qua nếu click vào các phần tử DOM giao diện HTML (Chat, Dialog, Button...)

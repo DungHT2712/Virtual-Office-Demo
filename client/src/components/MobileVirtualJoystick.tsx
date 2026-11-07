@@ -42,6 +42,38 @@ const isSmallScreen = (smallScreenSize: number) => {
   return width <= smallScreenSize
 }
 
+const LeftActionBackdrop = styled.div`
+  position: fixed;
+  bottom: 32px;
+  left: 32px;
+  display: flex;
+  gap: 12px;
+  z-index: 1000;
+`
+
+const ActionButton = styled.button`
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(34, 38, 57, 0.88);
+  border: 2px solid #42eacb;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s;
+
+  &:active {
+    transform: scale(0.92);
+    background: #42eacb;
+    color: #000;
+  }
+`
+
 export default function MobileVirtualJoystick() {
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
   const showChat = useAppSelector((state) => state.chat.showChat)
@@ -54,15 +86,49 @@ export default function MobileVirtualJoystick() {
     game.myPlayer?.handleJoystickMovement(movement)
   }
 
+  const triggerKey = (keyName: string) => {
+    const scene = phaserGame.scene.keys.game as Game
+    if (!scene || !scene.input || !scene.input.keyboard) return
+    scene.input.keyboard.emit(`keydown-${keyName}`)
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: keyName.toLowerCase(),
+        code: `Key${keyName}`,
+        bubbles: true,
+      })
+    )
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keyup', {
+          key: keyName.toLowerCase(),
+          code: `Key${keyName}`,
+          bubbles: true,
+        })
+      )
+    }, 100)
+  }
+
   return (
-    <Backdrop>
-      <Wrapper>
-        {!(showChat && hasSmallScreen) && showJoystick && (
-          <JoystickWrapper>
-            <JoystickItem onDirectionChange={handleMovement}></JoystickItem>
-          </JoystickWrapper>
-        )}
-      </Wrapper>
-    </Backdrop>
+    <>
+      {!(showChat && hasSmallScreen) && showJoystick && (
+        <LeftActionBackdrop>
+          <ActionButton onClick={() => triggerKey('E')} title="Sit / Leave (E)">
+            E
+          </ActionButton>
+          <ActionButton onClick={() => triggerKey('R')} title="Use Computer / Whiteboard (R)">
+            R
+          </ActionButton>
+        </LeftActionBackdrop>
+      )}
+      <Backdrop>
+        <Wrapper>
+          {!(showChat && hasSmallScreen) && showJoystick && (
+            <JoystickWrapper>
+              <JoystickItem onDirectionChange={handleMovement}></JoystickItem>
+            </JoystickWrapper>
+          )}
+        </Wrapper>
+      </Backdrop>
+    </>
   )
 }

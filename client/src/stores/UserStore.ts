@@ -18,6 +18,8 @@ export function getInitialBackgroundMode() {
   return currentHour > 6 && currentHour <= 18 ? BackgroundMode.DAY : BackgroundMode.NIGHT
 }
 
+export type MovementMode = 'mouse' | 'wasd' | 'joystick'
+
 export const userSlice = createSlice({
   name: 'user',
   initialState: {
@@ -27,6 +29,7 @@ export const userSlice = createSlice({
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
+    movementMode: 'mouse' as MovementMode,
     skinColor: '#f5cfa0',
     hairColor: '#4a3728',
     outfitType: 'casual' as OutfitType,
@@ -59,6 +62,10 @@ export const userSlice = createSlice({
     setShowJoystick: (state, action: PayloadAction<boolean>) => {
       state.showJoystick = action.payload
     },
+    setMovementMode: (state, action: PayloadAction<MovementMode>) => {
+      state.movementMode = action.payload
+      state.showJoystick = action.payload === 'joystick'
+    },
     setAvatarCustomization: (
       state,
       action: PayloadAction<{
@@ -84,6 +91,7 @@ export const {
   setPlayerNameMap,
   removePlayerNameMap,
   setShowJoystick,
+  setMovementMode,
   setAvatarCustomization,
 } = userSlice.actions
 

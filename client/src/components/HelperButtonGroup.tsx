@@ -15,9 +15,11 @@ import GitHubIcon from '@mui/icons-material/GitHub'
 import TwitterIcon from '@mui/icons-material/Twitter'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
+import NearMeIcon from '@mui/icons-material/NearMe'
+import KeyboardIcon from '@mui/icons-material/Keyboard'
 
 import { BackgroundMode } from '../../../types/BackgroundMode'
-import { setShowJoystick, toggleBackgroundMode } from '../stores/UserStore'
+import { setShowJoystick, setMovementMode, toggleBackgroundMode, MovementMode } from '../stores/UserStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { getAvatarString, getColorByString } from '../util'
 
@@ -109,6 +111,7 @@ export default function HelperButtonGroup() {
   const [showControlGuide, setShowControlGuide] = useState(false)
   const [showRoomInfo, setShowRoomInfo] = useState(false)
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
+  const movementMode = useAppSelector((state) => state.user.movementMode)
   const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
   const roomId = useAppSelector((state) => state.room.roomId)
@@ -120,9 +123,22 @@ export default function HelperButtonGroup() {
     <Backdrop>
       <div className="wrapper-group">
         {roomJoined && (
-          <Tooltip title={showJoystick ? 'Disable virtual joystick' : 'Enable virtual joystick'}>
-            <StyledFab size="small" onClick={() => dispatch(setShowJoystick(!showJoystick))}>
-              {showJoystick ? <VideogameAssetOffIcon /> : <VideogameAssetIcon />}
+          <Tooltip title={`Movement Mode: ${movementMode.toUpperCase()} (Click to switch)`}>
+            <StyledFab
+              size="small"
+              onClick={() => {
+                const modes: MovementMode[] = ['mouse', 'wasd', 'joystick']
+                const nextMode = modes[(modes.indexOf(movementMode) + 1) % modes.length]
+                dispatch(setMovementMode(nextMode))
+              }}
+            >
+              {movementMode === 'joystick' ? (
+                <VideogameAssetIcon />
+              ) : movementMode === 'wasd' ? (
+                <KeyboardIcon />
+              ) : (
+                <NearMeIcon />
+              )}
             </StyledFab>
           </Tooltip>
         )}
