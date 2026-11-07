@@ -73,8 +73,8 @@ function recolorPixel(
 ): RGB {
   const [h, s, l] = rgbToHsl(r, g, b)
 
-  // Giữ nguyên viền đen mắt/miệng trên khuôn mặt (localY <= 24)
-  if (l < 0.08 && localY <= 24) {
+  // Giữ nguyên viền đen mắt/miệng trên khuôn mặt (localY <= 25)
+  if (l < 0.08 && localY <= 25) {
     return { r, g, b }
   }
 
@@ -83,10 +83,20 @@ function recolorPixel(
     return { r, g, b }
   }
 
-  // Kiểm tra tông màu da gốc (warm peach/tan: Hue 10..45, Saturation > 0.22, Lightness > 0.42)
-  const isSkinTone = h >= 10 && h <= 45 && s >= 0.22 && l >= 0.42 && r > g && g > b
+  // Tông màu da gốc: Chỉ xuất hiện từ hàng 14 trở xuống, có độ sáng cao (L >= 0.60)
+  // (Tránh nhầm lẫn với tóc vàng/nâu của Ash và Lucy có L từ 0.40 đến 0.58)
+  const isSkinTone =
+    localY >= 14 && h >= 10 && h <= 45 && s >= 0.22 && l >= 0.60 && r > g && g > b
 
-  if (localY <= 24) {
+  // Vùng tóc kéo dài xuống hàng 28 (đặc biệt tóc dài của Lucy, Nancy và góc nhìn từ sau lưng)
+  const isHairBelow =
+    localY <= 28 &&
+    ((h >= 15 && h <= 35 && s >= 0.22 && l < 0.60 && r > g && g > b) || // Tóc nâu/vàng của Ash & Lucy
+      (h >= 10 && h <= 20 && s >= 0.20 && l < 0.50 && r > g && g > b) || // Tóc nâu đỏ của Nancy
+      (h >= 55 && h <= 95 && l < 0.55) || // Tóc rêu/xanh của Adam
+      (h >= 220 && h <= 250 && s < 0.20 && l >= 0.25 && l <= 0.45)) // Viền/bóng tóc xanh tối
+
+  if (localY <= 25 || isHairBelow) {
     if (isSkinTone) {
       const shade = Math.min(1.25, Math.max(0.65, l / 0.72))
       return {
@@ -95,9 +105,8 @@ function recolorPixel(
         b: Math.min(255, Math.round(skinRgb.b * shade)),
       }
     } else {
-      // Sửa đổi 1: Bắt toàn bộ dải sáng để tô cả phần lõi (Lightness l) của tóc
-      // Lấy màu gốc của tóc, sử dụng độ tương phản cao hơn
-      const shade = Math.min(1.5, Math.max(0.3, l / 0.5))
+      // Tô toàn bộ vùng tóc (lõi tóc, viền, highlight, shadow)
+      const shade = Math.min(1.4, Math.max(0.45, l / 0.42))
       return {
         r: Math.min(255, Math.round(hairRgb.r * shade)),
         g: Math.min(255, Math.round(hairRgb.g * shade)),

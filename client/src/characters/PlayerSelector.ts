@@ -34,14 +34,36 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
       joystickUp = player.joystickMovement?.direction.up
       joystickDown = player.joystickMovement?.direction.down
     }
+
+    let dir = ''
     if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) {
-      this.setPosition(x - 32, y)
+      dir = 'left'
     } else if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) {
-      this.setPosition(x + 32, y)
+      dir = 'right'
     } else if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-      this.setPosition(x, y - 32)
+      dir = 'up'
     } else if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-      this.setPosition(x, y + 32)
+      dir = 'down'
+    } else if (player.anims?.currentAnim?.key) {
+      // Ở chế độ chuột hoặc khi đứng yên: lấy hướng nhìn từ animation hiện tại của nhân vật
+      const parts = player.anims.currentAnim.key.split('_')
+      dir = parts[parts.length - 1]
+    }
+
+    switch (dir) {
+      case 'left':
+        this.setPosition(x - 32, y)
+        break
+      case 'right':
+        this.setPosition(x + 32, y)
+        break
+      case 'up':
+        this.setPosition(x, y - 32)
+        break
+      case 'down':
+      default:
+        this.setPosition(x, y + 32)
+        break
     }
 
     // while currently selecting an item,

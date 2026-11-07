@@ -108,6 +108,7 @@ export default class MyPlayer extends Player {
       case PlayerBehavior.IDLE:
         // if press E in front of selected chair
         if (isEJustDown && item?.itemType === ItemType.CHAIR) {
+          this.clearMovePath()
           const chairItem = item as Chair
           /**
            * move player to the chair and play sit animation
