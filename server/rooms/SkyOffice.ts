@@ -16,6 +16,16 @@ import {
   WhiteboardRemoveUserCommand,
 } from './commands/WhiteboardUpdateArrayCommand'
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
+import {
+  ResizeWorkspaceCommand,
+  UpdateRoomCommand,
+  RemoveRoomCommand,
+  PlaceFurnitureCommand,
+  RemoveFurnitureCommand,
+} from './commands/DesignCommands'
+import { RoomState } from './schema/RoomState'
+import { FurnitureState } from './schema/FurnitureState'
+import { saveWorkspace } from '../data/workspaceStorage'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -24,10 +34,11 @@ export class SkyOffice extends Room<OfficeState> {
   private password: string | null = null
 
   async onCreate(options: IRoomData) {
-    const { name, description, password, autoDispose } = options
+    const { name, description, password } = options
     this.name = name
     this.description = description
-    this.autoDispose = autoDispose
+    // Luôn giữ phòng để lưu trong Manage Workspace kể cả khi người chơi tạm rời đi
+    this.autoDispose = false
 
     let hasPassword = false
     if (password) {
@@ -37,7 +48,23 @@ export class SkyOffice extends Room<OfficeState> {
     }
     this.setMetadata({ name, description, hasPassword })
 
+    saveWorkspace({
+      id: this.roomId,
+      name,
+      description,
+      hasPassword,
+      createdAt: Date.now(),
+    })
+
     this.setState(new OfficeState())
+
+    // Thiết lập kích thước Workspace đúng theo kích thước được chọn khi tạo phòng
+    const sizeType = options.sizeType || 'MEDIUM'
+    let width = options.width || (sizeType === 'SMALL' ? 20 : sizeType === 'LARGE' ? 40 : 30)
+    let height = options.height || (sizeType === 'SMALL' ? 20 : sizeType === 'LARGE' ? 40 : 30)
+    this.state.workspace.sizeType = sizeType
+    this.state.workspace.width = width
+    this.state.workspace.height = height
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
@@ -189,6 +216,73 @@ export class SkyOffice extends Room<OfficeState> {
         { clientId: client.sessionId, content: message.content },
         { except: client }
       )
+    })
+
+    // Mapmaker Commands Listeners
+    this.onMessage(
+      Message.RESIZE_WORKSPACE,
+      (client, message: { width: number; height: number; sizeType: string }) => {
+        this.dispatcher.dispatch(new ResizeWorkspaceCommand(), {
+          client,
+          width: message.width,
+          height: message.height,
+          sizeType: message.sizeType,
+        })
+      }
+    )
+
+    this.onMessage(
+      Message.UPDATE_ROOM,
+      (
+        client,
+        message: {
+          id: string
+          roomType: string
+          name: string
+          gridX: number
+          gridY: number
+          width: number
+          height: number
+        }
+      ) => {
+        this.dispatcher.dispatch(new UpdateRoomCommand(), {
+          client,
+          ...message,
+        })
+      }
+    )
+
+    this.onMessage(Message.REMOVE_ROOM, (client, message: { id: string }) => {
+      this.dispatcher.dispatch(new RemoveRoomCommand(), {
+        client,
+        id: message.id,
+      })
+    })
+
+    this.onMessage(
+      Message.PLACE_FURNITURE,
+      (
+        client,
+        message: {
+          id: string
+          itemType: string
+          gridX: number
+          gridY: number
+          orientation?: number
+        }
+      ) => {
+        this.dispatcher.dispatch(new PlaceFurnitureCommand(), {
+          client,
+          ...message,
+        })
+      }
+    )
+
+    this.onMessage(Message.REMOVE_FURNITURE, (client, message: { id: string }) => {
+      this.dispatcher.dispatch(new RemoveFurnitureCommand(), {
+        client,
+        id: message.id,
+      })
     })
   }
 

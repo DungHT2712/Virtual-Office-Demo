@@ -3,6 +3,7 @@ import MyPlayer from './MyPlayer'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import Item from '../items/Item'
 import { NavKeys } from '../../../types/KeyboardState'
+import store from '../stores'
 export default class PlayerSelector extends Phaser.GameObjects.Zone {
   selectedItem?: Item
 
@@ -36,34 +37,45 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
     }
 
     let dir = ''
-    if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) {
-      dir = 'left'
-    } else if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) {
-      dir = 'right'
-    } else if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-      dir = 'up'
-    } else if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-      dir = 'down'
-    } else if (player.anims?.currentAnim?.key) {
-      // Ở chế độ chuột hoặc khi đứng yên: lấy hướng nhìn từ animation hiện tại của nhân vật
-      const parts = player.anims.currentAnim.key.split('_')
-      dir = parts[parts.length - 1]
-    }
+    const movementMode = store.getState().user.movementMode
 
-    switch (dir) {
-      case 'left':
-        this.setPosition(x - 32, y)
-        break
-      case 'right':
-        this.setPosition(x + 32, y)
-        break
-      case 'up':
-        this.setPosition(x, y - 32)
-        break
-      case 'down':
-      default:
-        this.setPosition(x, y + 32)
-        break
+    if (movementMode === 'mouse') {
+      // Trong chế độ Mouse: Mở rộng vùng tương tác 360 độ quanh nhân vật (bán kính tương tác)
+      // Giúp người chơi dù đứng hướng nào cũng có thể tương tác bấm E và R dễ dàng
+      this.setPosition(x, y)
+      ;(this.body as Phaser.Physics.Arcade.Body).setSize(64, 64)
+      ;(this.body as Phaser.Physics.Arcade.Body).center.set(x, y)
+    } else {
+      ;(this.body as Phaser.Physics.Arcade.Body).setSize(16, 16)
+      if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) {
+        dir = 'left'
+      } else if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) {
+        dir = 'right'
+      } else if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
+        dir = 'up'
+      } else if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
+        dir = 'down'
+      } else if (player.anims?.currentAnim?.key) {
+        // Lấy hướng nhìn từ animation hiện tại của nhân vật
+        const parts = player.anims.currentAnim.key.split('_')
+        dir = parts[parts.length - 1]
+      }
+
+      switch (dir) {
+        case 'left':
+          this.setPosition(x - 32, y)
+          break
+        case 'right':
+          this.setPosition(x + 32, y)
+          break
+        case 'up':
+          this.setPosition(x, y - 32)
+          break
+        case 'down':
+        default:
+          this.setPosition(x, y + 32)
+          break
+      }
     }
 
     // while currently selecting an item,

@@ -105,12 +105,14 @@ function recolorPixel(
         b: Math.min(255, Math.round(skinRgb.b * shade)),
       }
     } else {
-      // Tô toàn bộ vùng tóc (lõi tóc, viền, highlight, shadow)
-      const shade = Math.min(1.4, Math.max(0.45, l / 0.42))
+      // Sửa lỗi đổi màu tóc: Đổi màu TOÀN BỘ BỘ TÓC (cả lõi tóc, bóng đổ và highlight)
+      // Ánh xạ mốc midtone tóc gốc (~0.36) làm mốc 1.0 để hiển thị chuẩn 100% màu tóc người dùng chọn
+      const hairNorm = (l - 0.20) / 0.26
+      const hairShade = Math.min(1.25, Math.max(0.75, 0.75 + hairNorm * 0.45))
       return {
-        r: Math.min(255, Math.round(hairRgb.r * shade)),
-        g: Math.min(255, Math.round(hairRgb.g * shade)),
-        b: Math.min(255, Math.round(hairRgb.b * shade)),
+        r: Math.min(255, Math.round(hairRgb.r * hairShade)),
+        g: Math.min(255, Math.round(hairRgb.g * hairShade)),
+        b: Math.min(255, Math.round(hairRgb.b * hairShade)),
       }
     }
   } else {
@@ -129,32 +131,49 @@ function recolorPixel(
       return { r, g, b }
     }
 
-    // Xử lý kiểu trang phục (casual / suit / dress)
+    // Xử lý kiểu trang phục: Casual (bình thường) hoặc Worker (đồ vest)
     const shade = Math.min(1.25, Math.max(0.45, l / 0.5))
 
-    if (outfitType === 'suit') {
-      // Đồ vest: quần và áo khoác đồng màu đậm lịch lãm
-      return {
-        r: Math.min(255, Math.round(outfitRgb.r * shade * 0.9)),
-        g: Math.min(255, Math.round(outfitRgb.g * shade * 0.9)),
-        b: Math.min(255, Math.round(outfitRgb.b * shade * 0.9)),
-      }
-    }
+    if (outfitType === 'worker' || outfitType === 'suit') {
+      // ĐỒ VEST CÔNG SỞ (WORKER SUIT): Thiết kế phẳng phiu, lịch lãm, tự nhiên chuẩn pixel art
+      if (localY <= 35) {
+        // Áo vest blazer:
+        // Ở vùng ngực trước (localY 25..28), các pixel sáng là cổ áo sơ mi trắng ngà tinh tế
+        const isShirtArea = localY >= 25 && localY <= 28 && l >= 0.52 && s < 0.40
+        if (isShirtArea) {
+          const shirtShade = Math.min(1.1, Math.max(0.75, l / 0.6))
+          return {
+            r: Math.min(255, Math.round(238 * shirtShade)),
+            g: Math.min(255, Math.round(242 * shirtShade)),
+            b: Math.min(255, Math.round(250 * shirtShade)),
+          }
+        }
 
-    if (outfitType === 'dress') {
-      // Váy liền thân: đồng bộ màu phần thân trên và phần chân váy (y từ 24..41), phần ống chân (y 40..42) mang tông da
-      if (localY >= 40 && localY <= 42) {
+        // Toàn bộ thân áo vest: Vải âu cao cấp đồng màu theo outfitRgb
+        const vestShade = Math.min(1.15, Math.max(0.48, l / 0.52))
         return {
-          r: Math.min(255, Math.round(skinRgb.r * 0.92)),
-          g: Math.min(255, Math.round(skinRgb.g * 0.92)),
-          b: Math.min(255, Math.round(skinRgb.b * 0.92)),
+          r: Math.min(255, Math.round(outfitRgb.r * vestShade * 0.95)),
+          g: Math.min(255, Math.round(outfitRgb.g * vestShade * 0.95)),
+          b: Math.min(255, Math.round(outfitRgb.b * vestShade * 0.95)),
+        }
+      } else if (localY === 36) {
+        // Thắt lưng da công sở (Leather belt) thanh lịch
+        const beltShade = Math.min(1.2, Math.max(0.6, l / 0.45))
+        return {
+          r: Math.min(255, Math.round(32 * beltShade)),
+          g: Math.min(255, Math.round(34 * beltShade)),
+          b: Math.min(255, Math.round(42 * beltShade)),
+        }
+      } else if (localY <= 42) {
+        // Quần âu / Quần tây công sở đồng bộ comple (Dress Trousers)
+        const pantShade = Math.min(1.1, Math.max(0.45, l / 0.48))
+        return {
+          r: Math.min(255, Math.round(outfitRgb.r * pantShade * 0.82)),
+          g: Math.min(255, Math.round(outfitRgb.g * pantShade * 0.82)),
+          b: Math.min(255, Math.round(outfitRgb.b * pantShade * 0.82)),
         }
       }
-      return {
-        r: Math.min(255, Math.round(outfitRgb.r * shade)),
-        g: Math.min(255, Math.round(outfitRgb.g * shade)),
-        b: Math.min(255, Math.round(outfitRgb.b * shade)),
-      }
+      return { r, g, b }
     }
 
     // Casual (Quần áo bình thường): đổi màu áo (localY 25..36), quần (localY 37..42) phối màu denim hài hòa
@@ -177,86 +196,19 @@ function recolorPixel(
 }
 
 /**
- * Vẽ thêm chi tiết đặc trưng của Đồ Vest (sơ mi + cà vạt) hoặc Váy liền thân (tà váy chữ A) trên từng frame
+ * Xử lý thêm chi tiết trang phục nếu cần (hiện tại Worker & Casual đã được tô màu chuẩn tỉ lệ trong recolorPixel)
  */
 function applyOutfitOverlayToFrame(
-  ctx: CanvasRenderingContext2D,
-  frameX: number,
-  frameY: number,
-  frameW: number,
-  frameH: number,
-  imgData: ImageData,
-  outfitType: OutfitType,
-  outfitRgb: RGB
+  _ctx: CanvasRenderingContext2D,
+  _frameX: number,
+  _frameY: number,
+  _frameW: number,
+  _frameH: number,
+  _imgData: ImageData,
+  _outfitType: OutfitType,
+  _outfitRgb: RGB
 ) {
-  if (outfitType === 'casual') return
-
-  const data = imgData.data
-  const canvasW = imgData.width
-  const scale = frameH / 48
-  const centerX = frameX + Math.floor(frameW / 2)
-
-  if (outfitType === 'suit') {
-    // Vẽ cổ áo sơ mi trắng và cà vạt đỏ/xanh ở vùng ngực (localY 26..33)
-    const startY = Math.round(26 * scale)
-    const endY = Math.round(33 * scale)
-    const tieStartY = Math.round(28 * scale)
-    const tieEndY = Math.round(32 * scale)
-    const shirtEndY = Math.round(30 * scale)
-
-    for (let ly = startY; ly <= endY; ly++) {
-      const py = frameY + ly
-      for (let dx = -Math.round(2 * scale); dx <= Math.round(2 * scale); dx++) {
-        const px = centerX + dx
-        const idx = (py * canvasW + px) * 4
-        if (data[idx + 3] > 60) {
-          if (Math.abs(dx) <= Math.max(0, Math.floor(0.6 * scale)) && ly >= tieStartY && ly <= tieEndY) {
-            // Cà vạt điểm nhấn đỏ tươi nổi bật
-            data[idx] = 220
-            data[idx + 1] = 38
-            data[idx + 2] = 38
-            data[idx + 3] = 255
-          } else if (Math.abs(dx) <= Math.max(1, Math.round(1 * scale)) && ly <= shirtEndY) {
-            // Áo sơ mi trắng tinh tế bên trong vest
-            data[idx] = 248
-            data[idx + 1] = 250
-            data[idx + 2] = 252
-            data[idx + 3] = 255
-          }
-        }
-      }
-    }
-  } else if (outfitType === 'dress') {
-    // Mở rộng phần tà váy liền thân liền mạch ở vùng hông/chân trên (localY 34..39)
-    const startY = Math.round(34 * scale)
-    const endY = Math.round(39 * scale)
-    for (let ly = startY; ly <= endY; ly++) {
-      const py = frameY + ly
-      let minX = frameW
-      let maxX = 0
-      for (let lx = 0; lx < frameW; lx++) {
-        const idx = (py * canvasW + (frameX + lx)) * 4
-        if (data[idx + 3] > 128) {
-          if (lx < minX) minX = lx
-          if (lx > maxX) maxX = lx
-        }
-      }
-      if (minX <= maxX) {
-        // Lấp đầy khoảng giữa hai ống quần và mở rộng nhẹ tạo dáng váy liền thân
-        const skirtStart = Math.max(0, minX - Math.max(1, Math.round(1 * scale)))
-        const skirtEnd = Math.min(frameW - 1, maxX + Math.max(1, Math.round(1 * scale)))
-        for (let lx = skirtStart; lx <= skirtEnd; lx++) {
-          const idx = (py * canvasW + (frameX + lx)) * 4
-          const isEdge = lx === skirtStart || lx === skirtEnd || ly === endY
-          const factor = isEdge ? 0.82 : 1.0
-          data[idx] = Math.round(outfitRgb.r * factor)
-          data[idx + 1] = Math.round(outfitRgb.g * factor)
-          data[idx + 2] = Math.round(outfitRgb.b * factor)
-          data[idx + 3] = 255
-        }
-      }
-    }
-  }
+  // Không vẽ đè tọa độ tĩnh để bảo vệ độ tự nhiên và xoay 4 hướng của nhân vật
 }
 
 /**

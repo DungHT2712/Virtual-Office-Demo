@@ -20,6 +20,17 @@ export function getInitialBackgroundMode() {
 
 export type MovementMode = 'mouse' | 'wasd' | 'joystick'
 
+// Đọc thông tin đã lưu trữ trước đó từ localStorage (Persistent Character Profile)
+const storedName = localStorage.getItem('skyoffice_player_name') || 'Guest'
+const storedAvatar = localStorage.getItem('skyoffice_avatar') || 'adam'
+const storedSkin = localStorage.getItem('skyoffice_skin_color') || '#f5cfa0'
+const storedHair = localStorage.getItem('skyoffice_hair_color') || '#4a3728'
+let rawOutfit = localStorage.getItem('skyoffice_outfit_type') || 'casual'
+if (rawOutfit === 'suit') rawOutfit = 'worker'
+if (rawOutfit === 'dress') rawOutfit = 'casual'
+const storedOutfitType: OutfitType = rawOutfit === 'worker' ? 'worker' : 'casual'
+const storedOutfitColor = localStorage.getItem('skyoffice_outfit_color') || '#3b82f6'
+
 export const userSlice = createSlice({
   name: 'user',
   initialState: {
@@ -30,10 +41,12 @@ export const userSlice = createSlice({
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
     movementMode: (window.innerWidth < 650 ? 'joystick' : 'mouse') as MovementMode,
-    skinColor: '#f5cfa0',
-    hairColor: '#4a3728',
-    outfitType: 'casual' as OutfitType,
-    outfitColor: '#3b82f6',
+    playerName: storedName,
+    avatar: storedAvatar,
+    skinColor: storedSkin,
+    hairColor: storedHair,
+    outfitType: storedOutfitType,
+    outfitColor: storedOutfitColor,
   },
   reducers: {
     toggleBackgroundMode: (state) => {
@@ -66,6 +79,14 @@ export const userSlice = createSlice({
       state.movementMode = action.payload
       state.showJoystick = action.payload === 'joystick'
     },
+    setPlayerName: (state, action: PayloadAction<string>) => {
+      state.playerName = action.payload
+      localStorage.setItem('skyoffice_player_name', action.payload)
+    },
+    setAvatar: (state, action: PayloadAction<string>) => {
+      state.avatar = action.payload
+      localStorage.setItem('skyoffice_avatar', action.payload)
+    },
     setAvatarCustomization: (
       state,
       action: PayloadAction<{
@@ -75,10 +96,22 @@ export const userSlice = createSlice({
         outfitColor?: string
       }>
     ) => {
-      if (action.payload.skinColor !== undefined) state.skinColor = action.payload.skinColor
-      if (action.payload.hairColor !== undefined) state.hairColor = action.payload.hairColor
-      if (action.payload.outfitType !== undefined) state.outfitType = action.payload.outfitType
-      if (action.payload.outfitColor !== undefined) state.outfitColor = action.payload.outfitColor
+      if (action.payload.skinColor !== undefined) {
+        state.skinColor = action.payload.skinColor
+        localStorage.setItem('skyoffice_skin_color', action.payload.skinColor)
+      }
+      if (action.payload.hairColor !== undefined) {
+        state.hairColor = action.payload.hairColor
+        localStorage.setItem('skyoffice_hair_color', action.payload.hairColor)
+      }
+      if (action.payload.outfitType !== undefined) {
+        state.outfitType = action.payload.outfitType
+        localStorage.setItem('skyoffice_outfit_type', action.payload.outfitType)
+      }
+      if (action.payload.outfitColor !== undefined) {
+        state.outfitColor = action.payload.outfitColor
+        localStorage.setItem('skyoffice_outfit_color', action.payload.outfitColor)
+      }
     },
   },
 })
@@ -92,6 +125,8 @@ export const {
   removePlayerNameMap,
   setShowJoystick,
   setMovementMode,
+  setPlayerName,
+  setAvatar,
   setAvatarCustomization,
 } = userSlice.actions
 

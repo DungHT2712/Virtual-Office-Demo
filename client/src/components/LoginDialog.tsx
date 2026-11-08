@@ -18,12 +18,14 @@ import Lucy from '../images/login/Lucy_login.png'
 import Nancy from '../images/login/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { setLoggedIn, setAvatarCustomization } from '../stores/UserStore'
+import { setRoomJoined } from '../stores/RoomStore'
 import { OutfitType } from '../../../types/IOfficeState'
 import { renderAvatarPreviewCanvas } from '../utils/AvatarCustomizer'
 import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
+import Bootstrap from '../scenes/Bootstrap'
 
 const SKIN_PRESETS = ['#fde2c8', '#f5cfa0', '#e0ac69', '#c68642', '#8d5524']
 const HAIR_PRESETS = ['#1c1c1c', '#4a3728', '#8b4513', '#d4af37', '#b91c1c', '#3b82f6']
@@ -31,8 +33,7 @@ const OUTFIT_PRESETS = ['#3b82f6', '#1e293b', '#dc2626', '#16a34a', '#9333ea', '
 
 const OUTFIT_TYPES: { label: string; value: OutfitType }[] = [
   { label: 'Bình thường', value: 'casual' },
-  { label: 'Đồ Vest', value: 'suit' },
-  { label: 'Váy liền thân', value: 'dress' },
+  { label: 'Worker (đồ vest)', value: 'worker' },
 ]
 
 const Wrapper = styled.form`
@@ -498,8 +499,21 @@ export default function LoginDialog() {
         </Right>
       </Content>
       <Bottom>
-        <Button variant="contained" color="secondary" size="large" type="submit">
-          Join
+        <Button
+          variant="outlined"
+          color="secondary"
+          size="large"
+          onClick={() => {
+            const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+            if (bootstrap) bootstrap.leaveGame()
+            dispatch(setRoomJoined(false))
+          }}
+          style={{ marginRight: 16, textTransform: 'none' }}
+        >
+          &larr; Đổi Workspace Khác
+        </Button>
+        <Button variant="contained" color="secondary" size="large" type="submit" style={{ textTransform: 'none', fontWeight: 700 }}>
+          Vào Workspace
         </Button>
       </Bottom>
     </Wrapper>

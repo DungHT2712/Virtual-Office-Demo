@@ -1,9 +1,10 @@
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
-import { Server, LobbyRoom } from 'colyseus'
+import { Server, LobbyRoom, matchMaker } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
+import { getAllWorkspaces } from './data/workspaceStorage'
 
 // import socialRoutes from "@colyseus/social/express"
 
@@ -44,3 +45,22 @@ app.use('/colyseus', monitor())
 
 gameServer.listen(port)
 console.log(`Listening on ws://localhost:${port}`)
+
+// Tái tạo các Workspace đã lưu trữ trong Manage Workspace
+const savedWorkspaces = getAllWorkspaces()
+if (savedWorkspaces.length > 0) {
+  console.log(`Found ${savedWorkspaces.length} saved workspaces. Restoring...`)
+  savedWorkspaces.forEach(async (ws) => {
+    try {
+      await matchMaker.createRoom(RoomType.CUSTOM, {
+        name: ws.name,
+        description: ws.description,
+        password: ws.password,
+        autoDispose: false,
+      })
+      console.log(`Restored persistent workspace: ${ws.name}`)
+    } catch (e) {
+      console.error(`Failed to restore workspace ${ws.name}:`, e)
+    }
+  })
+}

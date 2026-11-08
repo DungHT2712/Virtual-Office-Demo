@@ -9,4 +9,7 @@ export interface IRoomData {
   description: string
   password: string | null
   autoDispose: boolean
+  sizeType?: string
+  width?: number
+  height?: number
 }

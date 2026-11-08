@@ -163,4 +163,28 @@ export default class WebRTC {
     this.buttonGrid?.append(audioButton)
     this.buttonGrid?.append(videoButton)
   }
+
+  // Dọn dẹp toàn bộ streams, connections và peer khi rời phòng
+  destroy() {
+    this.peers.forEach((peer) => {
+      peer.call.close()
+      peer.video.remove()
+    })
+    this.peers.clear()
+
+    this.onCalledPeers.forEach((onCalledPeer) => {
+      onCalledPeer.call.close()
+      onCalledPeer.video.remove()
+    })
+    this.onCalledPeers.clear()
+
+    if (this.myStream) {
+      this.myStream.getTracks().forEach((track) => track.stop())
+      this.myStream = undefined
+    }
+
+    this.myVideo.remove()
+    this.myPeer.destroy()
+    store.dispatch(setVideoConnected(false))
+  }
 }

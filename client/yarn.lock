@@ -202,6 +202,11 @@
   resolved "https://registry.yarnpkg.com/@colyseus/schema/-/schema-1.0.46.tgz#1ba1e3088ff454a42eeec4bc330e508003990fac"
   integrity sha512-0cgirRomXDuDlppgJPXDLzsWw8/ZHwJEnndgzyX9hOCoFHJyFIyOYoKIV4eVPtKNQm6l6rGax1rE2LId4ujr4g==
 
+"@colyseus/schema@^5.0.45":
+  version "5.0.45"
+  resolved "https://registry.yarnpkg.com/@colyseus/schema/-/schema-5.0.45.tgz#2dcc8c762df33376992ca1c756be9ede4e175c0e"
+  integrity sha512-Q4J5FbKuc1eYzX/aC+6GCw64u3SNDOgSS14pzScIbk1AqeZMgFKBnlUyeYFsK/bbWSMaWc3WugxhTf4BuGxF8w==
+
 "@emotion/babel-plugin@^11.13.5":
   version "11.13.5"
   resolved "https://registry.yarnpkg.com/@emotion/babel-plugin/-/babel-plugin-11.13.5.tgz#eab8d65dbded74e0ecfd28dc218e75607c4e7bc0"
@@ -1410,6 +1415,11 @@ redux@^4.0.0, redux@^4.2.1:
   integrity sha512-LAUYz4lc+Do8/g7aeRa8JkyDErK6ekstQaqWQrNRW//MY1TvCEpMtpTWvlQ+FPbWCx+Xixu/6SHt5N0HR+SB4w==
   dependencies:
     "@babel/runtime" "^7.9.2"
+
+regenerator-runtime@^0.14.1:
+  version "0.14.1"
+  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.14.1.tgz#356ade10263f685dda125100cd862c1db895327f"
+  integrity sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==
 
 reselect@^4.1.8:
   version "4.1.8"

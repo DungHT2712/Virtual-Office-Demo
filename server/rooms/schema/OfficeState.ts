@@ -6,6 +6,13 @@ import {
   IWhiteboard,
   IChatMessage,
 } from '../../../types/IOfficeState'
+import { WorkspaceState } from './WorkspaceState'
+import { RoomState } from './RoomState'
+import { FurnitureState } from './FurnitureState'
+
+export { WorkspaceState } from './WorkspaceState'
+export { RoomState } from './RoomState'
+export { FurnitureState } from './FurnitureState'
 
 export class Player extends Schema implements IPlayer {
   @type('string') name = ''
@@ -47,6 +54,15 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
+
+  @type(WorkspaceState)
+  workspace = new WorkspaceState()
+
+  @type({ map: RoomState })
+  mapRooms = new MapSchema<RoomState>()
+
+  @type({ map: FurnitureState })
+  furniture = new MapSchema<FurnitureState>()
 }
 
 export const whiteboardRoomIds = new Set<string>()

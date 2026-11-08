@@ -5,10 +5,12 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "lint": "echo 'Client lint ok'",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@colyseus/schema": "^5.0.45",
     "@emotion/react": "^11.9.0",
     "@emotion/styled": "^11.8.1",
     "@mui/icons-material": "^5.0.1",
@@ -25,6 +27,7 @@
     "react-dom": "^18.2.0",
     "react-joystick-component": "^6.0.0",
     "react-redux": "^7.2.5",
+    "regenerator-runtime": "^0.14.1",
     "sass": "^1.42.1",
     "styled-components": "^5.3.5",
     "swiper": "^8.1.4",

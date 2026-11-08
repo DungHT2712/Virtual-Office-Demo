@@ -1,5 +1,13 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import {
+  IComputer,
+  IOfficeState,
+  IPlayer,
+  IWhiteboard,
+  IWorkspaceState,
+  IRoomLayout,
+  IFurnitureItem,
+} from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -20,6 +28,14 @@ import {
   pushPlayerLeftMessage,
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
+import {
+  setWorkspaceData,
+  addOrUpdateRoom,
+  removeRoom,
+  addOrUpdateFurniture,
+  removeFurniture,
+  setErrorNotice,
+} from '../stores/WorkspaceStore'
 
 export default class Network {
   private client: Client
@@ -79,14 +95,37 @@ export default class Network {
 
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
-    const { name, description, password, autoDispose } = roomData
+    const { name, description, password } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
       password,
-      autoDispose,
+      autoDispose: false, // Luôn lưu giữ phòng cho Manage Workspace
     })
     this.initialize()
+  }
+
+  // Rời khỏi phòng hiện tại và quay về sảnh chính (Lobby)
+  async leaveRoom() {
+    if (this.webRTC) {
+      this.webRTC.destroy()
+      this.webRTC = undefined
+    }
+    if (this.room) {
+      try {
+        await this.room.leave()
+      } catch (err) {
+        console.error('Error leaving room:', err)
+      }
+      this.room = undefined
+    }
+    // Tham gia lại Lobby Room để tiếp tục lắng nghe danh sách các phòng khả dụng
+    try {
+      await this.joinLobbyRoom()
+      store.dispatch(setLobbyJoined(true))
+    } catch (err) {
+      console.error('Error rejoining lobby:', err)
+    }
   }
 
   // set up all network listeners before the game starts
@@ -179,6 +218,99 @@ export default class Network {
     this.room.onMessage(Message.STOP_SCREEN_SHARE, (clientId: string) => {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
+    })
+
+    // Mapmaker: Workspace Grid changes
+    if (this.room.state.workspace) {
+      store.dispatch(
+        setWorkspaceData({
+          sizeType: this.room.state.workspace.sizeType,
+          width: this.room.state.workspace.width,
+          height: this.room.state.workspace.height,
+        })
+      )
+      this.room.state.workspace.onChange = () => {
+        const ws = {
+          sizeType: this.room!.state.workspace.sizeType,
+          width: this.room!.state.workspace.width,
+          height: this.room!.state.workspace.height,
+        }
+        store.dispatch(setWorkspaceData(ws))
+        phaserEvents.emit(Event.WORKSPACE_UPDATED, ws)
+      }
+    }
+
+    // Mapmaker: Tile Effect Rooms
+    if (this.room.state.mapRooms) {
+      this.room.state.mapRooms.onAdd = (room: IRoomLayout, key: string) => {
+        const roomData = {
+          id: key,
+          roomType: room.roomType,
+          name: room.name,
+          gridX: room.gridX,
+          gridY: room.gridY,
+          width: room.width,
+          height: room.height,
+        }
+        store.dispatch(addOrUpdateRoom(roomData))
+        phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, roomData)
+
+        room.onChange = () => {
+          const updated = {
+            id: key,
+            roomType: room.roomType,
+            name: room.name,
+            gridX: room.gridX,
+            gridY: room.gridY,
+            width: room.width,
+            height: room.height,
+          }
+          store.dispatch(addOrUpdateRoom(updated))
+          phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, updated)
+        }
+      }
+
+      this.room.state.mapRooms.onRemove = (room: IRoomLayout, key: string) => {
+        store.dispatch(removeRoom(key))
+        phaserEvents.emit(Event.ROOM_LAYOUT_REMOVED, key)
+      }
+    }
+
+    // Mapmaker: Furniture Objects
+    if (this.room.state.furniture) {
+      this.room.state.furniture.onAdd = (item: IFurnitureItem, key: string) => {
+        const furnData = {
+          id: key,
+          itemType: item.itemType,
+          gridX: item.gridX,
+          gridY: item.gridY,
+          orientation: item.orientation,
+        }
+        store.dispatch(addOrUpdateFurniture(furnData))
+        phaserEvents.emit(Event.FURNITURE_PLACED, furnData)
+
+        item.onChange = () => {
+          const updated = {
+            id: key,
+            itemType: item.itemType,
+            gridX: item.gridX,
+            gridY: item.gridY,
+            orientation: item.orientation,
+          }
+          store.dispatch(addOrUpdateFurniture(updated))
+          phaserEvents.emit(Event.FURNITURE_PLACED, updated)
+        }
+      }
+
+      this.room.state.furniture.onRemove = (item: IFurnitureItem, key: string) => {
+        store.dispatch(removeFurniture(key))
+        phaserEvents.emit(Event.FURNITURE_REMOVED, key)
+      }
+    }
+
+    // Design error notice
+    this.room.onMessage(Message.DESIGN_ERROR, ({ message }: { message: string }) => {
+      store.dispatch(setErrorNotice(message))
     })
   }
 
@@ -301,5 +433,39 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+  }
+
+  resizeWorkspace(sizeType: string, width: number, height: number) {
+    this.room?.send(Message.RESIZE_WORKSPACE, { sizeType, width, height })
+  }
+
+  updateRoom(roomData: {
+    id: string
+    roomType: string
+    name: string
+    gridX: number
+    gridY: number
+    width: number
+    height: number
+  }) {
+    this.room?.send(Message.UPDATE_ROOM, roomData)
+  }
+
+  removeRoom(id: string) {
+    this.room?.send(Message.REMOVE_ROOM, { id })
+  }
+
+  placeFurniture(furnitureData: {
+    id: string
+    itemType: string
+    gridX: number
+    gridY: number
+    orientation?: number
+  }) {
+    this.room?.send(Message.PLACE_FURNITURE, furnitureData)
+  }
+
+  removeFurniture(id: string) {
+    this.room?.send(Message.REMOVE_FURNITURE, { id })
   }
 }
