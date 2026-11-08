@@ -14,13 +14,14 @@ import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
-import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
+import { setSessionId, setPlayerNameMap, removePlayerNameMap, setLoggedIn } from '../stores/UserStore'
 import {
   setLobbyJoined,
   setJoinedRoomData,
   setAvailableRooms,
   addAvailableRooms,
   removeAvailableRooms,
+  setRoomJoined,
 } from '../stores/RoomStore'
 import {
   pushChatMessage,
@@ -51,10 +52,19 @@ export default class Network {
       process.env.NODE_ENV === 'production'
         ? import.meta.env.VITE_SERVER_URL
         : `${protocol}//${window.location.hostname}:2567`
-    this.client = new Client('ws://localhost:2567')
-    this.joinLobbyRoom().then(() => {
-      store.dispatch(setLobbyJoined(true))
-    })
+    this.client = new Client(endpoint || `${protocol}//${window.location.hostname}:2567`)
+    this.joinLobbyRoom()
+      .then(() => {
+        store.dispatch(setLobbyJoined(true))
+      })
+      .catch((err) => {
+        console.error('Error joining initial lobby:', err)
+        setTimeout(() => {
+          this.joinLobbyRoom()
+            .then(() => store.dispatch(setLobbyJoined(true)))
+            .catch((e) => console.error('Retry lobby failed:', e))
+        }, 2000)
+      })
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayer, this)
@@ -251,6 +261,8 @@ export default class Network {
           gridY: room.gridY,
           width: room.width,
           height: room.height,
+          doorX: room.doorX,
+          doorY: room.doorY,
         }
         store.dispatch(addOrUpdateRoom(roomData))
         phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, roomData)
@@ -264,6 +276,8 @@ export default class Network {
             gridY: room.gridY,
             width: room.width,
             height: room.height,
+            doorX: room.doorX,
+            doorY: room.doorY,
           }
           store.dispatch(addOrUpdateRoom(updated))
           phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, updated)
@@ -311,6 +325,13 @@ export default class Network {
     // Design error notice
     this.room.onMessage(Message.DESIGN_ERROR, ({ message }: { message: string }) => {
       store.dispatch(setErrorNotice(message))
+    })
+
+    // Workspace deleted notification
+    this.room.onMessage(Message.WORKSPACE_DELETED, async () => {
+      await this.leaveRoom()
+      store.dispatch(setRoomJoined(false))
+      store.dispatch(setLoggedIn(false))
     })
   }
 
@@ -439,33 +460,90 @@ export default class Network {
     this.room?.send(Message.RESIZE_WORKSPACE, { sizeType, width, height })
   }
 
-  updateRoom(roomData: {
-    id: string
-    roomType: string
-    name: string
-    gridX: number
-    gridY: number
-    width: number
-    height: number
-  }) {
-    this.room?.send(Message.UPDATE_ROOM, roomData)
+  updateRoom(
+    roomDataOrId:
+      | {
+          id: string
+          roomType: string
+          name: string
+          gridX: number
+          gridY: number
+          width: number
+          height: number
+          doorX?: number
+          doorY?: number
+        }
+      | string,
+    roomType?: string,
+    name?: string,
+    gridX?: number,
+    gridY?: number,
+    width?: number,
+    height?: number,
+    doorX?: number,
+    doorY?: number
+  ) {
+    if (typeof roomDataOrId === 'object') {
+      this.room?.send(Message.UPDATE_ROOM, roomDataOrId)
+    } else {
+      this.room?.send(Message.UPDATE_ROOM, {
+        id: roomDataOrId,
+        roomType: roomType!,
+        name: name!,
+        gridX: gridX!,
+        gridY: gridY!,
+        width: width!,
+        height: height!,
+        doorX,
+        doorY,
+      })
+    }
   }
 
   removeRoom(id: string) {
     this.room?.send(Message.REMOVE_ROOM, { id })
   }
 
-  placeFurniture(furnitureData: {
-    id: string
-    itemType: string
-    gridX: number
-    gridY: number
-    orientation?: number
-  }) {
-    this.room?.send(Message.PLACE_FURNITURE, furnitureData)
+  placeFurniture(
+    furnitureDataOrType:
+      | {
+          id?: string
+          itemType: string
+          gridX: number
+          gridY: number
+          orientation?: number
+        }
+      | string,
+    gridX?: number,
+    gridY?: number,
+    orientation = 0
+  ) {
+    if (typeof furnitureDataOrType === 'object') {
+      const id =
+        furnitureDataOrType.id ||
+        `${furnitureDataOrType.itemType}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+      this.room?.send(Message.PLACE_FURNITURE, {
+        ...furnitureDataOrType,
+        id,
+      })
+    } else {
+      const itemType = furnitureDataOrType
+      const id = `${itemType}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+      this.room?.send(Message.PLACE_FURNITURE, {
+        id,
+        itemType,
+        gridX: gridX!,
+        gridY: gridY!,
+        orientation,
+      })
+    }
   }
 
   removeFurniture(id: string) {
     this.room?.send(Message.REMOVE_FURNITURE, { id })
+  }
+
+  deleteCurrentWorkspace() {
+    this.room?.send(Message.DELETE_WORKSPACE)
   }
 }

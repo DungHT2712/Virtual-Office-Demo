@@ -12,7 +12,7 @@ import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
 import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
-import { extractBaseCharacterName } from '../characters/Player'
+import Player, { extractBaseCharacterName } from '../characters/Player'
 import Network from '../services/Network'
 import { IPlayer, OutfitType } from '../../../types/IOfficeState'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
@@ -50,6 +50,14 @@ export default class Game extends Phaser.Scene {
     string,
     { graphics: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text }
   >()
+  private isDraggingRoom = false
+  private roomStartTile: { x: number; y: number } | null = null
+  private roomDragGraphics?: Phaser.GameObjects.Graphics
+  private roomDragText?: Phaser.GameObjects.Text
+  private roomWallsMap = new Map<string, Phaser.GameObjects.GameObject[]>()
+  private isRightClickDragging = false
+  private panLastPointerX = 0
+  private panLastPointerY = 0
   private chairsGroup!: Phaser.Physics.Arcade.StaticGroup
   private computersGroup!: Phaser.Physics.Arcade.StaticGroup
   private whiteboardsGroup!: Phaser.Physics.Arcade.StaticGroup
@@ -103,8 +111,8 @@ export default class Game extends Phaser.Scene {
 
     // Khởi tạo kích thước sàn gạch theo Workspace đã chọn (Small: 20x20, Medium: 30x30, Large: 40x40)
     const wsState = store.getState().workspace
-    const wsWidth = this.network.room?.state?.workspace?.width || wsState.width || 30
-    const wsHeight = this.network.room?.state?.workspace?.height || wsState.height || 30
+    const wsWidth = (this.network as any).room?.state?.workspace?.width || wsState.workspace?.width || 30
+    const wsHeight = (this.network as any).room?.state?.workspace?.height || wsState.workspace?.height || 30
     const mapWidthInPixels = wsWidth * 32
     const mapHeightInPixels = wsHeight * 32
 
@@ -193,6 +201,17 @@ export default class Game extends Phaser.Scene {
       .setDepth(9998)
       .setVisible(false)
 
+    // Vô hiệu hóa menu chuột phải mặc định của trình duyệt để hỗ trợ kéo bản đồ bằng chuột phải
+    this.input.mouse?.disableContextMenu()
+    if (this.game.canvas) {
+      this.game.canvas.oncontextmenu = (e: MouseEvent) => e.preventDefault()
+    }
+    window.addEventListener('mouseup', (e: MouseEvent) => {
+      if (e.button === 2) {
+        this.isRightClickDragging = false
+      }
+    })
+
     // Xây dựng bộ tìm đường A* (Pathfinder)
     this.rebuildPathfinder()
 
@@ -220,6 +239,7 @@ export default class Game extends Phaser.Scene {
 
     phaserEvents.on(Event.ROOM_LAYOUT_ADDED, this.handleRoomLayoutAdded, this)
     phaserEvents.on(Event.ROOM_LAYOUT_REMOVED, this.handleRoomLayoutRemoved, this)
+    phaserEvents.on(Event.DESIGN_MODE_TOGGLED, this.setDesignModeView, this)
 
     // Hiệu ứng vòng tròn đánh dấu vị trí click chuột
     this.targetMarker = this.add.circle(0, 0, 8, 0x42eacb, 0.65)
@@ -227,8 +247,56 @@ export default class Game extends Phaser.Scene {
     this.targetMarker.setVisible(false)
     this.targetMarker.setDepth(9999)
 
-    // [GATHER MAPMAKER PREVIEW & DRAG]: Lắng nghe pointermove để hiển thị Ghost Preview snap to 32x32
+    // Đồ họa Drag & Drop preview khi kéo thả phân vùng phòng
+    this.roomDragGraphics = this.add.graphics().setDepth(9997)
+    this.roomDragText = this.add
+      .text(0, 0, '', {
+        fontFamily: 'Arial',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        backgroundColor: '#000000cc',
+        padding: { x: 6, y: 3 },
+      })
+      .setDepth(9999)
+      .setVisible(false)
+
+    // [CAMERA ZOOM]: Phóng to / Thu nhỏ bằng Ctrl + Scroll hoặc cuộn chuột khi ở chế độ Design Mode
+    this.input.on(
+      'wheel',
+      (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number) => {
+        const rawEvent = pointer.event as WheelEvent | undefined
+        const state = store.getState()
+        const isDesign = state.workspace.designMode
+
+        if (!rawEvent?.ctrlKey && !isDesign) {
+          return
+        }
+
+        if (rawEvent) {
+          rawEvent.preventDefault()
+        }
+
+        const zoomFactor = deltaY > 0 ? 0.9 : 1.1
+        const currentZoom = this.cameras.main.zoom
+        const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.25, 3.5)
+        this.cameras.main.setZoom(newZoom)
+      }
+    )
+
+    // [GATHER MAPMAKER PREVIEW & DRAG]: Lắng nghe pointermove để hiển thị Ghost Preview snap to 32x32 và Right-Click Pan
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      // 1. Xử lý di chuyển bản đồ bằng chuột phải (Right-Click Drag to Pan)
+      if (this.isRightClickDragging || pointer.rightButtonDown()) {
+        const dx = (pointer.x - this.panLastPointerX) / this.cameras.main.zoom
+        const dy = (pointer.y - this.panLastPointerY) / this.cameras.main.zoom
+        this.cameras.main.scrollX -= dx
+        this.cameras.main.scrollY -= dy
+        this.panLastPointerX = pointer.x
+        this.panLastPointerY = pointer.y
+        return
+      }
+
       const state = store.getState()
       const isDesign = state.workspace.designMode
       const selectedTool = state.workspace.selectedTool
@@ -237,8 +305,10 @@ export default class Game extends Phaser.Scene {
         this.gridOverlay.setVisible(isDesign)
       }
 
-      if (!isDesign || !selectedTool || !this.ghostMarker) {
+      if (!isDesign) {
         this.ghostMarker?.setVisible(false)
+        if (this.roomDragGraphics) this.roomDragGraphics.clear()
+        if (this.roomDragText) this.roomDragText.setVisible(false)
         return
       }
 
@@ -248,32 +318,117 @@ export default class Game extends Phaser.Scene {
       const snapX = gridX * 32 + 16
       const snapY = gridY * 32 + 16
 
-      this.ghostMarker.setPosition(snapX, snapY)
-      this.ghostMarker.setVisible(true)
+      const wsW = state.workspace.workspace.width || 30
+      const wsH = state.workspace.workspace.height || 30
 
-      if (selectedTool === 'computer') {
-        // Kiểm tra ràng buộc Gather: Máy tính bắt buộc phải đặt trên Bàn (Table)
-        const hasTable = Object.values(state.workspace.furnitures).some(
-          (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
-        )
-        if (hasTable) {
-          this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: Hợp lệ
-          this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
-        } else {
-          this.ghostMarker.setFillStyle(0xef4444, 0.5) // Đỏ: Thiếu bàn
-          this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+      // Nếu chuột nằm ngoài bản đồ
+      if (gridX < 0 || gridY < 0 || gridX >= wsW || gridY >= wsH) {
+        this.ghostMarker?.setVisible(false)
+        if (this.roomDragGraphics) this.roomDragGraphics.clear()
+        if (this.roomDragText) this.roomDragText.setVisible(false)
+        return
+      }
+
+      // 2. Khi chưa chọn công cụ (!selectedTool): Luôn hiển thị ô con trỏ design snap theo lưới 32x32
+      if (!selectedTool) {
+        if (this.roomDragGraphics) this.roomDragGraphics.clear()
+        if (this.roomDragText) this.roomDragText.setVisible(false)
+        if (this.ghostMarker) {
+          this.ghostMarker.setSize(32, 32)
+          this.ghostMarker.setPosition(snapX, snapY)
+          this.ghostMarker.setFillStyle(0x38bdf8, 0.25)
+          this.ghostMarker.setStrokeStyle(2, 0xffffff, 0.85)
+          this.ghostMarker.setVisible(true)
         }
-      } else if (selectedTool === 'eraser') {
-        this.ghostMarker.setFillStyle(0xf97316, 0.5)
-        this.ghostMarker.setStrokeStyle(2, 0xfb923c, 1)
-      } else {
-        this.ghostMarker.setFillStyle(0x38bdf8, 0.5)
-        this.ghostMarker.setStrokeStyle(2, 0x7dd3fc, 1)
+        return
+      }
+
+      // Chế độ PHÒNG: Xử lý kéo thả tạo Bounding Box
+      if (selectedTool.startsWith('room_')) {
+        const roomType = selectedTool.replace('room_', '')
+        let roomColor = 0x38bdf8
+        if (roomType === 'office') roomColor = 0x4ade80
+        if (roomType === 'lounge') roomColor = 0xfb923c
+        if (roomType === 'pantry') roomColor = 0xc084fc
+
+        if (this.isDraggingRoom && this.roomStartTile) {
+          this.ghostMarker?.setVisible(false)
+          const wsW = state.workspace.workspace.width || 30
+          const wsH = state.workspace.workspace.height || 30
+          const clampedX = Math.max(0, Math.min(gridX, wsW - 1))
+          const clampedY = Math.max(0, Math.min(gridY, wsH - 1))
+          const startX = Math.max(0, Math.min(this.roomStartTile.x, wsW - 1))
+          const startY = Math.max(0, Math.min(this.roomStartTile.y, wsH - 1))
+
+          const minX = Math.min(startX, clampedX)
+          const minY = Math.min(startY, clampedY)
+          const w = Math.abs(clampedX - startX) + 1
+          const h = Math.abs(clampedY - startY) + 1
+
+          if (this.roomDragGraphics) {
+            this.roomDragGraphics.clear()
+            this.roomDragGraphics.fillStyle(roomColor, 0.22)
+            this.roomDragGraphics.fillRect(minX * 32, minY * 32, w * 32, h * 32)
+            this.roomDragGraphics.lineStyle(2, roomColor, 0.95)
+            this.roomDragGraphics.strokeRect(minX * 32, minY * 32, w * 32, h * 32)
+          }
+
+          if (this.roomDragText) {
+            this.roomDragText.setText(`${w}x${h} ô (${w * 32}x${h * 32}px) - Kéo để mở rộng`)
+            this.roomDragText.setPosition(minX * 32 + 6, minY * 32 + 6)
+            this.roomDragText.setVisible(true)
+          }
+        } else {
+          // Chưa kéo: Hiển thị marker 1 ô để hướng dẫn bắt đầu kéo
+          if (this.ghostMarker) {
+            this.ghostMarker.setSize(32, 32)
+            this.ghostMarker.setPosition(snapX, snapY)
+            this.ghostMarker.setFillStyle(roomColor, 0.4)
+            this.ghostMarker.setStrokeStyle(2, roomColor, 1)
+            this.ghostMarker.setVisible(true)
+          }
+        }
+        return
+      }
+
+      // Chế độ NỘI THẤT (Bàn, ghế, máy tính, bảng trắng, bình hoa, máy bán nước, tẩy xóa)
+      if (this.ghostMarker) {
+        this.ghostMarker.setSize(32, 32)
+        this.ghostMarker.setPosition(snapX, snapY)
+        this.ghostMarker.setVisible(true)
+
+        if (selectedTool === 'computer') {
+          // Kiểm tra ràng buộc Gather: Máy tính bắt buộc phải đặt trên Bàn (Table)
+          const hasTable = Object.values(state.workspace.furnitures).some(
+            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+          )
+          if (hasTable) {
+            this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: Hợp lệ
+            this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
+          } else {
+            this.ghostMarker.setFillStyle(0xef4444, 0.5) // Đỏ: Thiếu bàn
+            this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+          }
+        } else if (selectedTool === 'eraser') {
+          this.ghostMarker.setFillStyle(0xf97316, 0.5)
+          this.ghostMarker.setStrokeStyle(2, 0xfb923c, 1)
+        } else {
+          this.ghostMarker.setFillStyle(0x38bdf8, 0.5)
+          this.ghostMarker.setStrokeStyle(2, 0x7dd3fc, 1)
+        }
       }
     })
 
-    // [MAPMAKER CLICK-TO-PLACE & MOVEMENT CLICK]: Xử lý click chuột
+    // [MAPMAKER CLICK-TO-PLACE & DRAG START]: Xử lý nhấn chuột
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // 1. Nhấn chuột phải để bắt đầu kéo bản đồ (Right-Click Drag to Pan)
+      if (pointer.button === 2) {
+        this.isRightClickDragging = true
+        this.panLastPointerX = pointer.x
+        this.panLastPointerY = pointer.y
+        return
+      }
+
       if (pointer.button !== 0 || !this.myPlayer) return
 
       // Bỏ qua nếu click vào UI DOM HTML
@@ -287,22 +442,63 @@ export default class Game extends Phaser.Scene {
       const gridX = Math.floor(worldPoint.x / 32)
       const gridY = Math.floor(worldPoint.y / 32)
 
-      // Nếu đang trong chế độ Design Mapmaker: Đặt đồ hoặc Tẩy xóa, KHÔNG di chuyển nhân vật!
       if (isDesign) {
-        if (!selectedTool) return
+        const wsW = state.workspace.workspace.width || 30
+        const wsH = state.workspace.workspace.height || 30
+        if (gridX < 0 || gridY < 0 || gridX >= wsW || gridY >= wsH) {
+          return
+        }
 
+        // Tìm kiếm đối tượng tại vị trí click
+        const clickedFurn = Object.values(state.workspace.furnitures).find(
+          (f) => f.gridX === gridX && f.gridY === gridY
+        )
+        const clickedRoom = Object.values(state.workspace.rooms).find(
+          (r) =>
+            gridX >= r.gridX &&
+            gridX < r.gridX + r.width &&
+            gridY >= r.gridY &&
+            gridY < r.gridY + r.height
+        )
+
+        // 1. Chế độ TẨY XÓA
         if (selectedTool === 'eraser') {
-          // Tìm furniture tại tọa độ gridX, gridY để xóa
-          const target = Object.values(state.workspace.furnitures).find(
-            (f) => f.gridX === gridX && f.gridY === gridY
-          )
-          if (target) {
-            this.network.removeFurniture(target.id)
+          if (clickedFurn) {
+            this.network.removeFurniture(clickedFurn.id)
             store.dispatch(setSuccessNotice('Đã xóa vật thể khỏi bản đồ.'))
+            return
+          }
+          if (clickedRoom) {
+            this.network.removeRoom(clickedRoom.id)
+            store.dispatch(setSuccessNotice(`Đã xóa phân vùng "${clickedRoom.name}" khỏi bản đồ.`))
+            return
           }
           return
         }
 
+        // 2. Nếu click trực tiếp vào một món nội thất đã đặt -> Mở dialog đổi hướng / xóa
+        if (clickedFurn) {
+          phaserEvents.emit(Event.OPEN_FURNITURE_DIALOG, clickedFurn)
+          return
+        }
+
+        // 3. Nếu chưa chọn công cụ nào mà click trúng phòng -> Mở dialog phòng để đổi tên / đổi cửa / xóa
+        if (!selectedTool) {
+          if (clickedRoom) {
+            phaserEvents.emit(Event.OPEN_ROOM_DIALOG, clickedRoom)
+          }
+          return
+        }
+
+        // 4. Chế độ PHÒNG: Bắt đầu kéo thả diện tích phòng (Drag to size)
+        if (selectedTool.startsWith('room_')) {
+          this.isDraggingRoom = true
+          this.roomStartTile = { x: gridX, y: gridY }
+          this.ghostMarker?.setVisible(false)
+          return
+        }
+
+        // 5. Chế độ ĐẶT NỘI THẤT
         if (selectedTool === 'computer') {
           const hasTable = Object.values(state.workspace.furnitures).some(
             (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
@@ -315,7 +511,7 @@ export default class Game extends Phaser.Scene {
           }
         }
 
-        // Đặt đồ vật lên Colyseus State
+        // Đặt nội thất lên Colyseus State
         this.network.placeFurniture(selectedTool, gridX, gridY)
         store.dispatch(
           setSuccessNotice(`Đã đặt ${selectedTool} tại ô (${gridX}, ${gridY}) thành công!`)
@@ -352,6 +548,69 @@ export default class Game extends Phaser.Scene {
         }
       }
     })
+
+    // [MAPMAKER DRAG END & RIGHT-CLICK UP]: Nhả chuột
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      // Nhả chuột phải: Kết thúc kéo bản đồ
+      if (pointer.button === 2) {
+        this.isRightClickDragging = false
+        return
+      }
+
+      if (pointer.button !== 0) return
+
+      const state = store.getState()
+      const isDesign = state.workspace.designMode
+      const selectedTool = state.workspace.selectedTool
+
+      if (isDesign && this.isDraggingRoom && this.roomStartTile && selectedTool?.startsWith('room_')) {
+        this.isDraggingRoom = false
+        if (this.roomDragGraphics) this.roomDragGraphics.clear()
+        if (this.roomDragText) this.roomDragText.setVisible(false)
+
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        const endGridX = Math.floor(worldPoint.x / 32)
+        const endGridY = Math.floor(worldPoint.y / 32)
+
+        const wsW = state.workspace.workspace.width || 30
+        const wsH = state.workspace.workspace.height || 30
+        const clampedEndX = Math.max(0, Math.min(endGridX, wsW - 1))
+        const clampedEndY = Math.max(0, Math.min(endGridY, wsH - 1))
+        const clampedStartX = Math.max(0, Math.min(this.roomStartTile.x, wsW - 1))
+        const clampedStartY = Math.max(0, Math.min(this.roomStartTile.y, wsH - 1))
+
+        const minX = Math.min(clampedStartX, clampedEndX)
+        const minY = Math.min(clampedStartY, clampedEndY)
+        const width = Math.abs(clampedEndX - clampedStartX) + 1
+        const height = Math.abs(clampedEndY - clampedStartY) + 1
+        this.roomStartTile = null
+
+        // Kiểm tra diện tích phòng tối thiểu: 3x3 ô để có tường và lối đi bên trong
+        if (width < 3 || height < 3) {
+          store.dispatch(setErrorNotice('Phòng phải có kích thước tối thiểu từ 3x3 ô trở lên!'))
+          return
+        }
+
+        // Tự động tính toán cửa ra vào ở giữa cạnh dưới cùng của phòng
+        const doorX = Math.floor(minX + width / 2)
+        const doorY = minY + height - 1
+
+        const roomType = selectedTool.replace('room_', '')
+        const roomId = `room_${Date.now()}`
+        const typeLabels: Record<string, string> = {
+          meeting: 'Phòng Họp',
+          office: 'Phòng Làm Việc',
+          lounge: 'Phòng Nghỉ',
+          pantry: 'Khu Pantry',
+        }
+        const roomName = `${typeLabels[roomType] || 'Phòng'} ${width}x${height} ô`
+
+        this.network.updateRoom(roomId, roomType, roomName, minX, minY, width, height, doorX, doorY)
+        store.dispatch(
+          setSuccessNotice(`Đã tạo ${roomName} với tường bao quanh và cửa ra vào thành công!`)
+        )
+      }
+    })
   }
 
   /**
@@ -363,6 +622,68 @@ export default class Game extends Phaser.Scene {
       this.obstaclesGroup,
       this.chairsGroup,
     ])
+  }
+
+  /**
+   * Chế độ 2D Toàn Bản Đồ khi bật Design Mode
+   */
+  setDesignModeView(enable: boolean) {
+    if (!this.map || !this.cameras?.main) return
+
+    if (enable) {
+      this.cameras.main.stopFollow()
+      this.cameras.main.removeBounds()
+      const centerX = this.map.widthInPixels / 2
+      const centerY = this.map.heightInPixels / 2
+      const padding = 80
+      // Tính zoom vừa vặn khung nhìn, trừ đi 420px chiều rộng của thanh công cụ bên phải
+      const availableWidth = Math.max(300, this.cameras.main.width - 440)
+      const zoomX = (availableWidth - padding) / this.map.widthInPixels
+      const zoomY = (this.cameras.main.height - padding) / this.map.heightInPixels
+      const fitZoom = Math.max(0.35, Math.min(zoomX, zoomY, 1.2))
+
+      // Dịch tâm camera sang một chút để bản đồ 2D nằm ở trung tâm của phần hiển thị thoáng đãng
+      const targetPanX = centerX + (420 / 2) / fitZoom
+
+      this.cameras.main.pan(targetPanX, centerY, 500, 'Power2')
+      this.cameras.main.zoomTo(fitZoom, 500, 'Power2')
+
+      // Ẩn hoàn toàn nhân vật để chỉ thấy bản đồ 2D và thao tác thiết kế sạch sẽ
+      if (this.myPlayer) {
+        this.myPlayer.setVisible(false)
+        if (this.myPlayer.playerContainer) this.myPlayer.playerContainer.setVisible(false)
+      }
+      this.otherPlayers?.getChildren().forEach((p) => {
+        const player = p as Player
+        player.setVisible(false)
+        if (player.playerContainer) player.playerContainer.setVisible(false)
+      })
+      if (this.playerSelector) this.playerSelector.setVisible(false)
+      this.gridOverlay?.setVisible(true)
+    } else {
+      const mapWidthInPixels = this.map.widthInPixels
+      const mapHeightInPixels = this.map.heightInPixels
+      this.cameras.main.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
+      // Hiện lại nhân vật khi thoát Design Mode
+      if (this.myPlayer) {
+        this.myPlayer.setVisible(true)
+        this.myPlayer.setAlpha(1)
+        if (this.myPlayer.playerContainer) this.myPlayer.playerContainer.setVisible(true)
+      }
+      this.otherPlayers?.getChildren().forEach((p) => {
+        const player = p as Player
+        player.setVisible(true)
+        player.setAlpha(1)
+        if (player.playerContainer) player.playerContainer.setVisible(true)
+      })
+      if (this.playerSelector) this.playerSelector.setVisible(true)
+      this.cameras.main.zoomTo(1.5, 500, 'Power2')
+      if (this.myPlayer) {
+        this.cameras.main.startFollow(this.myPlayer, true, 0.08, 0.08)
+      }
+      this.gridOverlay?.setVisible(false)
+      this.ghostMarker?.setVisible(false)
+    }
   }
 
   private addObjectFromTiled(
@@ -415,34 +736,47 @@ export default class Game extends Phaser.Scene {
 
     const worldX = item.gridX * 32 + 16
     const worldY = item.gridY * 32 + 16
+    const orientation = item.orientation || 0
 
     let obj: Phaser.GameObjects.GameObject | null = null
 
     if (item.itemType === 'table') {
       const table = this.obstaclesGroup.create(worldX, worldY, 'office', 28)
       table.setDepth(worldY)
+      table.setAngle(orientation * 90)
       obj = table
     } else if (item.itemType === 'chair') {
       const chair = this.chairsGroup.get(worldX, worldY, 'chairs', 0) as Chair
-      chair.itemDirection = 'down'
+      const chairFrames = [0, 3, 1, 2] // 0: down, 1: left, 2: up, 3: right
+      const chairDirections: ('down' | 'left' | 'up' | 'right')[] = ['down', 'left', 'up', 'right']
+      chair.setFrame(chairFrames[orientation % 4])
+      chair.itemDirection = chairDirections[orientation % 4]
       chair.setDepth(worldY)
       obj = chair
     } else if (item.itemType === 'computer') {
       const comp = this.computersGroup.get(worldX, worldY - 8, 'computers', 0) as Computer
       comp.id = item.id
       comp.setDepth(worldY + 4)
+      comp.setAngle(orientation * 90)
       this.computerMap.set(item.id, comp)
       obj = comp
     } else if (item.itemType === 'whiteboard') {
       const wb = this.whiteboardsGroup.get(worldX, worldY, 'whiteboards', 0) as Whiteboard
       wb.id = item.id
       wb.setDepth(worldY)
+      wb.setAngle(orientation * 90)
       this.whiteboardMap.set(item.id, wb)
       obj = wb
     } else if (item.itemType === 'vase') {
       const vase = this.obstaclesGroup.create(worldX, worldY, 'generic', 700)
       vase.setDepth(worldY)
+      vase.setAngle(orientation * 90)
       obj = vase
+    } else if (item.itemType === 'vendingmachine') {
+      const vm = this.obstaclesGroup.create(worldX, worldY - 4, 'vendingmachines', 0)
+      vm.setDepth(worldY + 10)
+      vm.setAngle(orientation * 90)
+      obj = vm
     }
 
     if (obj) {
@@ -467,7 +801,7 @@ export default class Game extends Phaser.Scene {
   }
 
   /**
-   * [TILE EFFECTS LAYER]: Vẽ các phân vùng phòng riêng (Private / Meeting Area)
+   * [TILE EFFECTS & WALLS LAYER]: Vẽ phân vùng phòng, dựng Tường (Vật cản) & Cửa ra vào
    */
   private handleRoomLayoutAdded(room: {
     id: string
@@ -477,6 +811,8 @@ export default class Game extends Phaser.Scene {
     gridY: number
     width: number
     height: number
+    doorX?: number
+    doorY?: number
   }) {
     this.handleRoomLayoutRemoved(room.id)
 
@@ -485,23 +821,75 @@ export default class Game extends Phaser.Scene {
     if (room.roomType === 'lounge') color = 0xfb923c
     if (room.roomType === 'pantry') color = 0xc084fc
 
+    // 1. Nền phòng bán trong suốt và nhãn tên phân vùng (Bỏ viền trắng nét bao quanh)
     const graphics = this.add.graphics().setDepth(3)
     graphics.fillStyle(color, 0.08)
     graphics.fillRect(room.gridX * 32, room.gridY * 32, room.width * 32, room.height * 32)
-    graphics.lineStyle(2, color, 0.75)
-    graphics.strokeRect(room.gridX * 32, room.gridY * 32, room.width * 32, room.height * 32)
 
     const text = this.add
-      .text(room.gridX * 32 + 6, room.gridY * 32 + 4, room.name, {
+      .text(room.gridX * 32 + 8, room.gridY * 32 + 6, room.name, {
         fontFamily: 'Arial',
         fontSize: '11px',
+        fontStyle: 'bold',
         color: '#ffffff',
-        backgroundColor: '#000000aa',
+        backgroundColor: '#000000cc',
         padding: { x: 5, y: 2 },
       })
       .setDepth(room.gridY * 32 + 50)
 
     this.roomZonesMap.set(room.id, { graphics, text })
+
+    // 2. Tính toán Cửa và dựng Tường bao quanh chu vi (Auto-Tile Liền Mạch & Doorway)
+    const doorX = room.doorX ?? Math.floor(room.gridX + room.width / 2)
+    const doorY = room.doorY ?? (room.gridY + room.height - 1)
+
+    const wallSprites: Phaser.GameObjects.GameObject[] = []
+    const minX = room.gridX
+    const maxX = room.gridX + room.width - 1
+    const minY = room.gridY
+    const maxY = room.gridY + room.height - 1
+
+    const createWallTile = (x: number, y: number, frame: number) => {
+      if (x === doorX && y === doorY) return
+      const wall = this.obstaclesGroup.create(x * 32 + 16, y * 32 + 16, 'tiles_wall', frame)
+      wall.setDepth(y * 32 + 16)
+      wallSprites.push(wall)
+    }
+
+    // 1. Góc trên - trái (Top-left corner)
+    createWallTile(minX, minY, 87)
+
+    // 2. Cạnh trên (Top wall)
+    for (let x = minX + 1; x < maxX; x++) {
+      createWallTile(x, minY, 929)
+    }
+
+    // 3. Góc trên - phải (Top-right corner)
+    createWallTile(maxX, minY, 89)
+
+    // 4. Cạnh trái (Left vertical wall - Liền mạch thẳng đứng)
+    for (let y = minY + 1; y < maxY; y++) {
+      createWallTile(minX, y, 151)
+    }
+
+    // 5. Cạnh phải (Right vertical wall - Liền mạch thẳng đứng)
+    for (let y = minY + 1; y < maxY; y++) {
+      createWallTile(maxX, y, 153)
+    }
+
+    // 6. Góc dưới - trái (Bottom-left corner)
+    createWallTile(minX, maxY, 215)
+
+    // 7. Cạnh dưới (Bottom wall)
+    for (let x = minX + 1; x < maxX; x++) {
+      createWallTile(x, maxY, 216)
+    }
+
+    // 8. Góc dưới - phải (Bottom-right corner)
+    createWallTile(maxX, maxY, 217)
+
+    this.roomWallsMap.set(room.id, wallSprites)
+    this.rebuildPathfinder()
   }
 
   private handleRoomLayoutRemoved(id: string) {
@@ -510,6 +898,15 @@ export default class Game extends Phaser.Scene {
       existing.graphics.destroy()
       existing.text.destroy()
       this.roomZonesMap.delete(id)
+    }
+
+    const walls = this.roomWallsMap.get(id)
+    if (walls) {
+      walls.forEach((w) => {
+        this.obstaclesGroup.remove(w, true, true)
+      })
+      this.roomWallsMap.delete(id)
+      this.rebuildPathfinder()
     }
   }
 
@@ -608,6 +1005,15 @@ export default class Game extends Phaser.Scene {
   }
 
   update(t: number, dt: number) {
+    const state = store.getState()
+    if (state.workspace.designMode) {
+      if (this.myPlayer) {
+        if (this.myPlayer.visible) this.myPlayer.setVisible(false)
+        if (this.myPlayer.playerContainer?.visible) this.myPlayer.playerContainer.setVisible(false)
+      }
+      return
+    }
+
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)

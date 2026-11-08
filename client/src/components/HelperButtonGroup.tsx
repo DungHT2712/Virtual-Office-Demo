@@ -174,6 +174,7 @@ export default function HelperButtonGroup() {
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const movementMode = useAppSelector((state) => state.user.movementMode)
+  const designMode = useAppSelector((state) => state.workspace.designMode)
   const dispatch = useAppDispatch()
 
   const handleLeaveWorkspace = () => {
@@ -316,26 +317,40 @@ export default function HelperButtonGroup() {
                 size="small"
                 onClick={() => setShowLeaveConfirm(true)}
                 sx={{
-                  background: '#ef4444',
+                  background: '#f97316',
                   color: '#ffffff',
-                  '&:hover': { background: '#dc2626' },
+                  '&:hover': { background: '#ea580c' },
                 }}
               >
                 <HomeIcon />
               </StyledFab>
             </Tooltip>
 
-            {/* NÚT MAPMAKER */}
-            <Tooltip title="Gather Mapmaker (Thiết Kế Grid)">
+            {/* NÚT THIẾT KẾ WORKSPACE (NỘI THẤT & PHÒNG) */}
+            <Tooltip
+              title={
+                designMode
+                  ? 'Đang Thiết Kế (Bấm để Hoàn Tất & Thoát Design)'
+                  : 'Chế Độ Thiết Kế (Bảng Nội Thất & Phòng)'
+              }
+            >
               <StyledFab
                 size="small"
                 onClick={() => {
-                  dispatch(openDesignMode())
+                  if (designMode) {
+                    dispatch(closeDesignMode())
+                  } else {
+                    dispatch(openDesignMode())
+                  }
                 }}
                 sx={{
-                  background: '#0284c7',
+                  background: designMode ? '#10b981' : '#0284c7',
                   color: '#ffffff',
-                  '&:hover': { background: '#0369a1' },
+                  boxShadow: designMode
+                    ? '0 0 15px rgba(16, 185, 129, 0.8), 0 0 5px #10b981'
+                    : undefined,
+                  border: designMode ? '2px solid #ffffff' : undefined,
+                  '&:hover': { background: designMode ? '#059669' : '#0369a1' },
                 }}
               >
                 <SquareFootIcon />
@@ -423,11 +438,11 @@ export default function HelperButtonGroup() {
             onClick={handleLeaveWorkspace}
             startIcon={<ExitToAppIcon />}
             sx={{
-              background: '#ef4444',
+              background: '#f97316',
               color: '#ffffff',
               fontWeight: 700,
               textTransform: 'none',
-              '&:hover': { background: '#dc2626' },
+              '&:hover': { background: '#ea580c' },
             }}
           >
             Rời Workspace

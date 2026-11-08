@@ -14,10 +14,13 @@ import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import DesignWorkspaceDialog from './components/DesignWorkspaceDialog'
 
 const Backdrop = styled.div`
-  position: absolute;
-  height: 100%;
-  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
   pointer-events: none;
+  z-index: 10000;
 
   & > * {
     pointer-events: auto;
@@ -62,8 +65,8 @@ function App() {
     <Backdrop>
       {ui}
       <DesignWorkspaceDialog />
-      {/* Render HelperButtonGroup if no dialogs are opened. */}
-      {!computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
+      {/* Render HelperButtonGroup if user is logged in and no dialogs are opened. */}
+      {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
     </Backdrop>
   )
 }

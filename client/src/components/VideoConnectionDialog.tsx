@@ -7,23 +7,29 @@ import AlertTitle from '@mui/material/AlertTitle'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
+import { useAppSelector } from '../hooks'
+
 const Backdrop = styled.div`
   position: fixed;
   top: 0;
   left: 0;
+  pointer-events: none;
 `
 
 const Wrapper = styled.div`
-  width: 100%;
-  height: 100%;
   padding: 16px;
   position: relative;
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
+  gap: 8px;
 `
 
 export default function VideoConnectionDialog() {
   const [connectionWarning, setConnectionWarning] = useState(true)
+  const designMode = useAppSelector((state) => state.workspace.designMode)
+
+  if (designMode) return null
   return (
     <Backdrop>
       <Wrapper>

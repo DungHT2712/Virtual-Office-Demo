@@ -25,7 +25,7 @@ import {
 } from './commands/DesignCommands'
 import { RoomState } from './schema/RoomState'
 import { FurnitureState } from './schema/FurnitureState'
-import { saveWorkspace } from '../data/workspaceStorage'
+import { saveWorkspace, removeWorkspace } from '../data/workspaceStorage'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -283,6 +283,13 @@ export class SkyOffice extends Room<OfficeState> {
         client,
         id: message.id,
       })
+    })
+
+    this.onMessage(Message.DELETE_WORKSPACE, async () => {
+      removeWorkspace(this.roomId)
+      this.broadcast(Message.WORKSPACE_DELETED)
+      this.autoDispose = true
+      await this.disconnect()
     })
   }
 

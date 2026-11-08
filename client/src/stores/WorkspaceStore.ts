@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
+import { phaserEvents, Event } from '../events/EventCenter'
 
 export interface RoomLayoutItem {
   id: string
@@ -10,6 +11,8 @@ export interface RoomLayoutItem {
   gridY: number
   width: number
   height: number
+  doorX?: number
+  doorY?: number
 }
 
 export interface FurnitureLayoutItem {
@@ -60,11 +63,13 @@ export const workspaceSlice = createSlice({
       state.designMode = true
       state.errorNotice = null
       state.successNotice = null
+      phaserEvents.emit(Event.DESIGN_MODE_TOGGLED, true)
     },
     closeDesignMode: (state) => {
       const game = phaserGame.scene.keys.game as Game
       if (game && game.enableKeys) game.enableKeys()
       state.designMode = false
+      phaserEvents.emit(Event.DESIGN_MODE_TOGGLED, false)
     },
     setSelectedTool: (state, action: PayloadAction<string | null>) => {
       state.selectedTool = action.payload

@@ -28,6 +28,7 @@ const Backdrop = styled.div`
   flex-direction: column;
   gap: 20px;
   align-items: center;
+  pointer-events: auto;
 `
 
 const Wrapper = styled.div`
@@ -39,6 +40,7 @@ const Wrapper = styled.div`
   min-width: 640px;
   max-width: 860px;
   color: #f1f5f9;
+  pointer-events: auto;
 `
 
 const CustomRoomWrapper = styled.div`
@@ -316,7 +318,7 @@ export default function RoomSelectionDialog() {
               {/* 2 LỰA CHỌN CHÍNH Ở TRANG CHỦ */}
               <CardGrid>
                 <ActionCard
-                  onClick={() => (lobbyJoined ? setShowCreateRoomForm(true) : setShowSnackbar(true))}
+                  onClick={() => setShowCreateRoomForm(true)}
                 >
                   <div className="icon-wrapper">
                     <AddBusinessIcon fontSize="inherit" />
@@ -328,7 +330,7 @@ export default function RoomSelectionDialog() {
                 </ActionCard>
 
                 <ActionCard
-                  onClick={() => (lobbyJoined ? setShowCustomRoom(true) : setShowSnackbar(true))}
+                  onClick={() => setShowCustomRoom(true)}
                 >
                   <div className="icon-wrapper" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
                     <CorporateFareIcon fontSize="inherit" />

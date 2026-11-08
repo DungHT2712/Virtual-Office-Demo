@@ -29,13 +29,13 @@ const Backdrop = styled.div`
   pointer-events: none !important;
 `
 
-const Wrapper = styled.div`
+const Wrapper = styled.div<{ $showChat: boolean }>`
   position: relative;
-  height: 100%;
+  height: ${(props) => (props.$showChat ? '100%' : 'auto')};
   padding: 16px;
   display: flex;
   flex-direction: column;
-  pointer-events: auto;
+  pointer-events: ${(props) => (props.$showChat ? 'auto' : 'none')};
 `
 
 const FabWrapper = styled.div`
@@ -172,6 +172,7 @@ export default function Chat() {
   const chatMessages = useAppSelector((state) => state.chat.chatMessages)
   const focused = useAppSelector((state) => state.chat.focused)
   const showChat = useAppSelector((state) => state.chat.showChat)
+  const designMode = useAppSelector((state) => state.workspace.designMode)
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
 
@@ -223,9 +224,11 @@ export default function Chat() {
     scrollToBottom()
   }, [chatMessages, showChat])
 
+  if (designMode) return null
+
   return (
     <Backdrop>
-      <Wrapper>
+      <Wrapper $showChat={showChat}>
         {showChat ? (
           <>
             <ChatHeader>

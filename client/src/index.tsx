@@ -12,6 +12,7 @@ import store from './stores'
 
 const container = document.getElementById('root')
 const root = createRoot(container!)
+;(window as any).store = store
 root.render(
   <React.StrictMode>
     <Provider store={store}>

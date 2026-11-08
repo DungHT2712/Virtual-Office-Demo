@@ -2,7 +2,7 @@ import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
 
 export type OutfitType = 'casual' | 'worker' | 'suit'
 export type RoomCategory = 'lounge' | 'meeting' | 'office' | 'pantry'
-export type FurnitureCategory = 'table' | 'chair' | 'computer' | 'vase' | 'whiteboard'
+export type FurnitureCategory = 'table' | 'chair' | 'computer' | 'vase' | 'whiteboard' | 'vendingmachine'
 
 export interface IAvatarCustomization {
   skinColor: string
@@ -58,6 +58,8 @@ export interface IRoomLayout extends Schema {
   gridY: number
   width: number
   height: number
+  doorX?: number
+  doorY?: number
   onChange?: (changes: any[]) => void
 }
 

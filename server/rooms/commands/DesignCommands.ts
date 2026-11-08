@@ -57,6 +57,8 @@ export class UpdateRoomCommand extends Command<
     gridY: number
     width: number
     height: number
+    doorX?: number
+    doorY?: number
   }
 > {
   execute(data: {
@@ -68,8 +70,10 @@ export class UpdateRoomCommand extends Command<
     gridY: number
     width: number
     height: number
+    doorX?: number
+    doorY?: number
   }) {
-    const { client, id, roomType, name, gridX, gridY, width, height } = data
+    const { client, id, roomType, name, gridX, gridY, width, height, doorX, doorY } = data
     const workspace = this.room.state.workspace
 
     if (gridX < 0 || gridY < 0 || width <= 0 || height <= 0) {
@@ -106,6 +110,8 @@ export class UpdateRoomCommand extends Command<
     room.gridY = gridY
     room.width = width
     room.height = height
+    room.doorX = doorX ?? Math.floor(gridX + width / 2)
+    room.doorY = doorY ?? (gridY + height - 1)
 
     this.room.state.mapRooms.set(id, room)
   }
@@ -146,7 +152,7 @@ export class PlaceFurnitureCommand extends Command<
       return
     }
 
-    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard']
+    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'vendingmachine']
     if (!validItems.includes(itemType)) {
       client.send(Message.DESIGN_ERROR, {
         message: 'Loại vật dụng không hợp lệ.',

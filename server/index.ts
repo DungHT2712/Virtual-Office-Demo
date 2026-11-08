@@ -4,7 +4,7 @@ import cors from 'cors'
 import { Server, LobbyRoom, matchMaker } from 'colyseus'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
-import { getAllWorkspaces } from './data/workspaceStorage'
+import { getAllWorkspaces, removeWorkspace } from './data/workspaceStorage'
 
 // import socialRoutes from "@colyseus/social/express"
 
@@ -16,6 +16,16 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 // app.use(express.static('dist'))
+
+// API xóa Workspace lưu trữ
+app.delete('/api/workspaces/:id', async (req, res) => {
+  const { id } = req.params
+  removeWorkspace(id)
+  try {
+    await matchMaker.remoteRoomCall(id, 'disconnect')
+  } catch (err) {}
+  res.json({ success: true, message: 'Workspace deleted' })
+})
 
 const server = http.createServer(app)
 const gameServer = new Server({

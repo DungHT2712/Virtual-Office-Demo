@@ -48,6 +48,7 @@ const Wrapper = styled.form`
   max-width: 900px;
   width: 92vw;
   box-sizing: border-box;
+  pointer-events: auto;
 `
 
 const Title = styled.p`

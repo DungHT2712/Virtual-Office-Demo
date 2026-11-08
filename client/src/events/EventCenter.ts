@@ -19,4 +19,7 @@ export enum Event {
   ROOM_LAYOUT_REMOVED = 'room-layout-removed',
   FURNITURE_PLACED = 'furniture-placed',
   FURNITURE_REMOVED = 'furniture-removed',
+  DESIGN_MODE_TOGGLED = 'design-mode-toggled',
+  OPEN_FURNITURE_DIALOG = 'open-furniture-dialog',
+  OPEN_ROOM_DIALOG = 'open-room-dialog',
 }

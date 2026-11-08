@@ -80,10 +80,9 @@ const ActionButton = styled.button`
 export default function MobileVirtualJoystick() {
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
   const showChat = useAppSelector((state) => state.chat.showChat)
+  const designMode = useAppSelector((state) => state.workspace.designMode)
   const hasSmallScreen = isSmallScreen(minimumScreenWidthSize)
   const game = phaserGame.scene.keys.game as Game
-
-  useEffect(() => {}, [showJoystick, showChat])
 
   const handleMovement = (movement: JoystickMovement) => {
     game.myPlayer?.handleJoystickMovement(movement)
@@ -95,6 +94,8 @@ export default function MobileVirtualJoystick() {
       if (action === 'R') game.myPlayer.virtualButtonR = true
     }
   }
+
+  if (designMode) return null
 
   return (
     <>

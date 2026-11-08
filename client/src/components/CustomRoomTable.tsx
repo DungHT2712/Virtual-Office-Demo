@@ -15,6 +15,9 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
+import IconButton from '@mui/material/IconButton'
+import DialogTitle from '@mui/material/DialogTitle'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import LockIcon from '@mui/icons-material/Lock'
 import { useAppSelector } from '../hooks'
@@ -91,8 +94,29 @@ export const CustomRoomTable = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [showPasswordError, setShowPasswordError] = useState(false)
   const [passwordFieldEmpty, setPasswordFieldEmpty] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [targetDeleteRoom, setTargetDeleteRoom] = useState<{ id: string; name: string } | null>(null)
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
   const availableRooms = useAppSelector((state) => state.room.availableRooms)
+
+  const handleDeleteRoomClick = (id: string, name: string) => {
+    setTargetDeleteRoom({ id, name })
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!targetDeleteRoom) return
+    try {
+      const port = 2567
+      const host = window.location.hostname
+      const url = `${window.location.protocol}//${host}:${port}/api/workspaces/${targetDeleteRoom.id}`
+      await fetch(url, { method: 'DELETE' })
+    } catch (e) {
+      console.error('Error deleting workspace:', e)
+    }
+    setDeleteDialogOpen(false)
+    setTargetDeleteRoom(null)
+  }
 
   const handleJoinClick = (roomId: string, password: string | null) => {
     if (!lobbyJoined) return
@@ -159,25 +183,37 @@ export const CustomRoomTable = () => {
                   <TableCell>{roomId}</TableCell>
                   <TableCell align="center">{clients}</TableCell>
                   <TableCell align="center">
-                    <Tooltip title={hasPassword ? 'Password required' : ''}>
-                      <Button
-                        variant="outlined"
-                        color="secondary"
-                        onClick={() => {
-                          if (hasPassword) {
-                            setShowPasswordDialog(true)
-                            setSelectedRoom(roomId)
-                          } else {
-                            handleJoinClick(roomId, null)
-                          }
-                        }}
-                      >
-                        <div className="join-wrapper">
-                          {hasPassword && <LockIcon className="lock-icon" />}
-                          Join
-                        </div>
-                      </Button>
-                    </Tooltip>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Tooltip title={hasPassword ? 'Password required' : ''}>
+                        <Button
+                          variant="outlined"
+                          color="secondary"
+                          onClick={() => {
+                            if (hasPassword) {
+                              setShowPasswordDialog(true)
+                              setSelectedRoom(roomId)
+                            } else {
+                              handleJoinClick(roomId, null)
+                            }
+                          }}
+                        >
+                          <div className="join-wrapper">
+                            {hasPassword && <LockIcon className="lock-icon" />}
+                            Join
+                          </div>
+                        </Button>
+                      </Tooltip>
+                      <Tooltip title="Xóa Workspace này">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteRoomClick(roomId, name)}
+                          sx={{ '&:hover': { background: 'rgba(239, 68, 68, 0.15)' } }}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </div>
                   </TableCell>
                 </TableRowWrapper>
               )
@@ -219,6 +255,48 @@ export const CustomRoomTable = () => {
           </DialogActions>
         </form>
       </PasswordDialog>
+
+      {/* DIALOG XÁC NHẬN XÓA WORKSPACE TỪ BẢNG */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{
+          style: {
+            background: '#1e2235',
+            color: '#f8fafc',
+            borderRadius: '16px',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            padding: '8px',
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteOutlineIcon /> Xóa Workspace?
+        </DialogTitle>
+        <DialogContent>
+          <p style={{ color: '#cbd5e1', fontSize: '14px', margin: 0 }}>
+            Bạn có chắc chắn muốn xóa vĩnh viễn Workspace "{targetDeleteRoom?.name}" không? Thao tác này sẽ xóa toàn bộ dữ liệu phòng đã lưu và không thể hoàn tác.
+          </p>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ color: '#94a3b8', textTransform: 'none' }}>
+            Hủy Bỏ
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmDelete}
+            sx={{
+              background: '#dc2626',
+              color: '#ffffff',
+              fontWeight: 700,
+              textTransform: 'none',
+              '&:hover': { background: '#b91c1c' },
+            }}
+          >
+            Xác Nhận Xóa
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

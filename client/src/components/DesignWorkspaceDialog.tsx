@@ -1,104 +1,172 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import styled from 'styled-components'
-import {
-  Button,
-  IconButton,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Alert,
-  Chip,
-  Box,
-  Typography,
-  Tooltip,
-} from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import SquareFootIcon from '@mui/icons-material/SquareFoot'
-import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
-import WeekendIcon from '@mui/icons-material/Weekend'
-import CoffeeIcon from '@mui/icons-material/Coffee'
-import BusinessIcon from '@mui/icons-material/Business'
-import DesktopWindowsIcon from '@mui/icons-material/DesktopWindows'
-import ChairIcon from '@mui/icons-material/Chair'
-import LocalFloristIcon from '@mui/icons-material/LocalFlorist'
-import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
-import SettingsIcon from '@mui/icons-material/Settings'
-import LayersIcon from '@mui/icons-material/Layers'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-
 import { useAppSelector, useAppDispatch } from '../hooks'
 import {
+  openDesignMode,
   closeDesignMode,
   setSelectedTool,
-  setErrorNotice,
   setSuccessNotice,
   clearNotices,
+  FurnitureLayoutItem,
+  RoomLayoutItem,
 } from '../stores/WorkspaceStore'
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
-import Game from '../scenes/Game'
+import { phaserEvents, Event } from '../events/EventCenter'
 
-const DockWrapper = styled.div<{ $collapsed: boolean }>`
+// ===== STYLED COMPONENTS CHO GIAO DIỆN DESIGN MODE =====
+
+/* Tab mở nhanh cố định ở mép phải khi chưa vào Design Mode */
+const SideOpenButton = styled.div`
   position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 1000;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 99999999 !important;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  padding: 14px 10px;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
   display: flex;
   flex-direction: column;
-  background: rgba(27, 30, 46, 0.94);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-  color: #f1f5f9;
-  width: ${(props) => (props.$collapsed ? '320px' : '420px')};
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  transition: width 0.25s ease;
-  user-select: none;
-`
-
-const DockHeader = styled.div`
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  user-select: none;
+  pointer-events: auto !important;
 
-  .title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #38bdf8;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  &:hover {
+    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+    box-shadow: -6px 0 20px rgba(56, 189, 248, 0.6);
+  }
+
+  .text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 1px;
   }
 `
 
-const DockContent = styled.div`
-  padding: 16px;
+/* BẢNG ĐIỀU KHIỂN CỐ ĐỊNH Ở MÉP PHẢI (Dedicated Right Sidebar) */
+const RightSidebar = styled.div`
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  z-index: 99999999 !important;
+  display: flex;
+  flex-direction: column;
+  background: #111827;
+  border-left: 2px solid #38bdf8;
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.85);
+  color: #f1f5f9;
+  user-select: none;
+  pointer-events: auto !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+`
+
+const SidebarHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+
+  .title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .icon {
+      font-size: 20px;
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.5px;
+    }
+  }
+
+  .close-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #ef4444;
+      color: #ffffff;
+    }
+  }
+`
+
+const SidebarBody = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 `
 
-const PaletteGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+const TabNav = styled.div`
+  display: flex;
+  gap: 8px;
+  background: #1e293b;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 `
 
-const ToolCard = styled.div<{ $active: boolean; $isEraser?: boolean }>`
+const TabButton = styled.button<{ $active: boolean }>`
+  flex: 1;
+  background: ${(props) => (props.$active ? '#0284c7' : 'transparent')};
+  color: ${(props) => (props.$active ? '#ffffff' : '#94a3b8')};
+  border: none;
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+
+  &:hover {
+    color: #ffffff;
+    background: ${(props) => (props.$active ? '#0284c7' : 'rgba(255, 255, 255, 0.06)')};
+  }
+`
+
+const ToolGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+`
+
+const ToolItem = styled.div<{ $active: boolean; $isEraser?: boolean }>`
   background: ${(props) =>
     props.$active
       ? props.$isEraser
-        ? 'rgba(239, 68, 68, 0.2)'
-        : 'rgba(56, 189, 248, 0.2)'
-      : 'rgba(255, 255, 255, 0.04)'};
+        ? 'rgba(239, 68, 68, 0.25)'
+        : 'rgba(56, 189, 248, 0.25)'
+      : '#1e293b'};
   border: 2px solid
     ${(props) =>
       props.$active
@@ -106,7 +174,7 @@ const ToolCard = styled.div<{ $active: boolean; $isEraser?: boolean }>`
           ? '#ef4444'
           : '#38bdf8'
         : 'rgba(255, 255, 255, 0.08)'};
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 12px 6px;
   display: flex;
   flex-direction: column;
@@ -114,36 +182,65 @@ const ToolCard = styled.div<{ $active: boolean; $isEraser?: boolean }>`
   text-align: center;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 
   &:hover {
     background: ${(props) =>
-      props.$isEraser ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.12)'};
+      props.$isEraser ? 'rgba(239, 68, 68, 0.2)' : 'rgba(56, 189, 248, 0.15)'};
     border-color: ${(props) => (props.$isEraser ? '#f87171' : '#7dd3fc')};
     transform: translateY(-2px);
   }
 
-  .icon {
-    font-size: 26px;
-    color: ${(props) =>
-      props.$active
-        ? props.$isEraser
-          ? '#ef4444'
-          : '#38bdf8'
-        : '#cbd5e1'};
+  .emoji {
+    font-size: 24px;
   }
 
   .label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: #f1f5f9;
   }
 `
 
-const HintBox = styled.div`
-  background: rgba(56, 189, 248, 0.08);
+const StatusBox = styled.div<{ $hasTool: boolean }>`
+  background: ${(props) =>
+    props.$hasTool ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.04)'};
+  border: 1px solid
+    ${(props) => (props.$hasTool ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.08)')};
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+
+  .text-highlight {
+    color: #38bdf8;
+    font-weight: 700;
+  }
+
+  .text-muted {
+    color: #94a3b8;
+  }
+
+  .unselect-btn {
+    background: transparent;
+    border: none;
+    color: #f87171;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 6px;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`
+
+const InstructionBox = styled.div`
+  background: rgba(56, 189, 248, 0.06);
   border: 1px dashed rgba(56, 189, 248, 0.3);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
   color: #93c5fd;
@@ -154,77 +251,228 @@ const HintBox = styled.div`
   }
 `
 
-const PresetGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-`
+const EditBox = styled.div`
+  background: #1e293b;
+  border: 1px solid #38bdf8;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 
-const PresetCard = styled.div<{ $active: boolean }>`
-  background: ${(props) =>
-    props.$active ? 'rgba(56, 189, 248, 0.18)' : 'rgba(255, 255, 255, 0.03)'};
-  border: 2px solid ${(props) => (props.$active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)')};
-  border-radius: 8px;
-  padding: 8px 4px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  .name {
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
     font-weight: 700;
-    font-size: 12px;
-    color: ${(props) => (props.$active ? '#38bdf8' : '#e2e8f0')};
+    font-size: 13px;
+    color: #38bdf8;
+
+    .dismiss-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 14px;
+      &:hover {
+        color: #ffffff;
+      }
+    }
   }
-  .info {
-    font-size: 11px;
-    color: #94a3b8;
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+
+    input {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #ffffff;
+      font-size: 13px;
+      outline: none;
+
+      &:focus {
+        border-color: #38bdf8;
+      }
+    }
+
+    button {
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+
+      &:hover {
+        background: #0369a1;
+      }
+    }
+  }
+
+  .door-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+
+    button {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+      border-radius: 6px;
+      padding: 8px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(56, 189, 248, 0.25);
+      }
+    }
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+
+    button {
+      flex: 1;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+    }
+
+    .rotate-btn {
+      background: #0284c7;
+      color: #ffffff;
+      &:hover {
+        background: #0369a1;
+      }
+    }
+
+    .delete-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+      &:hover {
+        background: #ef4444;
+        color: #ffffff;
+      }
+    }
   }
 `
 
-const SectionTitle = styled.div`
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #94a3b8;
-  margin-bottom: 8px;
+const SidebarFooter = styled.div`
+  padding: 16px 20px;
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+
+  .finish-btn {
+    width: 100%;
+    background: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #16a34a;
+    }
+  }
+`
+
+const AlertMessage = styled.div<{ $type: 'error' | 'success' }>`
+  background: ${(props) =>
+    props.$type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'};
+  border: 1px solid
+    ${(props) => (props.$type === 'error' ? '#ef4444' : '#22c55e')};
+  color: ${(props) => (props.$type === 'error' ? '#fca5a5' : '#86efac')};
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-`
 
-const BottomActions = styled.div`
-  display: flex;
-  gap: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  .close {
+    cursor: pointer;
+    font-weight: 700;
+  }
 `
 
 export default function DesignWorkspaceDialog() {
   const dispatch = useAppDispatch()
-  const { workspace, rooms, furnitures, designMode, selectedTool, errorNotice, successNotice } =
+  const loggedIn = useAppSelector((state) => state.user.loggedIn)
+  const roomJoined = useAppSelector((state) => state.room.roomJoined)
+  const { designMode, selectedTool, errorNotice, successNotice } =
     useAppSelector((state) => state.workspace)
 
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [selectedSizeType, setSelectedSizeType] = useState(workspace.sizeType || 'MEDIUM')
-  const [newWidth, setNewWidth] = useState(workspace.width || 30)
-  const [newHeight, setNewHeight] = useState(workspace.height || 30)
+  const [activeTab, setActiveTab] = useState<'furniture' | 'room'>('furniture')
 
-  // Phòng phân vùng
-  const [roomType, setRoomType] = useState('meeting')
-  const [roomName, setRoomName] = useState('')
-  const [roomX, setRoomX] = useState(2)
-  const [roomY, setRoomY] = useState(2)
-  const [roomW, setRoomW] = useState(6)
-  const [roomH, setRoomH] = useState(6)
+  // Tương tác trực tiếp: Nội thất và Phòng được chọn khi click trên map
+  const [editingFurniture, setEditingFurniture] = useState<FurnitureLayoutItem | null>(null)
+  const [editingRoom, setEditingRoom] = useState<RoomLayoutItem | null>(null)
+  const [editingRoomName, setEditingRoomName] = useState('')
 
-  const tools = [
-    { type: 'table', label: 'Bàn Làm Việc', icon: <TableRestaurantIcon className="icon" /> },
-    { type: 'chair', label: 'Ghế Ngồi', icon: <ChairIcon className="icon" /> },
-    { type: 'computer', label: 'Máy Tính', icon: <DesktopWindowsIcon className="icon" /> },
-    { type: 'vase', label: 'Cây / Bình Hoa', icon: <LocalFloristIcon className="icon" /> },
-    { type: 'whiteboard', label: 'Bảng Trắng', icon: <AutoFixHighIcon className="icon" /> },
-    { type: 'eraser', label: 'Tẩy Xóa', icon: <DeleteOutlineIcon className="icon" />, isEraser: true },
+  // Lắng nghe sự kiện click từ Phaser Scene
+  useEffect(() => {
+    const onOpenFurn = (furn: FurnitureLayoutItem) => {
+      setEditingFurniture(furn)
+      setEditingRoom(null)
+    }
+    const onOpenRoom = (room: RoomLayoutItem) => {
+      setEditingRoom(room)
+      setEditingRoomName(room.name)
+      setEditingFurniture(null)
+    }
+
+    phaserEvents.on(Event.OPEN_FURNITURE_DIALOG, onOpenFurn)
+    phaserEvents.on(Event.OPEN_ROOM_DIALOG, onOpenRoom)
+
+    return () => {
+      phaserEvents.off(Event.OPEN_FURNITURE_DIALOG, onOpenFurn)
+      phaserEvents.off(Event.OPEN_ROOM_DIALOG, onOpenRoom)
+    }
+  }, [])
+
+  // Danh sách Nội thất
+  const furnitureTools = [
+    { type: 'table', label: 'Bàn Làm Việc', emoji: '🪑' },
+    { type: 'chair', label: 'Ghế Ngồi', emoji: '💺' },
+    { type: 'computer', label: 'Máy Tính (Trên Bàn)', emoji: '💻' },
+    { type: 'vase', label: 'Cây / Bình Hoa', emoji: '🪴' },
+    { type: 'whiteboard', label: 'Bảng Trắng', emoji: '📋' },
+    { type: 'vendingmachine', label: 'Máy Bán Nước', emoji: '🥤' },
+    { type: 'eraser', label: 'Tẩy Xóa Đồ', emoji: '🧹', isEraser: true },
+  ]
+
+  // Danh sách Phân vùng phòng
+  const roomTools = [
+    { type: 'room_meeting', label: 'Phòng Họp', emoji: '👥' },
+    { type: 'room_office', label: 'Phòng Làm Việc', emoji: '💼' },
+    { type: 'room_lounge', label: 'Phòng Nghỉ', emoji: '🛋️' },
+    { type: 'room_pantry', label: 'Khu Pantry', emoji: '☕' },
+    { type: 'eraser', label: 'Xóa Phòng', emoji: '❌', isEraser: true },
   ]
 
   const handleToolSelect = (toolType: string) => {
@@ -233,256 +481,317 @@ export default function DesignWorkspaceDialog() {
     } else {
       dispatch(setSelectedTool(toolType))
       dispatch(clearNotices())
+      phaserEvents.emit('select-furniture', toolType)
     }
   }
 
-  const handleApplySize = () => {
+  // --- NỘI THẤT: Đổi hướng xoay 90° & Xóa ---
+  const handleRotateFurniture = () => {
+    if (!editingFurniture) return
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    bootstrap.network.resizeWorkspace(selectedSizeType, newWidth, newHeight)
-    dispatch(setSuccessNotice(`Đã đổi diện tích sang ${newWidth}x${newHeight} ô!`))
+    const nextOrientation = ((editingFurniture.orientation || 0) + 1) % 4
+    bootstrap.network.placeFurniture({
+      ...editingFurniture,
+      orientation: nextOrientation,
+    })
+    setEditingFurniture({ ...editingFurniture, orientation: nextOrientation })
+    dispatch(setSuccessNotice('Đã xoay hướng nội thất 90°!'))
   }
 
-  const handleAddRoom = () => {
-    const id = `room_${Date.now()}`
-    const finalName = roomName.trim() || `Phòng ${roomType}`
+  const handleDeleteFurniture = () => {
+    if (!editingFurniture) return
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    bootstrap.network.updateRoom(id, roomType, finalName, roomX, roomY, roomW, roomH)
-    setRoomName('')
-    dispatch(setSuccessNotice(`Đã tạo phân vùng "${finalName}" thành công!`))
+    bootstrap.network.removeFurniture(editingFurniture.id)
+    dispatch(setSuccessNotice('Đã xóa nội thất khỏi bản đồ!'))
+    setEditingFurniture(null)
+  }
+
+  // --- PHÒNG: Đổi tên, Đổi vị trí cửa trên tường & Xóa phòng ---
+  const handleSaveRoomName = () => {
+    if (!editingRoom) return
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    const newName = editingRoomName.trim() || editingRoom.name
+    bootstrap.network.updateRoom({
+      ...editingRoom,
+      name: newName,
+    })
+    setEditingRoom({ ...editingRoom, name: newName })
+    dispatch(setSuccessNotice(`Đã đổi tên phòng thành: "${newName}"!`))
+  }
+
+  const handleChangeDoorPosition = (side: 'bottom' | 'top' | 'left' | 'right') => {
+    if (!editingRoom) return
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    let doorX = editingRoom.doorX
+    let doorY = editingRoom.doorY
+
+    if (side === 'bottom') {
+      doorX = Math.floor(editingRoom.gridX + editingRoom.width / 2)
+      doorY = editingRoom.gridY + editingRoom.height - 1
+    } else if (side === 'top') {
+      doorX = Math.floor(editingRoom.gridX + editingRoom.width / 2)
+      doorY = editingRoom.gridY
+    } else if (side === 'left') {
+      doorX = editingRoom.gridX
+      doorY = Math.floor(editingRoom.gridY + editingRoom.height / 2)
+    } else if (side === 'right') {
+      doorX = editingRoom.gridX + editingRoom.width - 1
+      doorY = Math.floor(editingRoom.gridY + editingRoom.height / 2)
+    }
+
+    bootstrap.network.updateRoom({
+      ...editingRoom,
+      doorX,
+      doorY,
+    })
+    setEditingRoom({ ...editingRoom, doorX, doorY })
+    dispatch(
+      setSuccessNotice(
+        `Đã chuyển cửa sang ${
+          side === 'bottom'
+            ? 'Cạnh Dưới'
+            : side === 'top'
+            ? 'Cạnh Trên'
+            : side === 'left'
+            ? 'Cạnh Trái'
+            : 'Cạnh Phải'
+        }!`
+      )
+    )
+  }
+
+  const handleDeleteRoom = () => {
+    if (!editingRoom) return
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    bootstrap.network.removeRoom(editingRoom.id)
+    dispatch(setSuccessNotice(`Đã xóa phòng "${editingRoom.name}"!`))
+    setEditingRoom(null)
   }
 
   const handleClose = () => {
     dispatch(setSelectedTool(null))
+    setEditingFurniture(null)
+    setEditingRoom(null)
     dispatch(closeDesignMode())
   }
 
-  if (!designMode) return null
+  // Khi chưa vào phòng thì không hiển thị gì
+  if (!loggedIn && !roomJoined) return null
 
-  return (
-    <DockWrapper $collapsed={!showAdvanced}>
-      <DockHeader>
-        <div className="title">
-          <SquareFootIcon /> Gather Town Mapmaker
+  // Khi chưa mở Design Mode -> Nút Tab mở nhanh ghim cố định ở mép phải
+  if (!designMode) {
+    return ReactDOM.createPortal(
+      <SideOpenButton
+        onClick={() => dispatch(openDesignMode())}
+        title="Bấm để Mở Bảng Thiết Kế Workspace (Nội Thất & Phòng)"
+      >
+        <span style={{ fontSize: '18px' }}>🎨</span>
+        <span className="text">THIẾT KẾ WORKSPACE</span>
+      </SideOpenButton>,
+      document.body
+    )
+  }
+
+  const furnitureLabels: Record<string, string> = {
+    table: 'Bàn Làm Việc',
+    chair: 'Ghế Ngồi',
+    computer: 'Máy Tính',
+    vase: 'Cây / Bình Hoa',
+    whiteboard: 'Bảng Trắng',
+    vendingmachine: 'Máy Bán Nước',
+  }
+
+  const currentToolLabel =
+    furnitureTools.find((f) => f.type === selectedTool)?.label ||
+    roomTools.find((r) => r.type === selectedTool)?.label ||
+    selectedTool
+
+  return ReactDOM.createPortal(
+    <RightSidebar>
+      <SidebarHeader>
+        <div className="title-group">
+          <span className="icon">🎨</span>
+          <span className="title">THIẾT KẾ WORKSPACE</span>
         </div>
-        <IconButton size="small" onClick={handleClose} sx={{ color: '#94a3b8', '&:hover': { color: '#fff' } }}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DockHeader>
+        <button className="close-btn" onClick={handleClose}>
+          ✕ Đóng
+        </button>
+      </SidebarHeader>
 
-      <DockContent>
+      <SidebarBody>
         {/* Thông báo Real-time */}
         {errorNotice && (
-          <Alert severity="error" onClose={() => dispatch(clearNotices())} sx={{ py: 0.5, fontSize: '12px' }}>
-            {errorNotice}
-          </Alert>
+          <AlertMessage $type="error">
+            <span>⚠️ {errorNotice}</span>
+            <span className="close" onClick={() => dispatch(clearNotices())}>✕</span>
+          </AlertMessage>
         )}
         {successNotice && (
-          <Alert severity="success" onClose={() => dispatch(clearNotices())} sx={{ py: 0.5, fontSize: '12px' }}>
-            {successNotice}
-          </Alert>
+          <AlertMessage $type="success">
+            <span>✅ {successNotice}</span>
+            <span className="close" onClick={() => dispatch(clearNotices())}>✕</span>
+          </AlertMessage>
         )}
 
-        <HintBox>
-          👉 <strong>Kéo thả hoặc click chọn</strong> đồ vật bên dưới, sau đó di chuột vào bản đồ (Ghost Preview snap to 32x32) và click để đặt!
-          <br />
-          ⚠️ <strong>Quy tắc Gather:</strong> Máy tính bắt buộc phải đặt trên Bàn!
-        </HintBox>
+        {/* Trạng thái công cụ đang chọn */}
+        <StatusBox $hasTool={!!selectedTool}>
+          <div>
+            {selectedTool ? (
+              <span className="text-highlight">
+                🖌️ Đang chọn: {currentToolLabel}
+              </span>
+            ) : (
+              <span className="text-muted">
+                👆 Con trỏ tự do: Click vào đồ hoặc phòng trên map để sửa
+              </span>
+            )}
+          </div>
+          {selectedTool && (
+            <button className="unselect-btn" onClick={() => dispatch(setSelectedTool(null))}>
+              Bỏ chọn
+            </button>
+          )}
+        </StatusBox>
 
-        {/* Thanh Palette đồ vật kiểu Gather Town */}
-        <div>
-          <SectionTitle>
-            <LayersIcon fontSize="small" /> Chọn Vật Thể (Click hoặc Kéo Thả)
-          </SectionTitle>
-          <PaletteGrid>
-            {tools.map((t) => (
-              <ToolCard
-                key={t.type}
-                $active={selectedTool === t.type}
-                $isEraser={t.isEraser}
-                onClick={() => handleToolSelect(t.type)}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', t.type)
-                  dispatch(setSelectedTool(t.type))
-                }}
-              >
-                {t.icon}
-                <div className="label">{t.label}</div>
-              </ToolCard>
-            ))}
-          </PaletteGrid>
-        </div>
+        {/* Panel Chỉnh sửa Nội thất khi click vào món đồ trên map */}
+        {editingFurniture && (
+          <EditBox>
+            <div className="header">
+              <span>🛋️ Chỉnh Sửa Nội Thất Đã Chọn</span>
+              <button className="dismiss-btn" onClick={() => setEditingFurniture(null)}>✕</button>
+            </div>
+            <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
+              <strong>Vật phẩm:</strong> {furnitureLabels[editingFurniture.itemType] || editingFurniture.itemType}
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | Hướng xoay: {(editingFurniture.orientation || 0) * 90}°
+            </div>
+            <div className="action-buttons">
+              <button className="rotate-btn" onClick={handleRotateFurniture}>
+                🔄 Đổi Hướng (Xoay 90°)
+              </button>
+              <button className="delete-btn" onClick={handleDeleteFurniture}>
+                🗑️ Xóa Khỏi Map
+              </button>
+            </div>
+          </EditBox>
+        )}
 
-        {/* Nút bật/tắt Cài đặt nâng cao (Phòng & Kích thước) */}
-        <div>
-          <Button
-            size="small"
-            variant="outlined"
-            fullWidth
-            startIcon={<SettingsIcon />}
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            sx={{
-              color: '#38bdf8',
-              borderColor: 'rgba(56, 189, 248, 0.4)',
-              textTransform: 'none',
-              fontSize: '12px',
+        {/* Panel Chỉnh sửa Phòng khi click vào phòng trên map */}
+        {editingRoom && (
+          <EditBox>
+            <div className="header">
+              <span>🚪 Cấu Hình Phòng: {editingRoom.name}</span>
+              <button className="dismiss-btn" onClick={() => setEditingRoom(null)}>✕</button>
+            </div>
+
+            {/* Đổi tên phòng */}
+            <div className="input-row">
+              <input
+                type="text"
+                value={editingRoomName}
+                onChange={(e) => setEditingRoomName(e.target.value)}
+                placeholder="Nhập tên phòng mới..."
+              />
+              <button onClick={handleSaveRoomName}>Lưu Tên</button>
+            </div>
+
+            {/* Đổi vị trí cửa ra vào trên tường */}
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+                ĐỔI VỊ TRÍ CỬA TRÊN TƯỜNG (VẬT CẢN):
+              </div>
+              <div className="door-buttons">
+                <button onClick={() => handleChangeDoorPosition('bottom')}>🚪 Cạnh Dưới</button>
+                <button onClick={() => handleChangeDoorPosition('top')}>🚪 Cạnh Trên</button>
+                <button onClick={() => handleChangeDoorPosition('left')}>🚪 Cạnh Trái</button>
+                <button onClick={() => handleChangeDoorPosition('right')}>🚪 Cạnh Phải</button>
+              </div>
+            </div>
+
+            <div className="action-buttons">
+              <button className="delete-btn" onClick={handleDeleteRoom}>
+                🗑️ Xóa Phòng Này
+              </button>
+            </div>
+          </EditBox>
+        )}
+
+        {/* Thanh chuyển đổi 2 Tab */}
+        <TabNav>
+          <TabButton
+            $active={activeTab === 'furniture'}
+            onClick={() => {
+              setActiveTab('furniture')
+              dispatch(setSelectedTool(null))
+              dispatch(clearNotices())
             }}
           >
-            {showAdvanced ? 'Thu gọn cài đặt nâng cao' : 'Mở rộng: Kích thước & Phân vùng phòng'}
-          </Button>
-        </div>
+            🛋️ Đặt Nội Thất
+          </TabButton>
+          <TabButton
+            $active={activeTab === 'room'}
+            onClick={() => {
+              setActiveTab('room')
+              dispatch(setSelectedTool(null))
+              dispatch(clearNotices())
+            }}
+          >
+            🚪 Phân Vùng Phòng
+          </TabButton>
+        </TabNav>
 
-        {showAdvanced && (
+        {/* TAB 1: ĐẶT NỘI THẤT */}
+        {activeTab === 'furniture' && (
           <>
-            {/* Cấu hình kích thước Workspace */}
-            <div>
-              <SectionTitle>
-                <SquareFootIcon fontSize="small" /> Diện tích Workspace (Grid)
-              </SectionTitle>
-              <PresetGrid>
-                <PresetCard
-                  $active={selectedSizeType === 'SMALL'}
-                  onClick={() => {
-                    setSelectedSizeType('SMALL')
-                    setNewWidth(20)
-                    setNewHeight(20)
-                  }}
+            <InstructionBox>
+              👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (Máy tính cần đặt trên bàn). Click trực tiếp vào món đồ đã đặt trên map để <strong>Xoay hướng</strong> hoặc <strong>Xóa</strong>!
+            </InstructionBox>
+            <ToolGrid>
+              {furnitureTools.map((t) => (
+                <ToolItem
+                  key={t.type}
+                  $active={selectedTool === t.type}
+                  $isEraser={t.isEraser}
+                  onClick={() => handleToolSelect(t.type)}
                 >
-                  <div className="name">Nhỏ (400 ô)</div>
-                  <div className="info">20x20</div>
-                </PresetCard>
-                <PresetCard
-                  $active={selectedSizeType === 'MEDIUM'}
-                  onClick={() => {
-                    setSelectedSizeType('MEDIUM')
-                    setNewWidth(30)
-                    setNewHeight(30)
-                  }}
-                >
-                  <div className="name">Vừa (900 ô)</div>
-                  <div className="info">30x30</div>
-                </PresetCard>
-                <PresetCard
-                  $active={selectedSizeType === 'LARGE'}
-                  onClick={() => {
-                    setSelectedSizeType('LARGE')
-                    setNewWidth(40)
-                    setNewHeight(40)
-                  }}
-                >
-                  <div className="name">Lớn (1600 ô)</div>
-                  <div className="info">40x40</div>
-                </PresetCard>
-              </PresetGrid>
-              <Button
-                variant="contained"
-                size="small"
-                fullWidth
-                onClick={handleApplySize}
-                sx={{
-                  mt: 1,
-                  background: '#0284c7',
-                  color: '#fff',
-                  textTransform: 'none',
-                  fontSize: '12px',
-                }}
-              >
-                Cập Nhật Kích Thước Bản Đồ
-              </Button>
-            </div>
-
-            {/* Phân vùng phòng chức năng */}
-            <div>
-              <SectionTitle>
-                <MeetingRoomIcon fontSize="small" /> Phân Vùng Phòng (Private Zone)
-              </SectionTitle>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel sx={{ color: '#94a3b8' }}>Loại Phòng</InputLabel>
-                  <Select
-                    value={roomType}
-                    label="Loại Phòng"
-                    onChange={(e) => setRoomType(e.target.value)}
-                    sx={{ color: '#fff', background: 'rgba(0,0,0,0.2)' }}
-                  >
-                    <MenuItem value="meeting">Phòng Họp (Meeting)</MenuItem>
-                    <MenuItem value="office">Phòng Làm Việc (Office)</MenuItem>
-                    <MenuItem value="lounge">Phòng Nghỉ (Lounge)</MenuItem>
-                    <MenuItem value="pantry">Khu Pantry (Ăn Uống)</MenuItem>
-                  </Select>
-                </FormControl>
-                <TextField
-                  size="small"
-                  label="Tên phòng (Ví dụ: Phòng Họp VIP)"
-                  value={roomName}
-                  onChange={(e) => setRoomName(e.target.value)}
-                  sx={{ '& .MuiInputBase-root': { color: '#fff', background: 'rgba(0,0,0,0.2)' }, '& .MuiInputLabel-root': { color: '#94a3b8' } }}
-                />
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1 }}>
-                  <TextField
-                    size="small"
-                    label="X"
-                    type="number"
-                    value={roomX}
-                    onChange={(e) => setRoomX(parseInt(e.target.value) || 0)}
-                    sx={{ '& .MuiInputBase-root': { color: '#fff', background: 'rgba(0,0,0,0.2)' } }}
-                  />
-                  <TextField
-                    size="small"
-                    label="Y"
-                    type="number"
-                    value={roomY}
-                    onChange={(e) => setRoomY(parseInt(e.target.value) || 0)}
-                    sx={{ '& .MuiInputBase-root': { color: '#fff', background: 'rgba(0,0,0,0.2)' } }}
-                  />
-                  <TextField
-                    size="small"
-                    label="Rộng"
-                    type="number"
-                    value={roomW}
-                    onChange={(e) => setRoomW(parseInt(e.target.value) || 1)}
-                    sx={{ '& .MuiInputBase-root': { color: '#fff', background: 'rgba(0,0,0,0.2)' } }}
-                  />
-                  <TextField
-                    size="small"
-                    label="Dài"
-                    type="number"
-                    value={roomH}
-                    onChange={(e) => setRoomH(parseInt(e.target.value) || 1)}
-                    sx={{ '& .MuiInputBase-root': { color: '#fff', background: 'rgba(0,0,0,0.2)' } }}
-                  />
-                </Box>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handleAddRoom}
-                  sx={{ color: '#38bdf8', borderColor: '#38bdf8', textTransform: 'none' }}
-                >
-                  Tạo Phân Vùng Phòng
-                </Button>
-              </Box>
-            </div>
+                  <span className="emoji">{t.emoji}</span>
+                  <span className="label">{t.label}</span>
+                </ToolItem>
+              ))}
+            </ToolGrid>
           </>
         )}
 
-        <BottomActions>
-          <Button
-            variant="contained"
-            fullWidth
-            startIcon={<CheckCircleIcon />}
-            onClick={handleClose}
-            sx={{
-              background: '#22c55e',
-              color: '#ffffff',
-              fontWeight: 700,
-              textTransform: 'none',
-              '&:hover': { background: '#16a34a' },
-            }}
-          >
-            Hoàn Tất & Điều Khiển Nhân Vật
-          </Button>
-        </BottomActions>
-      </DockContent>
-    </DockWrapper>
+        {/* TAB 2: PHÂN VÙNG PHÒNG (KÉO THẢ DIỆN TÍCH TÙY Ý) */}
+        {activeTab === 'room' && (
+          <>
+            <InstructionBox>
+              👉 <strong>Click chọn loại phòng</strong> rồi <strong>NHẤN GIỮ CHUỘT TRÁI VÀ KÉO (Drag & Drop)</strong> trên bản đồ để tạo phòng có tường bao quanh và cửa ra vào.
+            </InstructionBox>
+            <ToolGrid>
+              {roomTools.map((t) => (
+                <ToolItem
+                  key={t.type}
+                  $active={selectedTool === t.type}
+                  $isEraser={t.isEraser}
+                  onClick={() => handleToolSelect(t.type)}
+                >
+                  <span className="emoji">{t.emoji}</span>
+                  <span className="label">{t.label}</span>
+                </ToolItem>
+              ))}
+            </ToolGrid>
+          </>
+        )}
+      </SidebarBody>
+
+      <SidebarFooter>
+        <button className="finish-btn" onClick={handleClose}>
+          ✓ Hoàn Tất & Điều Khiển Nhân Vật
+        </button>
+      </SidebarFooter>
+    </RightSidebar>,
+    document.body
   )
 }
