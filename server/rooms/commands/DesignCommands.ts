@@ -142,7 +142,7 @@ export class PlaceFurnitureCommand extends Command<
     gridY: number
     orientation?: number
   }) {
-    const { client, id, itemType, gridX, gridY, orientation = 0 } = data
+    let { client, id, itemType, gridX, gridY, orientation = 0 } = data
     const workspace = this.room.state.workspace
 
     if (gridX < 0 || gridY < 0 || gridX >= workspace.width || gridY >= workspace.height) {
@@ -152,49 +152,65 @@ export class PlaceFurnitureCommand extends Command<
       return
     }
 
-    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'vendingmachine']
-    if (!validItems.includes(itemType)) {
+    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'vendingmachine', 'rug']
+    const baseType = itemType.split(':')[0]
+    if (!validItems.includes(baseType)) {
       client.send(Message.DESIGN_ERROR, {
         message: 'Loại vật dụng không hợp lệ.',
       })
       return
     }
 
-    // CONSTRAINT CHECK: Computer demands Table at identical (gridX, gridY)
-    if (itemType === 'computer') {
+    // Kiểm tra trùng lắp (Overlapping Rules):
+    // 1. Thảm (Rug): Có thể trải dưới mọi vật thể khác, chỉ không chồng thảm lên thảm khác tại cùng ô.
+    // 2. Máy tính (Computer): Có thể đặt trên Bàn hoặc đặt độc lập/trên thảm (1 ô không có 2 máy tính).
+    // 3. Các vật thể khác (Table, Chair, Vase, Whiteboard, Vending Machine): Có thể đặt trên thảm hoặc ô trống.
+    if (baseType === 'rug') {
+      let hasRug = false
+      this.room.state.furniture.forEach((f) => {
+        if (f.gridX === gridX && f.gridY === gridY && f.id !== id && f.itemType.startsWith('rug')) {
+          hasRug = true
+        }
+      })
+      if (hasRug) {
+        client.send(Message.DESIGN_ERROR, {
+          message: 'Tại ô này đã có sẵn một tấm thảm khác!',
+        })
+        return
+      }
+    } else if (baseType === 'computer') {
       let hasTable = false
+      let tableOrientation = 0
       let hasExistingComputer = false
-
       this.room.state.furniture.forEach((f) => {
         if (f.gridX === gridX && f.gridY === gridY) {
           if (f.itemType === 'table') {
             hasTable = true
+            tableOrientation = f.orientation || 0
           }
-          if (f.itemType === 'computer' && f.id !== id) {
-            hasExistingComputer = true
-          }
+          if (f.itemType === 'computer' && f.id !== id) hasExistingComputer = true
         }
       })
-
       if (!hasTable) {
         client.send(Message.DESIGN_ERROR, {
-          message: 'Thất bại: Máy tính (computer) chỉ có thể thiết kế khi có bàn (table) tại grid đó.',
+          message: 'Máy tính bắt buộc phải được đặt trên Bàn! Hãy đặt Bàn tại ô này trước.',
         })
         return
       }
-
       if (hasExistingComputer) {
         client.send(Message.DESIGN_ERROR, {
           message: 'Bàn tại vị trí này đã có sẵn một máy tính!',
         })
         return
       }
+      // Hướng của máy tính luôn luôn khớp với hướng của bàn
+      orientation = tableOrientation
     } else {
-      // Non-computer items cannot overlap each other
       let isOccupied = false
       this.room.state.furniture.forEach((f) => {
         if (f.gridX === gridX && f.gridY === gridY && f.id !== id) {
-          if (f.itemType !== 'computer') {
+          const fBase = f.itemType.split(':')[0]
+          if (fBase !== 'rug' && fBase !== 'computer') {
             isOccupied = true
           }
         }
@@ -220,6 +236,15 @@ export class PlaceFurnitureCommand extends Command<
     furniture.orientation = orientation
 
     this.room.state.furniture.set(id, furniture)
+
+    // Nếu đặt hoặc xoay Bàn làm việc, tự động xoay mọi máy tính đặt trên bàn đó theo đúng hướng bàn
+    if (baseType === 'table') {
+      this.room.state.furniture.forEach((f) => {
+        if (f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY) {
+          f.orientation = orientation
+        }
+      })
+    }
 
     // Ensure interactive computers & whiteboards have matching schema entries for WebRTC
     if (itemType === 'computer' && !this.room.state.computers.has(id)) {

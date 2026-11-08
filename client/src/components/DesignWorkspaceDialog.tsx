@@ -14,6 +14,7 @@ import {
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { RUG_COLORS } from '../utils/FurnitureTextures'
 
 // ===== STYLED COMPONENTS CHO GIAO DIỆN DESIGN MODE =====
 
@@ -374,6 +375,87 @@ const EditBox = styled.div`
   }
 `
 
+const ColorPaletteBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #1e293b;
+  border: 1px solid #38bdf8;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 4px;
+
+  .palette-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    color: #38bdf8;
+
+    .current-color-badge {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .color-btn {
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #ffffff;
+    font-weight: 700;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+
+    &:hover {
+      transform: scale(1.08);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    &.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+      transform: scale(1.04);
+    }
+  }
+
+  .custom-color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+
+    input[type='color'] {
+      -webkit-appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      width: 32px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+      padding: 0;
+    }
+  }
+`
+
 const SidebarFooter = styled.div`
   padding: 16px 20px;
   background: #0f172a;
@@ -424,10 +506,11 @@ export default function DesignWorkspaceDialog() {
   const dispatch = useAppDispatch()
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
-  const { designMode, selectedTool, errorNotice, successNotice } =
+  const { designMode, selectedTool, furnitures, errorNotice, successNotice } =
     useAppSelector((state) => state.workspace)
 
   const [activeTab, setActiveTab] = useState<'furniture' | 'room'>('furniture')
+  const [selectedRugColor, setSelectedRugColor] = useState('#2563eb')
 
   // Tương tác trực tiếp: Nội thất và Phòng được chọn khi click trên map
   const [editingFurniture, setEditingFurniture] = useState<FurnitureLayoutItem | null>(null)
@@ -457,10 +540,11 @@ export default function DesignWorkspaceDialog() {
 
   // Danh sách Nội thất
   const furnitureTools = [
-    { type: 'table', label: 'Bàn Làm Việc', emoji: '🪑' },
+    { type: 'table', label: 'Bàn Làm Việc', emoji: '🪵' },
     { type: 'chair', label: 'Ghế Ngồi', emoji: '💺' },
-    { type: 'computer', label: 'Máy Tính (Trên Bàn)', emoji: '💻' },
-    { type: 'vase', label: 'Cây / Bình Hoa', emoji: '🪴' },
+    { type: 'computer', label: 'Máy Tính (Trên Bàn)', emoji: '🖥️' },
+    { type: 'vase', label: 'Bình Hoa Tươi', emoji: '🏺' },
+    { type: 'rug', label: 'Thảm Trải Sàn', emoji: '🧶', hasColorPicker: true },
     { type: 'whiteboard', label: 'Bảng Trắng', emoji: '📋' },
     { type: 'vendingmachine', label: 'Máy Bán Nước', emoji: '🥤' },
     { type: 'eraser', label: 'Tẩy Xóa Đồ', emoji: '🧹', isEraser: true },
@@ -476,13 +560,29 @@ export default function DesignWorkspaceDialog() {
   ]
 
   const handleToolSelect = (toolType: string) => {
+    const isRug = toolType === 'rug' || toolType.startsWith('rug')
+    const activeIsRug = selectedTool === 'rug' || selectedTool?.startsWith('rug')
+
+    if (isRug && activeIsRug) {
+      dispatch(setSelectedTool(null))
+      return
+    }
     if (selectedTool === toolType) {
       dispatch(setSelectedTool(null))
-    } else {
-      dispatch(setSelectedTool(toolType))
-      dispatch(clearNotices())
-      phaserEvents.emit('select-furniture', toolType)
+      return
     }
+
+    const finalType = isRug ? `rug:${selectedRugColor}` : toolType
+    dispatch(setSelectedTool(finalType))
+    dispatch(clearNotices())
+    phaserEvents.emit('select-furniture', finalType)
+  }
+
+  const handleColorChange = (hex: string) => {
+    setSelectedRugColor(hex)
+    dispatch(setSelectedTool(`rug:${hex}`))
+    dispatch(clearNotices())
+    phaserEvents.emit('select-furniture', `rug:${hex}`)
   }
 
   // --- NỘI THẤT: Đổi hướng xoay 90° & Xóa ---
@@ -495,7 +595,40 @@ export default function DesignWorkspaceDialog() {
       orientation: nextOrientation,
     })
     setEditingFurniture({ ...editingFurniture, orientation: nextOrientation })
-    dispatch(setSuccessNotice('Đã xoay hướng nội thất 90°!'))
+
+    // Nếu xoay Bàn: Tự động xoay luôn máy tính đang đặt trên bàn đó
+    if (editingFurniture.itemType === 'table') {
+      const computerOnTable = Object.values(furnitures).find(
+        (f) =>
+          f.itemType === 'computer' &&
+          f.gridX === editingFurniture.gridX &&
+          f.gridY === editingFurniture.gridY
+      )
+      if (computerOnTable) {
+        bootstrap.network.placeFurniture({
+          ...computerOnTable,
+          orientation: nextOrientation,
+        })
+      }
+    }
+
+    // Nếu xoay Máy tính: Tự động xoay luôn chiếc bàn bên dưới
+    if (editingFurniture.itemType === 'computer') {
+      const tableUnderComputer = Object.values(furnitures).find(
+        (f) =>
+          f.itemType === 'table' &&
+          f.gridX === editingFurniture.gridX &&
+          f.gridY === editingFurniture.gridY
+      )
+      if (tableUnderComputer) {
+        bootstrap.network.placeFurniture({
+          ...tableUnderComputer,
+          orientation: nextOrientation,
+        })
+      }
+    }
+
+    dispatch(setSuccessNotice('Đã xoay hướng nội thất 90° (Bàn & Máy tính đồng bộ hướng)!'))
   }
 
   const handleDeleteFurniture = () => {
@@ -595,16 +728,32 @@ export default function DesignWorkspaceDialog() {
   const furnitureLabels: Record<string, string> = {
     table: 'Bàn Làm Việc',
     chair: 'Ghế Ngồi',
-    computer: 'Máy Tính',
-    vase: 'Cây / Bình Hoa',
+    computer: 'Máy Tính (Trên Bàn)',
+    vase: 'Bình Hoa Tươi',
+    rug: 'Thảm Trải Sàn',
     whiteboard: 'Bảng Trắng',
     vendingmachine: 'Máy Bán Nước',
   }
 
-  const currentToolLabel =
-    furnitureTools.find((f) => f.type === selectedTool)?.label ||
-    roomTools.find((r) => r.type === selectedTool)?.label ||
-    selectedTool
+  const getFurnitureName = (type: string) => {
+    if (!type) return ''
+    if (type.startsWith('rug')) {
+      const color = type.split(':')[1]
+      const colorObj = RUG_COLORS.find((c) => c.hex.toLowerCase() === color?.toLowerCase())
+      return colorObj ? `Thảm Trải Sàn (${colorObj.name})` : 'Thảm Trải Sàn'
+    }
+    return furnitureLabels[type] || type
+  }
+
+  const currentToolLabel = selectedTool?.startsWith('rug')
+    ? (() => {
+        const color = selectedTool.split(':')[1] || selectedRugColor
+        const colorObj = RUG_COLORS.find((c) => c.hex.toLowerCase() === color.toLowerCase())
+        return `Thảm Trải Sàn (${colorObj ? colorObj.name : color})`
+      })()
+    : furnitureTools.find((f) => f.type === selectedTool)?.label ||
+      roomTools.find((r) => r.type === selectedTool)?.label ||
+      selectedTool
 
   return ReactDOM.createPortal(
     <RightSidebar>
@@ -661,14 +810,60 @@ export default function DesignWorkspaceDialog() {
               <button className="dismiss-btn" onClick={() => setEditingFurniture(null)}>✕</button>
             </div>
             <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
-              <strong>Vật phẩm:</strong> {furnitureLabels[editingFurniture.itemType] || editingFurniture.itemType}
+              <strong>Vật phẩm:</strong> {getFurnitureName(editingFurniture.itemType)}
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-              Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | Hướng xoay: {(editingFurniture.orientation || 0) * 90}°
+              Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | Hướng: {
+                ['Mặt trước (Trước)', 'Mặt trái (Trái)', 'Mặt sau (Sau)', 'Mặt phải (Phải)'][
+                  (editingFurniture.orientation || 0) % 4
+                ]
+              }
             </div>
+
+            {/* Nếu là thảm: Cho phép đổi màu trực tiếp */}
+            {editingFurniture.itemType.startsWith('rug') && (
+              <div style={{ marginTop: '2px' }}>
+                <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, marginBottom: '6px' }}>
+                  Đổi màu thảm đã đặt:
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {RUG_COLORS.map((c) => (
+                    <div
+                      key={c.hex}
+                      onClick={() => {
+                        const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+                        bootstrap.network.placeFurniture({
+                          ...editingFurniture,
+                          itemType: `rug:${c.hex}`,
+                        })
+                        setEditingFurniture({ ...editingFurniture, itemType: `rug:${c.hex}` })
+                        dispatch(setSuccessNotice(`Đã đổi màu thảm sang ${c.name}!`))
+                      }}
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '6px',
+                        background: c.hex,
+                        cursor: 'pointer',
+                        border:
+                          editingFurniture.itemType === `rug:${c.hex}`
+                            ? '2px solid #ffffff'
+                            : '1px solid rgba(255,255,255,0.25)',
+                        boxShadow:
+                          editingFurniture.itemType === `rug:${c.hex}`
+                            ? '0 0 8px rgba(255,255,255,0.7)'
+                            : 'none',
+                      }}
+                      title={c.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="action-buttons">
               <button className="rotate-btn" onClick={handleRotateFurniture}>
-                🔄 Đổi Hướng (Xoay 90°)
+                🔄 Đổi Hướng (Trước / Trái / Sau / Phải)
               </button>
               <button className="delete-btn" onClick={handleDeleteFurniture}>
                 🗑️ Xóa Khỏi Map
@@ -745,13 +940,17 @@ export default function DesignWorkspaceDialog() {
         {activeTab === 'furniture' && (
           <>
             <InstructionBox>
-              👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (Máy tính cần đặt trên bàn). Click trực tiếp vào món đồ đã đặt trên map để <strong>Xoay hướng</strong> hoặc <strong>Xóa</strong>!
+              👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (<strong>Máy tính bắt buộc phải đặt trên Bàn</strong>). Khi chọn <strong>Thảm Trải Sàn</strong>, bạn có thể <strong>chọn màu sắc yêu thích</strong> bên dưới trước khi đặt! Click trực tiếp vào món đồ trên map để Xoay hoặc Xóa.
             </InstructionBox>
             <ToolGrid>
               {furnitureTools.map((t) => (
                 <ToolItem
                   key={t.type}
-                  $active={selectedTool === t.type}
+                  $active={
+                    t.type === 'rug'
+                      ? !!selectedTool?.startsWith('rug')
+                      : selectedTool === t.type
+                  }
                   $isEraser={t.isEraser}
                   onClick={() => handleToolSelect(t.type)}
                 >
@@ -760,6 +959,43 @@ export default function DesignWorkspaceDialog() {
                 </ToolItem>
               ))}
             </ToolGrid>
+
+            {/* BẢNG CHỌN MÀU THẢM (Hiển thị khi chọn công cụ Thảm Trải Sàn) */}
+            {selectedTool?.startsWith('rug') && (
+              <ColorPaletteBox>
+                <div className="palette-header">
+                  <span>🎨 Chọn Màu Thảm Trước Khi Đặt:</span>
+                  <span
+                    className="current-color-badge"
+                    style={{ background: selectedRugColor }}
+                  />
+                </div>
+                <div className="color-grid">
+                  {RUG_COLORS.map((c) => (
+                    <div
+                      key={c.hex}
+                      className={`color-btn ${
+                        selectedRugColor.toLowerCase() === c.hex.toLowerCase() ? 'active' : ''
+                      }`}
+                      style={{ background: c.hex }}
+                      onClick={() => handleColorChange(c.hex)}
+                      title={c.name}
+                    >
+                      {selectedRugColor.toLowerCase() === c.hex.toLowerCase() && '✓'}
+                    </div>
+                  ))}
+                </div>
+                <div className="custom-color-row">
+                  <label>Màu tùy chỉnh khác:</label>
+                  <input
+                    type="color"
+                    value={selectedRugColor}
+                    onChange={(e) => handleColorChange(e.target.value)}
+                  />
+                  <span>{selectedRugColor.toUpperCase()}</span>
+                </div>
+              </ColorPaletteBox>
+            )}
           </>
         )}
 

@@ -25,6 +25,7 @@ import { setLoggedIn } from '../stores/UserStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { Pathfinder } from '../utils/Pathfinder'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { registerFurnitureTextures, ensureCustomRugTexture } from '../utils/FurnitureTextures'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -102,6 +103,7 @@ export default class Game extends Phaser.Scene {
 
     this.registerKeys()
     createCharacterAnims(this.anims)
+    registerFurnitureTextures(this)
 
     // Khởi tạo các nhóm vật lý tương tác
     this.chairsGroup = this.physics.add.staticGroup({ classType: Chair })
@@ -398,23 +400,35 @@ export default class Game extends Phaser.Scene {
         this.ghostMarker.setVisible(true)
 
         if (selectedTool === 'computer') {
-          // Kiểm tra ràng buộc Gather: Máy tính bắt buộc phải đặt trên Bàn (Table)
-          const hasTable = Object.values(state.workspace.furnitures).some(
+          const tableAtTile = Object.values(state.workspace.furnitures).find(
             (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
           )
-          if (hasTable) {
-            this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: Hợp lệ
+          const hasExistingComputer = Object.values(state.workspace.furnitures).some(
+            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+          )
+          if (tableAtTile && !hasExistingComputer) {
+            this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: Hợp lệ (đặt trên bàn)
             this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
+            this.ghostMarker.setAngle((tableAtTile.orientation || 0) * 90)
           } else {
-            this.ghostMarker.setFillStyle(0xef4444, 0.5) // Đỏ: Thiếu bàn
+            this.ghostMarker.setFillStyle(0xef4444, 0.5) // Đỏ: Thiếu bàn hoặc đã có máy tính
             this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+            this.ghostMarker.setAngle(0)
           }
-        } else if (selectedTool === 'eraser') {
-          this.ghostMarker.setFillStyle(0xf97316, 0.5)
-          this.ghostMarker.setStrokeStyle(2, 0xfb923c, 1)
         } else {
-          this.ghostMarker.setFillStyle(0x38bdf8, 0.5)
-          this.ghostMarker.setStrokeStyle(2, 0x7dd3fc, 1)
+          this.ghostMarker.setAngle(0)
+          if (selectedTool?.startsWith('rug')) {
+            const colorHex = selectedTool.includes(':') ? selectedTool.split(':')[1] : '#2563eb'
+            const numColor = parseInt(colorHex.replace('#', ''), 16) || 0x2563eb
+            this.ghostMarker.setFillStyle(numColor, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
+          } else if (selectedTool === 'eraser') {
+            this.ghostMarker.setFillStyle(0xf97316, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xfb923c, 1)
+          } else {
+            this.ghostMarker.setFillStyle(0x38bdf8, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x7dd3fc, 1)
+          }
         }
       }
     })
@@ -461,7 +475,7 @@ export default class Game extends Phaser.Scene {
             gridY < r.gridY + r.height
         )
 
-        // 1. Chế độ TẨY XÓA
+        // 1. Chế độ TẨY XÓA (Eraser)
         if (selectedTool === 'eraser') {
           if (clickedFurn) {
             this.network.removeFurniture(clickedFurn.id)
@@ -476,21 +490,20 @@ export default class Game extends Phaser.Scene {
           return
         }
 
-        // 2. Nếu click trực tiếp vào một món nội thất đã đặt -> Mở dialog đổi hướng / xóa
-        if (clickedFurn) {
-          phaserEvents.emit(Event.OPEN_FURNITURE_DIALOG, clickedFurn)
-          return
-        }
-
-        // 3. Nếu chưa chọn công cụ nào mà click trúng phòng -> Mở dialog phòng để đổi tên / đổi cửa / xóa
+        // 2. Chế độ Con trỏ tự do (!selectedTool): Click vào nội thất hoặc phòng để sửa / đổi hướng / xóa
         if (!selectedTool) {
+          if (clickedFurn) {
+            phaserEvents.emit(Event.OPEN_FURNITURE_DIALOG, clickedFurn)
+            return
+          }
           if (clickedRoom) {
             phaserEvents.emit(Event.OPEN_ROOM_DIALOG, clickedRoom)
+            return
           }
           return
         }
 
-        // 4. Chế độ PHÒNG: Bắt đầu kéo thả diện tích phòng (Drag to size)
+        // 3. Chế độ PHÒNG: Bắt đầu kéo thả diện tích phòng (Drag to size)
         if (selectedTool.startsWith('room_')) {
           this.isDraggingRoom = true
           this.roomStartTile = { x: gridX, y: gridY }
@@ -498,23 +511,44 @@ export default class Game extends Phaser.Scene {
           return
         }
 
-        // 5. Chế độ ĐẶT NỘI THẤT
+        // 4. Chế độ ĐẶT NỘI THẤT (Bàn, Ghế, Máy tính 1 màn hình, Bình hoa, Thảm, ...)
         if (selectedTool === 'computer') {
           const hasTable = Object.values(state.workspace.furnitures).some(
             (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
           )
           if (!hasTable) {
             store.dispatch(
-              setErrorNotice('Máy tính bắt buộc phải đặt trên Bàn! Hãy đặt Bàn ở ô này trước.')
+              setErrorNotice('Máy tính bắt buộc phải được đặt trên Bàn! Vui lòng đặt Bàn tại ô này trước.')
+            )
+            return
+          }
+          const hasExistingComputer = Object.values(state.workspace.furnitures).some(
+            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+          )
+          if (hasExistingComputer) {
+            store.dispatch(
+              setErrorNotice('Bàn tại vị trí này đã có sẵn một máy tính!')
             )
             return
           }
         }
 
-        // Đặt nội thất lên Colyseus State
-        this.network.placeFurniture(selectedTool, gridX, gridY)
+        const tableAtTile = Object.values(state.workspace.furnitures).find(
+          (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+        )
+        const orientation = selectedTool === 'computer' ? tableAtTile?.orientation || 0 : 0
+        this.network.placeFurniture(selectedTool, gridX, gridY, orientation)
+        const toolLabel = selectedTool.startsWith('rug')
+          ? 'thảm trải sàn'
+          : selectedTool === 'computer'
+          ? 'máy tính lên bàn'
+          : selectedTool === 'table'
+          ? 'bàn làm việc'
+          : selectedTool === 'vase'
+          ? 'bình hoa'
+          : selectedTool
         store.dispatch(
-          setSuccessNotice(`Đã đặt ${selectedTool} tại ô (${gridX}, ${gridY}) thành công!`)
+          setSuccessNotice(`Đã đặt ${toolLabel} tại ô (${gridX}, ${gridY}) thành công!`)
         )
         return
       }
@@ -741,10 +775,20 @@ export default class Game extends Phaser.Scene {
     let obj: Phaser.GameObjects.GameObject | null = null
 
     if (item.itemType === 'table') {
-      const table = this.obstaclesGroup.create(worldX, worldY, 'office', 28)
+      const tableTexture = `custom_table_${orientation % 4}`
+      const table = this.obstaclesGroup.create(worldX, worldY, tableTexture)
       table.setDepth(worldY)
-      table.setAngle(orientation * 90)
+      table.setAngle(0)
       obj = table
+
+      // Tự động xoay máy tính trên bàn theo hướng xoay 2.5D của bàn
+      const compOnTable = Array.from(this.computerMap.values()).find(
+        (c) => Math.floor(c.x / 32) === item.gridX && Math.floor(c.y / 32) === item.gridY
+      )
+      if (compOnTable) {
+        compOnTable.setTexture(`custom_computer_${orientation % 4}`)
+        compOnTable.setAngle(0)
+      }
     } else if (item.itemType === 'chair') {
       const chair = this.chairsGroup.get(worldX, worldY, 'chairs', 0) as Chair
       const chairFrames = [0, 3, 1, 2] // 0: down, 1: left, 2: up, 3: right
@@ -754,10 +798,14 @@ export default class Game extends Phaser.Scene {
       chair.setDepth(worldY)
       obj = chair
     } else if (item.itemType === 'computer') {
-      const comp = this.computersGroup.get(worldX, worldY - 8, 'computers', 0) as Computer
+      const compTexture = `custom_computer_${orientation % 4}`
+      const comp = this.computersGroup.get(worldX, worldY, compTexture) as Computer
+      comp.setTexture(compTexture)
+      comp.setSize(32, 32)
+      comp.setDisplaySize(32, 32)
       comp.id = item.id
-      comp.setDepth(worldY + 4)
-      comp.setAngle(orientation * 90)
+      comp.setDepth(worldY + 5)
+      comp.setAngle(0)
       this.computerMap.set(item.id, comp)
       obj = comp
     } else if (item.itemType === 'whiteboard') {
@@ -768,7 +816,7 @@ export default class Game extends Phaser.Scene {
       this.whiteboardMap.set(item.id, wb)
       obj = wb
     } else if (item.itemType === 'vase') {
-      const vase = this.obstaclesGroup.create(worldX, worldY, 'generic', 700)
+      const vase = this.obstaclesGroup.create(worldX, worldY, 'custom_vase')
       vase.setDepth(worldY)
       vase.setAngle(orientation * 90)
       obj = vase
@@ -777,6 +825,13 @@ export default class Game extends Phaser.Scene {
       vm.setDepth(worldY + 10)
       vm.setAngle(orientation * 90)
       obj = vm
+    } else if (item.itemType.startsWith('rug')) {
+      const colorHex = item.itemType.includes(':') ? item.itemType.split(':')[1] : '#2563eb'
+      const rugKey = ensureCustomRugTexture(this, colorHex)
+      const rug = this.add.sprite(worldX, worldY, rugKey)
+      rug.setDepth(2) // Lớp thảm sàn: nằm dưới nhân vật và bàn ghế
+      rug.setAngle(orientation * 90)
+      obj = rug
     }
 
     if (obj) {
