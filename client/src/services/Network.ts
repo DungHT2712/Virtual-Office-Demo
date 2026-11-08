@@ -177,7 +177,11 @@ export default class Network {
     }
 
     // new instance added to the computers MapSchema
-    this.room.state.computers.onAdd = (computer: IComputer, key: string) => {
+    const setupComputerListeners = (computer: IComputer, key: string) => {
+      // track existing users already connected to this computer
+      computer.connectedUser.forEach((item) => {
+        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
+      })
       // track changes on every child object's connectedUser
       computer.connectedUser.onAdd = (item, index) => {
         phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
@@ -187,14 +191,26 @@ export default class Network {
       }
     }
 
+    this.room.state.computers.onAdd = (computer: IComputer, key: string) => {
+      setupComputerListeners(computer, key)
+    }
+
+    this.room.state.computers.forEach((computer: IComputer, key: string) => {
+      setupComputerListeners(computer, key)
+    })
+
     // new instance added to the whiteboards MapSchema
-    this.room.state.whiteboards.onAdd = (whiteboard: IWhiteboard, key: string) => {
+    const setupWhiteboardListeners = (whiteboard: IWhiteboard, key: string) => {
       store.dispatch(
         setWhiteboardUrls({
           whiteboardId: key,
           roomId: whiteboard.roomId,
         })
       )
+      // track existing users already connected to this whiteboard
+      whiteboard.connectedUser.forEach((item) => {
+        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
+      })
       // track changes on every child object's connectedUser
       whiteboard.connectedUser.onAdd = (item, index) => {
         phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
@@ -203,6 +219,14 @@ export default class Network {
         phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
       }
     }
+
+    this.room.state.whiteboards.onAdd = (whiteboard: IWhiteboard, key: string) => {
+      setupWhiteboardListeners(whiteboard, key)
+    }
+
+    this.room.state.whiteboards.forEach((whiteboard: IWhiteboard, key: string) => {
+      setupWhiteboardListeners(whiteboard, key)
+    })
 
     // new instance added to the chatMessages ArraySchema
     this.room.state.chatMessages.onAdd = (item, index) => {

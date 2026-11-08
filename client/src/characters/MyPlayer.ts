@@ -25,6 +25,7 @@ export default class MyPlayer extends Player {
 
   public virtualButtonE: boolean = false
   public virtualButtonR: boolean = false
+  public playerSelector?: PlayerSelector
 
   constructor(
     scene: Phaser.Scene,
@@ -69,6 +70,138 @@ export default class MyPlayer extends Player {
     this.joystickMovement = movement
   }
 
+  public sitOnChair(chairItem: Chair, network: Network) {
+    this.clearMovePath()
+    this.scene.time.addEvent({
+      delay: 10,
+      callback: () => {
+        this.setVelocity(0, 0)
+        if (chairItem.itemDirection) {
+          this.setPosition(
+            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
+            chairItem.y + sittingShiftData[chairItem.itemDirection][1]
+          ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
+          this.playerContainer.setPosition(
+            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
+            chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
+          )
+        }
+
+        this.play(`${this.playerTexture}_sit_${chairItem.itemDirection}`, true)
+        if (this.playerSelector) {
+          this.playerSelector.setPosition(this.x, this.y)
+          const body = this.playerSelector.body as Phaser.Physics.Arcade.Body
+          if (body) {
+            body.setSize(96, 96)
+            body.center.set(this.x, this.y)
+          }
+        }
+        network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+      },
+      loop: false,
+    })
+    chairItem.clearDialogBox()
+    chairItem.setDialogBox('Press E to leave')
+    this.chairOnSit = chairItem
+    this.playerBehavior = PlayerBehavior.SITTING
+    if (this.playerSelector) this.playerSelector.selectedItem = undefined
+  }
+
+  public standUpFromChair(network: Network) {
+    const parts = this.anims.currentAnim.key.split('_')
+    parts[parts.length - 2] = 'idle'
+    this.play(parts.join('_'), true)
+    this.playerBehavior = PlayerBehavior.IDLE
+    this.chairOnSit?.clearDialogBox()
+    this.chairOnSit = undefined
+    if (this.playerSelector) {
+      this.playerSelector.setPosition(this.x, this.y)
+    }
+    network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+  }
+
+  public interactE(network: Network) {
+    if (this.playerBehavior === PlayerBehavior.SITTING) {
+      this.standUpFromChair(network)
+      return
+    }
+
+    let chairItem = this.playerSelector?.selectedItem
+    if (!chairItem || chairItem.itemType !== ItemType.CHAIR) {
+      const gameScene = this.scene as any
+      if (gameScene?.chairsGroup) {
+        let closestChair: Chair | null = null
+        let minDist = 80
+        gameScene.chairsGroup.getChildren().forEach((c: any) => {
+          const ch = c as Chair
+          const dist = Phaser.Math.Distance.Between(this.x, this.y, ch.x, ch.y)
+          if (dist < minDist) {
+            minDist = dist
+            closestChair = ch
+          }
+        })
+        if (closestChair) chairItem = closestChair
+      }
+    }
+
+    if (chairItem && chairItem.itemType === ItemType.CHAIR) {
+      this.sitOnChair(chairItem as Chair, network)
+    }
+  }
+
+  public interactR(network: Network) {
+    let targetItem = this.playerSelector?.selectedItem
+
+    // Nếu targetItem không phải là COMPUTER hay WHITEBOARD (ví dụ đang là CHAIR hoặc null),
+    // tự động tìm Computer hoặc Whiteboard gần nhất trong bán kính 3x3 (80px)
+    if (!targetItem || (targetItem.itemType !== ItemType.COMPUTER && targetItem.itemType !== ItemType.WHITEBOARD)) {
+      const gameScene = this.scene as any
+      let closestItem: Item | null = null
+      let minDist = 80
+
+      if (gameScene?.computersGroup) {
+        gameScene.computersGroup.getChildren().forEach((c: any) => {
+          const comp = c as Computer
+          const dist = Phaser.Math.Distance.Between(this.x, this.y, comp.x, comp.y)
+          if (dist < minDist) {
+            minDist = dist
+            closestItem = comp
+          }
+        })
+      }
+
+      if (!closestItem && gameScene?.whiteboardsGroup) {
+        gameScene.whiteboardsGroup.getChildren().forEach((w: any) => {
+          const wb = w as Whiteboard
+          const dist = Phaser.Math.Distance.Between(this.x, this.y, wb.x, wb.y)
+          if (dist < minDist) {
+            minDist = dist
+            closestItem = wb
+          }
+        })
+      }
+
+      if (closestItem) {
+        targetItem = closestItem
+      }
+    }
+
+    switch (targetItem?.itemType) {
+      case ItemType.COMPUTER:
+        const computer = targetItem as Computer
+        computer.openDialog(this.playerId, network)
+        break
+      case ItemType.WHITEBOARD:
+        const whiteboard = targetItem as Whiteboard
+        whiteboard.openDialog(network)
+        break
+      case ItemType.VENDINGMACHINE:
+        const url = 'https://www.buymeacoffee.com/skyoffice'
+        openURL(url)
+        break
+    }
+  }
+
   update(
     playerSelector: PlayerSelector,
     cursors: NavKeys,
@@ -76,6 +209,7 @@ export default class MyPlayer extends Player {
     keyR: Phaser.Input.Keyboard.Key,
     network: Network
   ) {
+    this.playerSelector = playerSelector
     if (!cursors) return
 
     const item = playerSelector.selectedItem
@@ -87,69 +221,14 @@ export default class MyPlayer extends Player {
     this.virtualButtonR = false
 
     if (isRJustDown) {
-      switch (item?.itemType) {
-        case ItemType.COMPUTER:
-          const computer = item as Computer
-          computer.openDialog(this.playerId, network)
-          break
-        case ItemType.WHITEBOARD:
-          const whiteboard = item as Whiteboard
-          whiteboard.openDialog(network)
-          break
-        case ItemType.VENDINGMACHINE:
-          // hacky and hard-coded, but leaving it as is for now
-          const url = 'https://www.buymeacoffee.com/skyoffice'
-          openURL(url)
-          break
-      }
+      this.interactR(network)
     }
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
         // if press E in front of selected chair
-        if (isEJustDown && item?.itemType === ItemType.CHAIR) {
-          this.clearMovePath()
-          const chairItem = item as Chair
-          /**
-           * move player to the chair and play sit animation
-           * a delay is called to wait for player movement (from previous velocity) to end
-           * as the player tends to move one more frame before sitting down causing player
-           * not sitting at the center of the chair
-           */
-          this.scene.time.addEvent({
-            delay: 10,
-            callback: () => {
-              // update character velocity and position
-              this.setVelocity(0, 0)
-              if (chairItem.itemDirection) {
-                this.setPosition(
-                  chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-                  chairItem.y + sittingShiftData[chairItem.itemDirection][1]
-                ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
-                // Cập nhật thủ công tọa độ (Không set velocity nữa)
-                this.playerContainer.setPosition(
-                  chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-                  chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
-                )
-              }
-
-              this.play(`${this.playerTexture}_sit_${chairItem.itemDirection}`, true)
-              playerSelector.selectedItem = undefined
-              if (chairItem.itemDirection === 'up') {
-                playerSelector.setPosition(this.x, this.y - this.height)
-              } else {
-                playerSelector.setPosition(0, 0)
-              }
-              // send new location and anim to server
-              network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
-            },
-            loop: false,
-          })
-          // set up new dialog as player sits down
-          chairItem.clearDialogBox()
-          chairItem.setDialogBox('Press E to leave')
-          this.chairOnSit = chairItem
-          this.playerBehavior = PlayerBehavior.SITTING
+        if (isEJustDown) {
+          this.interactE(network)
           return
         }
 
@@ -257,14 +336,7 @@ export default class MyPlayer extends Player {
       case PlayerBehavior.SITTING:
         // back to idle if player press E while sitting
         if (isEJustDown) {
-          const parts = this.anims.currentAnim.key.split('_')
-          parts[parts.length - 2] = 'idle'
-          this.play(parts.join('_'), true)
-          this.playerBehavior = PlayerBehavior.IDLE
-          this.chairOnSit?.clearDialogBox()
-          playerSelector.setPosition(this.x, this.y)
-          playerSelector.update(this, cursors)
-          network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+          this.standUpFromChair(network)
         }
         break
     }

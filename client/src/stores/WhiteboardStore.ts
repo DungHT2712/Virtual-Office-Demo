@@ -22,6 +22,7 @@ export const whiteboardSlice = createSlice({
   initialState,
   reducers: {
     openWhiteboardDialog: (state, action: PayloadAction<string>) => {
+      if (state.whiteboardDialogOpen) return
       state.whiteboardDialogOpen = true
       state.whiteboardId = action.payload
       const url = state.urls.get(action.payload)

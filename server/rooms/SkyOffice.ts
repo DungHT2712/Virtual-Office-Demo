@@ -95,13 +95,15 @@ export class SkyOffice extends Room<OfficeState> {
     // when a player stop sharing screen
     this.onMessage(Message.STOP_SCREEN_SHARE, (client, message: { computerId: string }) => {
       const computer = this.state.computers.get(message.computerId)
-      computer.connectedUser.forEach((id) => {
-        this.clients.forEach((cli) => {
-          if (cli.sessionId === id && cli.sessionId !== client.sessionId) {
-            cli.send(Message.STOP_SCREEN_SHARE, client.sessionId)
-          }
+      if (computer) {
+        computer.connectedUser.forEach((id) => {
+          this.clients.forEach((cli) => {
+            if (cli.sessionId === id && cli.sessionId !== client.sessionId) {
+              cli.send(Message.STOP_SCREEN_SHARE, client.sessionId)
+            }
+          })
         })
-      })
+      }
     })
 
     // when a player connect to a whiteboard, add to the whiteboard connectedUser array

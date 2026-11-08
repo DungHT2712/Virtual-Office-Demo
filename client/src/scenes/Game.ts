@@ -76,6 +76,21 @@ export default class Game extends Phaser.Scene {
 
     this.keyE = this.input.keyboard.addKey('E')
     this.keyR = this.input.keyboard.addKey('R')
+
+    // Bắt sự kiện phím R và E ngay lập tức khi vừa nhấn xuống (KeyDown event-driven)
+    // Loại bỏ hoàn toàn độ trễ của cơ chế polling và triệt tiêu lỗi phải bấm 2 lần (double R)
+    this.keyR.on('down', () => {
+      if (this.myPlayer && this.network) {
+        this.myPlayer.interactR(this.network)
+      }
+    })
+
+    this.keyE.on('down', () => {
+      if (this.myPlayer && this.network) {
+        this.myPlayer.interactE(this.network)
+      }
+    })
+
     this.input.keyboard.disableGlobalCapture()
     this.input.keyboard.on('keydown-ENTER', () => {
       store.dispatch(setShowChat(true))
@@ -145,7 +160,8 @@ export default class Game extends Phaser.Scene {
     const spawnY = Math.floor(wsHeight / 2) * 32 + 16
     this.myPlayer = this.add.myPlayer(spawnX, spawnY, charAvatar, this.network.mySessionId)
     this.myPlayer.setCollideWorldBounds(true)
-    this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
+    this.playerSelector = new PlayerSelector(this, spawnX, spawnY, 96, 96)
+    this.myPlayer.playerSelector = this.playerSelector
 
     // Tự động áp dụng tên, ngoại hình và kết nối ngay vào Workspace mà không cần qua LoginDialog
     this.myPlayer.setPlayerName(charName)
@@ -796,6 +812,7 @@ export default class Game extends Phaser.Scene {
       chair.setFrame(chairFrames[orientation % 4])
       chair.itemDirection = chairDirections[orientation % 4]
       chair.setDepth(worldY)
+      chair.refreshBody()
       obj = chair
     } else if (item.itemType === 'computer') {
       const compTexture = `custom_computer_${orientation % 4}`
@@ -806,6 +823,7 @@ export default class Game extends Phaser.Scene {
       comp.id = item.id
       comp.setDepth(worldY + 5)
       comp.setAngle(0)
+      comp.refreshBody()
       this.computerMap.set(item.id, comp)
       obj = comp
     } else if (item.itemType === 'whiteboard') {
@@ -813,6 +831,7 @@ export default class Game extends Phaser.Scene {
       wb.id = item.id
       wb.setDepth(worldY)
       wb.setAngle(orientation * 90)
+      wb.refreshBody()
       this.whiteboardMap.set(item.id, wb)
       obj = wb
     } else if (item.itemType === 'vase') {
@@ -965,12 +984,81 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private getPlayerFacingDirection(): string {
+    if (this.myPlayer?.anims?.currentAnim?.key) {
+      const parts = this.myPlayer.anims.currentAnim.key.split('_')
+      return parts[parts.length - 1]
+    }
+    return 'down'
+  }
+
+  private isItemInFacingDirection(item: any, direction: string): boolean {
+    const dx = item.x - this.myPlayer.x
+    const dy = item.y - this.myPlayer.y
+    switch (direction) {
+      case 'left':
+        return dx < -8
+      case 'right':
+        return dx > 8
+      case 'up':
+        return dy < -8
+      case 'down':
+        return dy > 8
+      default:
+        return false
+    }
+  }
+
   private handleItemSelectorOverlap(playerSelector: any, selectionItem: any) {
-    const currentItem = playerSelector.selectedItem as Item
-    if (currentItem) {
-      if (currentItem === selectionItem || currentItem.depth >= selectionItem.depth) {
+    let currentItem = playerSelector.selectedItem as Item
+
+    // Khi người chơi đang ngồi trên ghế (SITTING):
+    // 1. Tuyệt đối không chọn lại ghế (bao gồm ghế đang ngồi hoặc các ghế xung quanh)
+    // để nhường vùng tương tác 3x3 cho máy tính hoặc bảng trắng trên bàn
+    if (this.myPlayer?.playerBehavior === PlayerBehavior.SITTING) {
+      if (selectionItem.itemType === ItemType.CHAIR || selectionItem === (this.myPlayer as any).chairOnSit) {
         return
       }
+      // 2. Nếu món đồ đang chọn trước đó là ghế (do vừa ngồi xuống), hãy xóa để nhường cho máy tính
+      if (currentItem?.itemType === ItemType.CHAIR) {
+        currentItem = undefined as any
+        playerSelector.selectedItem = undefined
+      }
+    }
+
+    if (currentItem) {
+      if (currentItem === selectionItem) {
+        return
+      }
+
+      // So sánh khoảng cách Euclid tới nhân vật: ưu tiên vật thể ở gần nhất
+      const currentDist = Phaser.Math.Distance.Between(
+        this.myPlayer.x,
+        this.myPlayer.y,
+        currentItem.x,
+        currentItem.y
+      )
+      const newDist = Phaser.Math.Distance.Between(
+        this.myPlayer.x,
+        this.myPlayer.y,
+        selectionItem.x,
+        selectionItem.y
+      )
+
+      if (currentDist < newDist) {
+        return
+      }
+
+      // Nếu 2 vật thể có cùng khoảng cách, ưu tiên vật thể nằm theo hướng nhìn của người chơi
+      if (Math.abs(currentDist - newDist) < 1) {
+        const playerDir = this.getPlayerFacingDirection()
+        const isCurrentInFacing = this.isItemInFacingDirection(currentItem, playerDir)
+        const isNewInFacing = this.isItemInFacingDirection(selectionItem, playerDir)
+        if (isCurrentInFacing && !isNewInFacing) {
+          return
+        }
+      }
+
       if (this.myPlayer.playerBehavior !== PlayerBehavior.SITTING) currentItem.clearDialogBox()
     }
 

@@ -35,6 +35,7 @@ export const computerSlice = createSlice({
       state,
       action: PayloadAction<{ computerId: string; myUserId: string }>
     ) => {
+      if (state.computerDialogOpen) return
       if (!state.shareScreenManager) {
         state.shareScreenManager = new ShareScreenManager(action.payload.myUserId)
       }
@@ -48,7 +49,9 @@ export const computerSlice = createSlice({
       // Tell server the computer dialog is closed.
       const game = phaserGame.scene.keys.game as Game
       game.enableKeys()
-      game.network.disconnectFromComputer(state.computerId!)
+      if (state.computerId) {
+        game.network.disconnectFromComputer(state.computerId)
+      }
       for (const { call } of state.peerStreams.values()) {
         call.close()
       }
@@ -65,13 +68,19 @@ export const computerSlice = createSlice({
       state,
       action: PayloadAction<{ id: string; call: Peer.MediaConnection; stream: MediaStream }>
     ) => {
-      state.peerStreams.set(sanitizeId(action.payload.id), {
+      const sanitized = sanitizeId(action.payload.id)
+      const newMap = new Map(state.peerStreams)
+      newMap.set(sanitized, {
         call: action.payload.call,
         stream: action.payload.stream,
       })
+      state.peerStreams = newMap
     },
     removeVideoStream: (state, action: PayloadAction<string>) => {
-      state.peerStreams.delete(sanitizeId(action.payload))
+      const sanitized = sanitizeId(action.payload)
+      const newMap = new Map(state.peerStreams)
+      newMap.delete(sanitized)
+      state.peerStreams = newMap
     },
   },
 })

@@ -3,14 +3,19 @@ import MyPlayer from './MyPlayer'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import Item from '../items/Item'
 import { NavKeys } from '../../../types/KeyboardState'
-import store from '../stores'
+
 export default class PlayerSelector extends Phaser.GameObjects.Zone {
   selectedItem?: Item
 
-  constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, width = 96, height = 96) {
     super(scene, x, y, width, height)
 
     scene.physics.add.existing(this)
+    const body = this.body as Phaser.Physics.Arcade.Body
+    if (body) {
+      body.setSize(width, height)
+      body.center.set(x, y)
+    }
   }
 
   update(player: MyPlayer, cursors: NavKeys) {
@@ -18,64 +23,16 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
       return
     }
 
-    // no need to update player selection while sitting
-    if (player.playerBehavior === PlayerBehavior.SITTING) {
-      return
-    }
-
-    // update player selection box position so that it's always in front of the player
+    // [PHẠM VI TƯƠNG TÁC 3x3 Ô (96px x 96px, 1 tile = 32px)]:
+    // Tâm vùng tương tác luôn bám sát vị trí nhân vật (player.x, player.y).
+    // Kể cả khi đang ngồi ghế hay đang đứng, vùng 3x3 này giúp người chơi luôn tương tác được
+    // với máy tính (R) hoặc bảng trắng (R) đặt trên bàn làm việc xung quanh.
     const { x, y } = player
-    let joystickLeft = false
-    let joystickRight = false
-    let joystickUp = false
-    let joystickDown = false
-    if (player.joystickMovement?.isMoving) {
-      joystickLeft = player.joystickMovement?.direction.left
-      joystickRight = player.joystickMovement?.direction.right
-      joystickUp = player.joystickMovement?.direction.up
-      joystickDown = player.joystickMovement?.direction.down
-    }
-
-    let dir = ''
-    const movementMode = store.getState().user.movementMode
-
-    if (movementMode === 'mouse') {
-      // Trong chế độ Mouse: Mở rộng vùng tương tác 360 độ quanh nhân vật (bán kính tương tác)
-      // Giúp người chơi dù đứng hướng nào cũng có thể tương tác bấm E và R dễ dàng
-      this.setPosition(x, y)
-      ;(this.body as Phaser.Physics.Arcade.Body).setSize(64, 64)
-      ;(this.body as Phaser.Physics.Arcade.Body).center.set(x, y)
-    } else {
-      ;(this.body as Phaser.Physics.Arcade.Body).setSize(16, 16)
-      if (cursors.left?.isDown || cursors.A?.isDown || joystickLeft) {
-        dir = 'left'
-      } else if (cursors.right?.isDown || cursors.D?.isDown || joystickRight) {
-        dir = 'right'
-      } else if (cursors.up?.isDown || cursors.W?.isDown || joystickUp) {
-        dir = 'up'
-      } else if (cursors.down?.isDown || cursors.S?.isDown || joystickDown) {
-        dir = 'down'
-      } else if (player.anims?.currentAnim?.key) {
-        // Lấy hướng nhìn từ animation hiện tại của nhân vật
-        const parts = player.anims.currentAnim.key.split('_')
-        dir = parts[parts.length - 1]
-      }
-
-      switch (dir) {
-        case 'left':
-          this.setPosition(x - 32, y)
-          break
-        case 'right':
-          this.setPosition(x + 32, y)
-          break
-        case 'up':
-          this.setPosition(x, y - 32)
-          break
-        case 'down':
-        default:
-          this.setPosition(x, y + 32)
-          break
-      }
+    this.setPosition(x, y)
+    const body = this.body as Phaser.Physics.Arcade.Body
+    if (body) {
+      body.setSize(96, 96)
+      body.center.set(x, y)
     }
 
     // while currently selecting an item,
@@ -88,3 +45,4 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
     }
   }
 }
+
