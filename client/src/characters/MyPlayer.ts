@@ -195,10 +195,6 @@ export default class MyPlayer extends Player {
         const whiteboard = targetItem as Whiteboard
         whiteboard.openDialog(network)
         break
-      case ItemType.VENDINGMACHINE:
-        const url = 'https://www.buymeacoffee.com/skyoffice'
-        openURL(url)
-        break
     }
   }
 

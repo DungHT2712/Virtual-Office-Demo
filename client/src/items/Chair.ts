@@ -8,6 +8,11 @@ export default class Chair extends Item {
     super(scene, x, y, texture, frame)
 
     this.itemType = ItemType.CHAIR
+    this.name = 'chair'
+  }
+
+  setCustomColor(color: number) {
+    super.setCustomColor(color)
   }
 
   onOverlapDialog() {

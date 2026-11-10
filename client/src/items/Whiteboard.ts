@@ -12,6 +12,7 @@ export default class Whiteboard extends Item {
     super(scene, x, y, texture, frame)
 
     this.itemType = ItemType.WHITEBOARD
+    this.name = 'whiteboard'
   }
 
   private updateStatus() {

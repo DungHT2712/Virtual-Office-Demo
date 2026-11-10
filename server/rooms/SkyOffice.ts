@@ -271,6 +271,8 @@ export class SkyOffice extends Room<OfficeState> {
           gridX: number
           gridY: number
           orientation?: number
+          itemDirection?: string
+          tint?: number
         }
       ) => {
         this.dispatcher.dispatch(new PlaceFurnitureCommand(), {

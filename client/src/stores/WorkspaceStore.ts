@@ -21,6 +21,8 @@ export interface FurnitureLayoutItem {
   gridX: number
   gridY: number
   orientation: number
+  itemDirection?: string
+  tint?: number
 }
 
 export interface WorkspaceData {
@@ -35,6 +37,9 @@ interface WorkspaceStoreState {
   furnitures: Record<string, FurnitureLayoutItem>
   designMode: boolean
   selectedTool: string | null
+  cloneTemplate: FurnitureLayoutItem | null
+  cloneContinuous: boolean
+  selectedFurnitureIds: string[]
   errorNotice: string | null
   successNotice: string | null
 }
@@ -49,6 +54,9 @@ const initialState: WorkspaceStoreState = {
   furnitures: {},
   designMode: false,
   selectedTool: null,
+  cloneTemplate: null,
+  cloneContinuous: false,
+  selectedFurnitureIds: [],
   errorNotice: null,
   successNotice: null,
 }
@@ -69,10 +77,23 @@ export const workspaceSlice = createSlice({
       const game = phaserGame.scene.keys.game as Game
       if (game && game.enableKeys) game.enableKeys()
       state.designMode = false
+      state.cloneTemplate = null
+      state.cloneContinuous = false
+      state.selectedFurnitureIds = []
       phaserEvents.emit(Event.DESIGN_MODE_TOGGLED, false)
     },
     setSelectedTool: (state, action: PayloadAction<string | null>) => {
       state.selectedTool = action.payload
+      if (action.payload !== 'clone') {
+        state.cloneTemplate = null
+        state.cloneContinuous = false
+      }
+    },
+    setCloneTemplate: (state, action: PayloadAction<FurnitureLayoutItem | null>) => {
+      state.cloneTemplate = action.payload
+    },
+    setCloneContinuous: (state, action: PayloadAction<boolean>) => {
+      state.cloneContinuous = action.payload
     },
     setWorkspaceData: (state, action: PayloadAction<WorkspaceData>) => {
       state.workspace = action.payload
@@ -88,6 +109,13 @@ export const workspaceSlice = createSlice({
     },
     removeFurniture: (state, action: PayloadAction<string>) => {
       delete state.furnitures[action.payload]
+      state.selectedFurnitureIds = state.selectedFurnitureIds.filter((id) => id !== action.payload)
+    },
+    setSelectedFurnitureIds: (state, action: PayloadAction<string[]>) => {
+      state.selectedFurnitureIds = action.payload
+    },
+    clearSelectedFurnitureIds: (state) => {
+      state.selectedFurnitureIds = []
     },
     setErrorNotice: (state, action: PayloadAction<string | null>) => {
       state.errorNotice = action.payload
@@ -106,6 +134,10 @@ export const {
   openDesignMode,
   closeDesignMode,
   setSelectedTool,
+  setCloneTemplate,
+  setCloneContinuous,
+  setSelectedFurnitureIds,
+  clearSelectedFurnitureIds,
   setWorkspaceData,
   addOrUpdateRoom,
   removeRoom,

@@ -391,11 +391,13 @@ export function createComputerCanvas(direction: number = 0): HTMLCanvasElement {
   return canvas
 }
 
-export function createVaseCanvas(): HTMLCanvasElement {
+export function createVaseCanvas(direction: number = 0): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 32
   const ctx = canvas.getContext('2d')!
+
+  const dir = ((direction % 4) + 4) % 4
 
   // Bóng dưới đáy bình hoa
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
@@ -420,9 +422,17 @@ export function createVaseCanvas(): HTMLCanvasElement {
   ctx.arc(16, 22, 7, 0.2 * Math.PI, 0.8 * Math.PI, false)
   ctx.fill()
 
-  // Điểm sáng tráng men gốm
+  // Điểm sáng tráng men gốm chuyển dịch theo góc nhìn
   ctx.fillStyle = '#93c5fd'
-  ctx.fillRect(12, 19, 2, 4)
+  if (dir === 0) {
+    ctx.fillRect(12, 19, 2, 4)
+  } else if (dir === 1) {
+    ctx.fillRect(10, 19, 2, 4)
+  } else if (dir === 2) {
+    ctx.fillRect(15, 18, 2, 2)
+  } else {
+    ctx.fillRect(20, 19, 2, 4)
+  }
 
   // Cổ bình
   ctx.fillStyle = '#1e40af'
@@ -432,45 +442,411 @@ export function createVaseCanvas(): HTMLCanvasElement {
   ctx.fillStyle = '#3b82f6'
   ctx.fillRect(12, 14, 8, 2)
 
-  // --- CÀNH VÀ LÁ TƯƠI ---
-  ctx.fillStyle = '#15803d'
-  ctx.fillRect(15, 10, 2, 5) // cành giữa
-  ctx.fillRect(13, 11, 1, 4) // cành trái
-  ctx.fillRect(18, 11, 1, 4) // cành phải
+  if (dir === 0) {
+    // ===== HƯỚNG 0: MẶT TRƯỚC (Down / Front View) =====
+    // Cành và lá tươi
+    ctx.fillStyle = '#15803d'
+    ctx.fillRect(15, 10, 2, 5) // cành giữa
+    ctx.fillRect(13, 11, 1, 4) // cành trái
+    ctx.fillRect(18, 11, 1, 4) // cành phải
 
-  // Tán lá xanh mát
-  ctx.fillStyle = '#22c55e'
-  ctx.fillRect(9, 13, 4, 3) // lá trái
-  ctx.fillRect(19, 13, 4, 3) // lá phải
-  ctx.fillStyle = '#4ade80'
-  ctx.fillRect(10, 12, 2, 2)
-  ctx.fillRect(20, 12, 2, 2)
+    ctx.fillStyle = '#22c55e'
+    ctx.fillRect(9, 13, 4, 3) // lá trái
+    ctx.fillRect(19, 13, 4, 3) // lá phải
+    ctx.fillStyle = '#4ade80'
+    ctx.fillRect(10, 12, 2, 2)
+    ctx.fillRect(20, 12, 2, 2)
 
-  // --- CÁC BÔNG HOA NỞ RỰC RỠ ---
-  // 1. Hoa đỏ ở đỉnh
-  ctx.fillStyle = '#ef4444'
-  ctx.fillRect(14, 5, 4, 5)
-  ctx.fillRect(13, 6, 6, 3)
-  ctx.fillStyle = '#f87171'
-  ctx.fillRect(15, 5, 2, 2)
-  ctx.fillStyle = '#fef08a' // nhụy vàng
-  ctx.fillRect(15, 7, 2, 1)
+    // 1. Hoa đỏ ở đỉnh
+    ctx.fillStyle = '#ef4444'
+    ctx.fillRect(14, 5, 4, 5)
+    ctx.fillRect(13, 6, 6, 3)
+    ctx.fillStyle = '#f87171'
+    ctx.fillRect(15, 5, 2, 2)
+    ctx.fillStyle = '#fef08a' // nhụy vàng
+    ctx.fillRect(15, 7, 2, 1)
 
-  // 2. Hoa hồng bên trái
-  ctx.fillStyle = '#ec4899'
-  ctx.fillRect(8, 8, 4, 4)
-  ctx.fillStyle = '#f472b6'
-  ctx.fillRect(9, 9, 2, 2)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(9, 9, 1, 1)
+    // 2. Hoa hồng bên trái
+    ctx.fillStyle = '#ec4899'
+    ctx.fillRect(8, 8, 4, 4)
+    ctx.fillStyle = '#f472b6'
+    ctx.fillRect(9, 9, 2, 2)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(9, 9, 1, 1)
 
-  // 3. Hoa vàng bên phải
-  ctx.fillStyle = '#f59e0b'
-  ctx.fillRect(20, 7, 4, 4)
-  ctx.fillStyle = '#fbbf24'
-  ctx.fillRect(21, 8, 2, 2)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(21, 8, 1, 1)
+    // 3. Hoa vàng bên phải
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(20, 7, 4, 4)
+    ctx.fillStyle = '#fbbf24'
+    ctx.fillRect(21, 8, 2, 2)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(21, 8, 1, 1)
+  } else if (dir === 1) {
+    // ===== HƯỚNG 1: MẶT TRÁI (Left View) =====
+    ctx.fillStyle = '#15803d'
+    ctx.fillRect(13, 10, 2, 5)
+    ctx.fillRect(11, 11, 2, 4)
+    ctx.fillRect(17, 12, 1, 3)
+
+    ctx.fillStyle = '#22c55e'
+    ctx.fillRect(7, 12, 5, 3)
+    ctx.fillRect(18, 14, 3, 2)
+    ctx.fillStyle = '#4ade80'
+    ctx.fillRect(8, 11, 2, 2)
+
+    // Hoa hồng nở rực rỡ ở phía trước bên trái
+    ctx.fillStyle = '#ec4899'
+    ctx.fillRect(6, 7, 6, 5)
+    ctx.fillRect(7, 6, 4, 7)
+    ctx.fillStyle = '#f472b6'
+    ctx.fillRect(8, 8, 2, 2)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(8, 8, 1, 1)
+
+    // Hoa đỏ nghiêng trái
+    ctx.fillStyle = '#ef4444'
+    ctx.fillRect(12, 4, 4, 5)
+    ctx.fillStyle = '#f87171'
+    ctx.fillRect(13, 4, 2, 2)
+    ctx.fillStyle = '#fef08a'
+    ctx.fillRect(13, 6, 1, 1)
+
+    // Hoa vàng khuất sau bên phải
+    ctx.fillStyle = '#d97706'
+    ctx.fillRect(18, 9, 3, 3)
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(18, 9, 2, 2)
+  } else if (dir === 2) {
+    // ===== HƯỚNG 2: MẶT SAU (Up / Back View) =====
+    // Nhìn từ sau lưng: Tán lá xanh xòe rộng, cuống hoa đài hoa
+    ctx.fillStyle = '#15803d'
+    ctx.fillRect(15, 10, 2, 5)
+    ctx.fillRect(11, 12, 3, 3)
+    ctx.fillRect(18, 12, 3, 3)
+
+    ctx.fillStyle = '#16a34a'
+    ctx.fillRect(7, 11, 6, 4)
+    ctx.fillRect(19, 11, 6, 4)
+    ctx.fillStyle = '#22c55e'
+    ctx.fillRect(8, 12, 4, 2)
+    ctx.fillRect(20, 12, 4, 2)
+
+    // Đài hoa màu xanh đậm
+    ctx.fillStyle = '#14532d'
+    ctx.fillRect(9, 10, 3, 2)
+    ctx.fillRect(20, 10, 3, 2)
+    ctx.fillRect(15, 8, 2, 2)
+
+    // Hoa đỏ nhìn từ sau
+    ctx.fillStyle = '#b91c1c'
+    ctx.fillRect(13, 5, 6, 4)
+    ctx.fillStyle = '#ef4444'
+    ctx.fillRect(14, 6, 4, 3)
+
+    // Cánh hoa hồng & vàng lấp ló phía sau
+    ctx.fillStyle = '#be185d'
+    ctx.fillRect(7, 8, 4, 3)
+    ctx.fillStyle = '#b45309'
+    ctx.fillRect(21, 8, 4, 3)
+  } else {
+    // ===== HƯỚNG 3: MẶT PHẢI (Right View) =====
+    ctx.fillStyle = '#15803d'
+    ctx.fillRect(17, 10, 2, 5)
+    ctx.fillRect(19, 11, 2, 4)
+    ctx.fillRect(14, 12, 1, 3)
+
+    ctx.fillStyle = '#22c55e'
+    ctx.fillRect(20, 12, 5, 3)
+    ctx.fillRect(11, 14, 3, 2)
+    ctx.fillStyle = '#4ade80'
+    ctx.fillRect(22, 11, 2, 2)
+
+    // Hoa vàng to nở rực rỡ ở phía trước bên phải
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(20, 7, 6, 5)
+    ctx.fillRect(21, 6, 4, 7)
+    ctx.fillStyle = '#fbbf24'
+    ctx.fillRect(22, 8, 2, 2)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(22, 8, 1, 1)
+
+    // Hoa đỏ nghiêng phải
+    ctx.fillStyle = '#ef4444'
+    ctx.fillRect(16, 4, 4, 5)
+    ctx.fillStyle = '#f87171'
+    ctx.fillRect(17, 4, 2, 2)
+    ctx.fillStyle = '#fef08a'
+    ctx.fillRect(18, 6, 1, 1)
+
+    // Hoa hồng khuất sau bên trái
+    ctx.fillStyle = '#be185d'
+    ctx.fillRect(11, 9, 3, 3)
+    ctx.fillStyle = '#ec4899'
+    ctx.fillRect(12, 9, 2, 2)
+  }
+
+  return canvas
+}
+
+export function createWhiteboardCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')!
+
+  const dir = ((direction % 4) + 4) % 4
+
+  if (dir === 0) {
+    // ===== HƯỚNG 0: MẶT TRƯỚC (Down / Front View) =====
+    // Bóng sàn dưới 2 chân
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    ctx.beginPath()
+    ctx.ellipse(16, 59, 10, 2.5, 0, 0, Math.PI * 2)
+    ctx.ellipse(48, 59, 10, 2.5, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Bánh xe lăn (4 bánh)
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(9, 57, 4, 3)
+    ctx.fillRect(19, 57, 4, 3)
+    ctx.fillRect(41, 57, 4, 3)
+    ctx.fillRect(51, 57, 4, 3)
+
+    // Chân đế ngang bằng kim loại
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(8, 55, 16, 3)
+    ctx.fillRect(40, 55, 16, 3)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(8, 55, 16, 1)
+    ctx.fillRect(40, 55, 16, 1)
+
+    // 2 Cột trụ đứng đỡ bảng
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(14, 20, 4, 36)
+    ctx.fillRect(46, 20, 4, 36)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(14, 20, 1, 36)
+    ctx.fillRect(46, 20, 1, 36)
+
+    // Khung viền nhôm bảng
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(6, 10, 52, 38)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(6, 10, 52, 1)
+    ctx.fillRect(6, 47, 52, 1)
+    ctx.fillRect(6, 10, 1, 38)
+    ctx.fillRect(57, 10, 1, 38)
+
+    // Bề mặt bảng trắng bóng
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(8, 12, 48, 34)
+
+    // Vệt sáng phản quang trên kính bảng
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'
+    ctx.beginPath()
+    ctx.moveTo(40, 12)
+    ctx.lineTo(52, 12)
+    ctx.lineTo(34, 46)
+    ctx.lineTo(22, 46)
+    ctx.closePath()
+    ctx.fill()
+
+    // Sơ đồ ý tưởng (Mindmap diagram) trên bảng
+    // Hộp 1: Xanh dương
+    ctx.fillStyle = '#2563eb'
+    ctx.fillRect(12, 16, 10, 6)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(14, 18, 6, 2)
+
+    // Hộp 2: Xanh lá
+    ctx.fillStyle = '#16a34a'
+    ctx.fillRect(42, 16, 10, 6)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(44, 18, 6, 2)
+
+    // Hộp 3: Cam ở giữa
+    ctx.fillStyle = '#ea580c'
+    ctx.fillRect(26, 28, 12, 7)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(28, 30, 8, 3)
+
+    // Đường nối sơ đồ
+    ctx.strokeStyle = '#0284c7'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(22, 19)
+    ctx.lineTo(26, 31)
+    ctx.moveTo(42, 19)
+    ctx.lineTo(38, 31)
+    ctx.stroke()
+
+    // Dòng ghi chú nhỏ
+    ctx.fillStyle = '#7c3aed'
+    ctx.fillRect(12, 38, 10, 2)
+    ctx.fillRect(12, 42, 14, 2)
+
+    // Khay để bút ở đáy bảng
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(18, 47, 28, 3)
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(18, 47, 28, 1)
+
+    // Bút dạ màu & Miếng lau bảng
+    ctx.fillStyle = '#ef4444' // bút đỏ
+    ctx.fillRect(22, 46, 6, 1)
+    ctx.fillStyle = '#0284c7' // bút xanh
+    ctx.fillRect(30, 46, 6, 1)
+    ctx.fillStyle = '#0f172a' // lau bảng
+    ctx.fillRect(38, 45, 5, 2)
+  } else if (dir === 1) {
+    // ===== HƯỚNG 1: MẶT TRÁI (Left View) =====
+    // Nhìn nghiêng sang trái
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    ctx.beginPath()
+    ctx.ellipse(32, 59, 12, 3, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Bánh xe bên hông (2 bánh)
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(22, 57, 4, 3)
+    ctx.fillRect(38, 57, 4, 3)
+
+    // Chân đế kim loại ngang bên hông
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(21, 55, 22, 3)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(21, 55, 22, 1)
+
+    // Cột trụ đứng bên hông
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(30, 20, 4, 36)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(30, 20, 1, 36)
+
+    // Khung bảng nhìn nghiêng góc quay sang trái
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(25, 10, 14, 38)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(25, 10, 14, 1)
+    ctx.fillRect(25, 47, 14, 1)
+
+    // Mặt bảng trắng nhìn nghiêng (hướng trái)
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(26, 12, 8, 34)
+
+    // Vệt nội dung / sơ đồ nhìn nghiêng
+    ctx.fillStyle = '#0284c7'
+    ctx.fillRect(27, 18, 3, 4)
+    ctx.fillStyle = '#ea580c'
+    ctx.fillRect(27, 28, 4, 5)
+
+    // Khay bút nhô ra ở cạnh trước bên trái
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(23, 47, 6, 2)
+    ctx.fillStyle = '#ef4444'
+    ctx.fillRect(24, 46, 3, 1)
+  } else if (dir === 2) {
+    // ===== HƯỚNG 2: MẶT SAU (Up / Back View) =====
+    // Nhìn từ sau lưng bảng
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    ctx.beginPath()
+    ctx.ellipse(16, 59, 10, 2.5, 0, 0, Math.PI * 2)
+    ctx.ellipse(48, 59, 10, 2.5, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Bánh xe lăn
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(9, 57, 4, 3)
+    ctx.fillRect(19, 57, 4, 3)
+    ctx.fillRect(41, 57, 4, 3)
+    ctx.fillRect(51, 57, 4, 3)
+
+    // Chân đế ngang
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(8, 55, 16, 3)
+    ctx.fillRect(40, 55, 16, 3)
+
+    // Cột trụ đứng sau lưng bảng
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(14, 20, 4, 36)
+    ctx.fillRect(46, 20, 4, 36)
+
+    // Khung nhôm viền ngoài
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(6, 10, 52, 38)
+
+    // Tấm ván lưng kim loại từ tính màu xám bạc
+    ctx.fillStyle = '#cbd5e1'
+    ctx.fillRect(8, 12, 48, 34)
+
+    // Thanh xà kim loại giằng chữ X gia cố chịu lực sau lưng bảng
+    ctx.strokeStyle = '#64748b'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(8, 12)
+    ctx.lineTo(56, 46)
+    ctx.moveTo(56, 12)
+    ctx.lineTo(8, 46)
+    ctx.stroke()
+
+    // Thanh ngang đỡ giữa lưng
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(8, 28, 48, 2)
+
+    // Đinh tán ốc vít 4 góc
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(9, 13, 2, 2)
+    ctx.fillRect(53, 13, 2, 2)
+    ctx.fillRect(9, 43, 2, 2)
+    ctx.fillRect(53, 43, 2, 2)
+  } else {
+    // ===== HƯỚNG 3: MẶT PHẢI (Right View) =====
+    // Nhìn nghiêng sang phải
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    ctx.beginPath()
+    ctx.ellipse(32, 59, 12, 3, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Bánh xe bên hông (2 bánh)
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(22, 57, 4, 3)
+    ctx.fillRect(38, 57, 4, 3)
+
+    // Chân đế kim loại ngang bên hông
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(21, 55, 22, 3)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(21, 55, 22, 1)
+
+    // Cột trụ đứng bên hông
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(30, 20, 4, 36)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(30, 20, 1, 36)
+
+    // Khung bảng nhìn nghiêng góc quay sang phải
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(25, 10, 14, 38)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(25, 10, 14, 1)
+    ctx.fillRect(25, 47, 14, 1)
+
+    // Mặt bảng trắng nhìn nghiêng (hướng phải)
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(30, 12, 8, 34)
+
+    // Vệt nội dung / sơ đồ nhìn nghiêng
+    ctx.fillStyle = '#16a34a'
+    ctx.fillRect(33, 18, 3, 4)
+    ctx.fillStyle = '#ea580c'
+    ctx.fillRect(33, 28, 4, 5)
+
+    // Khay bút nhô ra ở cạnh trước bên phải
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(35, 47, 6, 2)
+    ctx.fillStyle = '#0284c7'
+    ctx.fillRect(36, 46, 3, 1)
+  }
 
   return canvas
 }
@@ -551,12 +927,29 @@ export function registerFurnitureTextures(scene: Phaser.Scene) {
     scene.textures.addCanvas('custom_computer', createComputerCanvas(0))
   }
 
-  // 3. Flower Vase
+  // 3. Flower Vase (4 hướng xoay 2.5D: Mặt trước, Mặt trái, Mặt sau, Mặt phải)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_vase_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createVaseCanvas(dir))
+    }
+  }
   if (!scene.textures.exists('custom_vase')) {
-    scene.textures.addCanvas('custom_vase', createVaseCanvas())
+    scene.textures.addCanvas('custom_vase', createVaseCanvas(0))
   }
 
-  // 4. Rugs cho tất cả màu preset
+  // 4. Whiteboard (4 hướng xoay 2.5D: Mặt trước, Mặt trái, Mặt sau, Mặt phải)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_whiteboard_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createWhiteboardCanvas(dir))
+    }
+  }
+  if (!scene.textures.exists('custom_whiteboard')) {
+    scene.textures.addCanvas('custom_whiteboard', createWhiteboardCanvas(0))
+  }
+
+  // 5. Rugs cho tất cả màu preset
   RUG_COLORS.forEach((c) => {
     const key = getRugTextureKey(c.hex)
     if (!scene.textures.exists(key)) {

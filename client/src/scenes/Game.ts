@@ -6,7 +6,6 @@ import Item from '../items/Item'
 import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
-import VendingMachine from '../items/VendingMachine'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -20,7 +19,15 @@ import { ItemType } from '../../../types/Items'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
-import { setErrorNotice, setSuccessNotice } from '../stores/WorkspaceStore'
+import {
+  setErrorNotice,
+  setSuccessNotice,
+  setSelectedTool,
+  setCloneTemplate,
+  setCloneContinuous,
+  setSelectedFurnitureIds,
+  clearSelectedFurnitureIds,
+} from '../stores/WorkspaceStore'
 import { setLoggedIn } from '../stores/UserStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { Pathfinder } from '../utils/Pathfinder'
@@ -55,6 +62,11 @@ export default class Game extends Phaser.Scene {
   private roomStartTile: { x: number; y: number } | null = null
   private roomDragGraphics?: Phaser.GameObjects.Graphics
   private roomDragText?: Phaser.GameObjects.Text
+  private areaSelectGraphics?: Phaser.GameObjects.Graphics
+  private areaSelectText?: Phaser.GameObjects.Text
+  private selectedHighlightGraphics?: Phaser.GameObjects.Graphics
+  private isAreaSelecting = false
+  private areaSelectStartTile: { x: number; y: number } | null = null
   private roomWallsMap = new Map<string, Phaser.GameObjects.GameObject[]>()
   private isRightClickDragging = false
   private panLastPointerX = 0
@@ -97,7 +109,45 @@ export default class Game extends Phaser.Scene {
       store.dispatch(setFocused(true))
     })
     this.input.keyboard.on('keydown-ESC', () => {
+      const state = store.getState()
+      if (state.workspace.selectedFurnitureIds?.length > 0) {
+        store.dispatch(clearSelectedFurnitureIds())
+        this.drawSelectedHighlights([])
+        store.dispatch(setSuccessNotice('Đã hủy chọn các nội thất.'))
+        return
+      }
+      if (state.workspace.selectedTool) {
+        store.dispatch(setSelectedTool(null))
+        store.dispatch(setCloneTemplate(null))
+        store.dispatch(setCloneContinuous(false))
+        store.dispatch(setSuccessNotice('Đã dừng chế độ đặt / nhân bản.'))
+        return
+      }
       store.dispatch(setShowChat(false))
+    })
+    this.input.keyboard.on('keydown-DELETE', () => {
+      const state = store.getState()
+      if (state.workspace.selectedFurnitureIds?.length > 0) {
+        const count = state.workspace.selectedFurnitureIds.length
+        state.workspace.selectedFurnitureIds.forEach((id) => {
+          this.network.removeFurniture(id)
+        })
+        store.dispatch(clearSelectedFurnitureIds())
+        this.drawSelectedHighlights([])
+        store.dispatch(setSuccessNotice(`Đã xóa nhanh ${count} nội thất khỏi bản đồ!`))
+      }
+    })
+    this.input.keyboard.on('keydown-BACKSPACE', () => {
+      const state = store.getState()
+      if (state.workspace.selectedFurnitureIds?.length > 0) {
+        const count = state.workspace.selectedFurnitureIds.length
+        state.workspace.selectedFurnitureIds.forEach((id) => {
+          this.network.removeFurniture(id)
+        })
+        store.dispatch(clearSelectedFurnitureIds())
+        this.drawSelectedHighlights([])
+        store.dispatch(setSuccessNotice(`Đã xóa nhanh ${count} nội thất khỏi bản đồ!`))
+      }
     })
   }
 
@@ -279,6 +329,21 @@ export default class Game extends Phaser.Scene {
       .setDepth(9999)
       .setVisible(false)
 
+    // Đồ họa quét chọn vùng nhiều nội thất (Shift + Kéo chuột)
+    this.selectedHighlightGraphics = this.add.graphics().setDepth(9996)
+    this.areaSelectGraphics = this.add.graphics().setDepth(9998)
+    this.areaSelectText = this.add
+      .text(0, 0, '', {
+        fontFamily: 'Arial',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        backgroundColor: '#ef4444dd',
+        padding: { x: 8, y: 4 },
+      })
+      .setDepth(9999)
+      .setVisible(false)
+
     // [CAMERA ZOOM]: Phóng to / Thu nhỏ bằng Ctrl + Scroll hoặc cuộn chuột khi ở chế độ Design Mode
     this.input.on(
       'wheel',
@@ -344,6 +409,43 @@ export default class Game extends Phaser.Scene {
         this.ghostMarker?.setVisible(false)
         if (this.roomDragGraphics) this.roomDragGraphics.clear()
         if (this.roomDragText) this.roomDragText.setVisible(false)
+        if (this.areaSelectGraphics) this.areaSelectGraphics.clear()
+        if (this.areaSelectText) this.areaSelectText.setVisible(false)
+        return
+      }
+
+      // Quét chọn vùng nhiều nội thất khi giữ Shift
+      if (this.isAreaSelecting && this.areaSelectStartTile) {
+        this.ghostMarker?.setVisible(false)
+        const clampedX = Math.max(0, Math.min(gridX, wsW - 1))
+        const clampedY = Math.max(0, Math.min(gridY, wsH - 1))
+        const startX = Math.max(0, Math.min(this.areaSelectStartTile.x, wsW - 1))
+        const startY = Math.max(0, Math.min(this.areaSelectStartTile.y, wsH - 1))
+
+        const minX = Math.min(startX, clampedX)
+        const minY = Math.min(startY, clampedY)
+        const w = Math.abs(clampedX - startX) + 1
+        const h = Math.abs(clampedY - startY) + 1
+
+        const furnituresInArea = Object.values(state.workspace.furnitures).filter(
+          (f) => f.gridX >= minX && f.gridX < minX + w && f.gridY >= minY && f.gridY < minY + h
+        )
+
+        if (this.areaSelectGraphics) {
+          this.areaSelectGraphics.clear()
+          this.areaSelectGraphics.fillStyle(0xef4444, 0.22)
+          this.areaSelectGraphics.fillRect(minX * 32, minY * 32, w * 32, h * 32)
+          this.areaSelectGraphics.lineStyle(2, 0xf87171, 0.95)
+          this.areaSelectGraphics.strokeRect(minX * 32, minY * 32, w * 32, h * 32)
+        }
+
+        if (this.areaSelectText) {
+          this.areaSelectText.setText(
+            `🧹 Quét chọn: ${furnituresInArea.length} nội thất (${w}x${h} ô)\nThả chuột để chọn và xóa nhanh`
+          )
+          this.areaSelectText.setPosition(minX * 32 + 6, minY * 32 + 6)
+          this.areaSelectText.setVisible(true)
+        }
         return
       }
 
@@ -415,7 +517,37 @@ export default class Game extends Phaser.Scene {
         this.ghostMarker.setPosition(snapX, snapY)
         this.ghostMarker.setVisible(true)
 
-        if (selectedTool === 'computer') {
+        if (selectedTool === 'clone' && state.workspace.cloneTemplate) {
+          const template = state.workspace.cloneTemplate
+          const baseType = template.itemType.split(':')[0]
+          this.ghostMarker.setAngle((template.orientation || 0) * 90)
+
+          if (baseType === 'computer') {
+            const tableAtTile = Object.values(state.workspace.furnitures).find(
+              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+            )
+            const hasExistingComputer = Object.values(state.workspace.furnitures).some(
+              (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+            )
+            if (tableAtTile && !hasExistingComputer) {
+              this.ghostMarker.setFillStyle(0x22c55e, 0.5)
+              this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
+              this.ghostMarker.setAngle((tableAtTile.orientation || 0) * 90)
+            } else {
+              this.ghostMarker.setFillStyle(0xef4444, 0.5)
+              this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+            }
+          } else if (template.itemType.startsWith('rug')) {
+            const colorHex = template.itemType.includes(':') ? template.itemType.split(':')[1] : '#2563eb'
+            const numColor = parseInt(colorHex.replace('#', ''), 16) || 0x2563eb
+            this.ghostMarker.setFillStyle(numColor, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
+          } else {
+            const tint = template.tint && template.tint !== 0xffffff ? template.tint : 0x38bdf8
+            this.ghostMarker.setFillStyle(tint, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
+          }
+        } else if (selectedTool === 'computer') {
           const tableAtTile = Object.values(state.workspace.furnitures).find(
             (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
           )
@@ -479,6 +611,16 @@ export default class Game extends Phaser.Scene {
           return
         }
 
+        // 0. Giữ Shift để quét chọn vùng nhiều nội thất (Area Selection)
+        if (pointer.event?.shiftKey) {
+          this.isAreaSelecting = true
+          this.areaSelectStartTile = { x: gridX, y: gridY }
+          this.ghostMarker?.setVisible(false)
+          if (this.areaSelectGraphics) this.areaSelectGraphics.clear()
+          if (this.areaSelectText) this.areaSelectText.setVisible(false)
+          return
+        }
+
         // Tìm kiếm đối tượng tại vị trí click
         const clickedFurn = Object.values(state.workspace.furnitures).find(
           (f) => f.gridX === gridX && f.gridY === gridY
@@ -527,7 +669,78 @@ export default class Game extends Phaser.Scene {
           return
         }
 
-        // 4. Chế độ ĐẶT NỘI THẤT (Bàn, Ghế, Máy tính 1 màn hình, Bình hoa, Thảm, ...)
+        // 4. Chế độ NHÂN BẢN NỘI THẤT (Clone)
+        if (selectedTool === 'clone' && state.workspace.cloneTemplate) {
+          const template = state.workspace.cloneTemplate
+          const baseType = template.itemType.split(':')[0]
+
+          if (baseType === 'computer') {
+            const hasTable = Object.values(state.workspace.furnitures).some(
+              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+            )
+            if (!hasTable) {
+              store.dispatch(
+                setErrorNotice('Máy tính bắt buộc phải được đặt trên Bàn! Vui lòng đặt Bàn tại ô này trước.')
+              )
+              return
+            }
+            const hasExistingComputer = Object.values(state.workspace.furnitures).some(
+              (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+            )
+            if (hasExistingComputer) {
+              store.dispatch(
+                setErrorNotice('Bàn tại vị trí này đã có sẵn một máy tính!')
+              )
+              return
+            }
+          }
+
+          const tableAtTile = Object.values(state.workspace.furnitures).find(
+            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+          )
+          const orientation = baseType === 'computer' ? tableAtTile?.orientation || 0 : template.orientation || 0
+          const newId = `${baseType}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+
+          this.network.placeFurniture({
+            id: newId,
+            itemType: template.itemType,
+            gridX,
+            gridY,
+            orientation,
+            itemDirection: template.itemDirection,
+            tint: template.tint || 0xffffff,
+          })
+
+          const toolLabel = template.itemType.startsWith('rug')
+            ? 'thảm trải sàn'
+            : baseType === 'computer'
+            ? 'máy tính lên bàn'
+            : baseType === 'table'
+            ? 'bàn làm việc'
+            : baseType === 'chair'
+            ? 'ghế ngồi'
+            : baseType === 'vase'
+            ? 'bình hoa'
+            : baseType
+
+          const isContinuous = state.workspace.cloneContinuous
+          if (isContinuous) {
+            store.dispatch(
+              setSuccessNotice(
+                `Đã đặt "${toolLabel}" tại (${gridX}, ${gridY})! Tiếp tục bấm để đặt thêm, hoặc nhấn ESC để dừng.`
+              )
+            )
+          } else {
+            store.dispatch(
+              setSuccessNotice(`Đã đặt "${toolLabel}" nhân bản tại ô (${gridX}, ${gridY}) thành công!`)
+            )
+            store.dispatch(setSelectedTool(null))
+            store.dispatch(setCloneTemplate(null))
+          }
+          return
+        }
+
+        // 5. Chế độ ĐẶT NỘI THẤT (Bàn, Ghế, Máy tính 1 màn hình, Bình hoa, Thảm, ...)
         if (selectedTool === 'computer') {
           const hasTable = Object.values(state.workspace.furnitures).some(
             (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
@@ -612,6 +825,70 @@ export default class Game extends Phaser.Scene {
       const state = store.getState()
       const isDesign = state.workspace.designMode
       const selectedTool = state.workspace.selectedTool
+
+      // Hoàn thành quét chọn nhiều nội thất khi giữ Shift
+      if (isDesign && this.isAreaSelecting && this.areaSelectStartTile) {
+        this.isAreaSelecting = false
+        if (this.areaSelectGraphics) this.areaSelectGraphics.clear()
+        if (this.areaSelectText) this.areaSelectText.setVisible(false)
+
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y)
+        const endGridX = Math.floor(worldPoint.x / 32)
+        const endGridY = Math.floor(worldPoint.y / 32)
+
+        const wsW = state.workspace.workspace.width || 30
+        const wsH = state.workspace.workspace.height || 30
+        const clampedEndX = Math.max(0, Math.min(endGridX, wsW - 1))
+        const clampedEndY = Math.max(0, Math.min(endGridY, wsH - 1))
+        const clampedStartX = Math.max(0, Math.min(this.areaSelectStartTile.x, wsW - 1))
+        const clampedStartY = Math.max(0, Math.min(this.areaSelectStartTile.y, wsH - 1))
+
+        const minX = Math.min(clampedStartX, clampedEndX)
+        const minY = Math.min(clampedStartY, clampedEndY)
+        const w = Math.abs(clampedEndX - clampedStartX) + 1
+        const h = Math.abs(clampedEndY - clampedStartY) + 1
+        this.areaSelectStartTile = null
+
+        const furnituresInArea = Object.values(state.workspace.furnitures).filter(
+          (f) => f.gridX >= minX && f.gridX < minX + w && f.gridY >= minY && f.gridY < minY + h
+        )
+
+        const currentSelected = state.workspace.selectedFurnitureIds || []
+        const newIds = furnituresInArea.map((f) => f.id)
+
+        let nextIds: string[]
+        if (w === 1 && h === 1) {
+          if (newIds.length === 0) {
+            // Click ra khoảng trống khi giữ Shift -> Không làm gì hoặc giữ nguyên
+            return
+          }
+          const singleId = newIds[0]
+          if (currentSelected.includes(singleId)) {
+            nextIds = currentSelected.filter((id) => id !== singleId)
+          } else {
+            nextIds = [...currentSelected, singleId]
+          }
+        } else {
+          if (newIds.length === 0) {
+            store.dispatch(setSuccessNotice('Không có nội thất nào trong vùng quét.'))
+            return
+          }
+          nextIds = Array.from(new Set([...currentSelected, ...newIds]))
+        }
+
+        store.dispatch(setSelectedFurnitureIds(nextIds))
+        this.drawSelectedHighlights(nextIds)
+        if (nextIds.length > 0) {
+          store.dispatch(
+            setSuccessNotice(
+              `Đã chọn ${nextIds.length} nội thất! Bấm nút "Xóa Nhanh" hoặc phím Delete để xóa.`
+            )
+          )
+        } else {
+          store.dispatch(setSuccessNotice('Đã hủy chọn các nội thất.'))
+        }
+        return
+      }
 
       if (isDesign && this.isDraggingRoom && this.roomStartTile && selectedTool?.startsWith('room_')) {
         this.isDraggingRoom = false
@@ -733,7 +1010,31 @@ export default class Game extends Phaser.Scene {
       }
       this.gridOverlay?.setVisible(false)
       this.ghostMarker?.setVisible(false)
+      this.drawSelectedHighlights([])
+      if (this.areaSelectGraphics) this.areaSelectGraphics.clear()
+      if (this.areaSelectText) this.areaSelectText.setVisible(false)
     }
+  }
+
+  /**
+   * Vẽ khung viền đỏ nổi bật đánh dấu các nội thất đang được quét chọn
+   */
+  drawSelectedHighlights(ids: string[]) {
+    if (!this.selectedHighlightGraphics) return
+    this.selectedHighlightGraphics.clear()
+    if (!ids || ids.length === 0) return
+
+    const state = store.getState()
+    this.selectedHighlightGraphics.fillStyle(0xef4444, 0.35)
+    this.selectedHighlightGraphics.lineStyle(2, 0xffffff, 1)
+
+    ids.forEach((id) => {
+      const furn = state.workspace.furnitures[id]
+      if (furn) {
+        this.selectedHighlightGraphics?.fillRect(furn.gridX * 32, furn.gridY * 32, 32, 32)
+        this.selectedHighlightGraphics?.strokeRect(furn.gridX * 32, furn.gridY * 32, 32, 32)
+      }
+    })
   }
 
   private addObjectFromTiled(
@@ -781,6 +1082,8 @@ export default class Game extends Phaser.Scene {
     gridX: number
     gridY: number
     orientation?: number
+    itemDirection?: string
+    tint?: number
   }) {
     this.handleFurnitureRemoved(item.id)
 
@@ -795,6 +1098,9 @@ export default class Game extends Phaser.Scene {
       const table = this.obstaclesGroup.create(worldX, worldY, tableTexture)
       table.setDepth(worldY)
       table.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        table.setTint(item.tint)
+      }
       obj = table
 
       // Tự động xoay máy tính trên bàn theo hướng xoay 2.5D của bàn
@@ -809,9 +1115,21 @@ export default class Game extends Phaser.Scene {
       const chair = this.chairsGroup.get(worldX, worldY, 'chairs', 0) as Chair
       const chairFrames = [0, 3, 1, 2] // 0: down, 1: left, 2: up, 3: right
       const chairDirections: ('down' | 'left' | 'up' | 'right')[] = ['down', 'left', 'up', 'right']
-      chair.setFrame(chairFrames[orientation % 4])
-      chair.itemDirection = chairDirections[orientation % 4]
+      const dirIndex =
+        ((item.orientation !== undefined
+          ? item.orientation
+          : item.itemDirection
+          ? chairDirections.indexOf(item.itemDirection as any)
+          : 0) % 4 + 4) % 4
+      chair.setFrame(chairFrames[dirIndex])
+      chair.itemDirection = chairDirections[dirIndex]
       chair.setDepth(worldY)
+      chair.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        chair.setCustomColor(item.tint)
+      } else {
+        chair.clearTint()
+      }
       chair.refreshBody()
       obj = chair
     } else if (item.itemType === 'computer') {
@@ -823,33 +1141,39 @@ export default class Game extends Phaser.Scene {
       comp.id = item.id
       comp.setDepth(worldY + 5)
       comp.setAngle(0)
+      comp.clearTint()
       comp.refreshBody()
       this.computerMap.set(item.id, comp)
       obj = comp
     } else if (item.itemType === 'whiteboard') {
-      const wb = this.whiteboardsGroup.get(worldX, worldY, 'whiteboards', 0) as Whiteboard
+      const wbTexture = `custom_whiteboard_${orientation % 4}`
+      const wb = this.whiteboardsGroup.get(worldX, worldY, wbTexture) as Whiteboard
+      wb.setTexture(wbTexture)
       wb.id = item.id
       wb.setDepth(worldY)
-      wb.setAngle(orientation * 90)
+      wb.setAngle(0)
+      wb.clearTint()
       wb.refreshBody()
       this.whiteboardMap.set(item.id, wb)
       obj = wb
     } else if (item.itemType === 'vase') {
-      const vase = this.obstaclesGroup.create(worldX, worldY, 'custom_vase')
+      const vaseTexture = `custom_vase_${orientation % 4}`
+      const vase = this.obstaclesGroup.create(worldX, worldY, vaseTexture)
       vase.setDepth(worldY)
-      vase.setAngle(orientation * 90)
+      vase.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        vase.setTint(item.tint)
+      }
       obj = vase
-    } else if (item.itemType === 'vendingmachine') {
-      const vm = this.obstaclesGroup.create(worldX, worldY - 4, 'vendingmachines', 0)
-      vm.setDepth(worldY + 10)
-      vm.setAngle(orientation * 90)
-      obj = vm
     } else if (item.itemType.startsWith('rug')) {
       const colorHex = item.itemType.includes(':') ? item.itemType.split(':')[1] : '#2563eb'
       const rugKey = ensureCustomRugTexture(this, colorHex)
       const rug = this.add.sprite(worldX, worldY, rugKey)
       rug.setDepth(2) // Lớp thảm sàn: nằm dưới nhân vật và bàn ghế
-      rug.setAngle(orientation * 90)
+      rug.setAngle(0) // Thảm sàn luôn phẳng tự nhiên, không xoay góc
+      if (item.tint && item.tint !== 0xffffff) {
+        rug.setTint(item.tint)
+      }
       obj = rug
     }
 
@@ -871,6 +1195,12 @@ export default class Game extends Phaser.Scene {
       existing.destroy()
       this.furnitureMap.delete(id)
       this.rebuildPathfinder()
+
+      const state = store.getState()
+      if (state.workspace.selectedFurnitureIds?.includes(id)) {
+        const remaining = state.workspace.selectedFurnitureIds.filter((selId) => selId !== id)
+        this.drawSelectedHighlights(remaining)
+      }
     }
   }
 

@@ -12,6 +12,7 @@ export default class Computer extends Item {
     super(scene, x, y, texture, frame)
 
     this.itemType = ItemType.COMPUTER
+    this.name = 'computer'
   }
 
   private updateStatus() {

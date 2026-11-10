@@ -323,6 +323,8 @@ export default class Network {
           gridX: item.gridX,
           gridY: item.gridY,
           orientation: item.orientation,
+          itemDirection: (item as any).itemDirection,
+          tint: (item as any).tint,
         }
         store.dispatch(addOrUpdateFurniture(furnData))
         phaserEvents.emit(Event.FURNITURE_PLACED, furnData)
@@ -334,6 +336,8 @@ export default class Network {
             gridX: item.gridX,
             gridY: item.gridY,
             orientation: item.orientation,
+            itemDirection: (item as any).itemDirection,
+            tint: (item as any).tint,
           }
           store.dispatch(addOrUpdateFurniture(updated))
           phaserEvents.emit(Event.FURNITURE_PLACED, updated)
@@ -536,11 +540,15 @@ export default class Network {
           gridX: number
           gridY: number
           orientation?: number
+          itemDirection?: string
+          tint?: number
         }
       | string,
     gridX?: number,
     gridY?: number,
-    orientation = 0
+    orientation = 0,
+    itemDirection?: string,
+    tint?: number
   ) {
     if (typeof furnitureDataOrType === 'object') {
       const id =
@@ -559,6 +567,8 @@ export default class Network {
         gridX: gridX!,
         gridY: gridY!,
         orientation,
+        itemDirection,
+        tint,
       })
     }
   }

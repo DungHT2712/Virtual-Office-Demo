@@ -69,6 +69,8 @@ export interface IFurnitureItem extends Schema {
   gridX: number
   gridY: number
   orientation: number
+  itemDirection?: string
+  tint?: number
   onChange?: (changes: any[]) => void
 }
 

@@ -132,6 +132,8 @@ export class PlaceFurnitureCommand extends Command<
     gridX: number
     gridY: number
     orientation?: number
+    itemDirection?: string
+    tint?: number
   }
 > {
   execute(data: {
@@ -141,8 +143,10 @@ export class PlaceFurnitureCommand extends Command<
     gridX: number
     gridY: number
     orientation?: number
+    itemDirection?: string
+    tint?: number
   }) {
-    let { client, id, itemType, gridX, gridY, orientation = 0 } = data
+    let { client, id, itemType, gridX, gridY, orientation = 0, itemDirection = 'down', tint = 0xffffff } = data
     const workspace = this.room.state.workspace
 
     if (gridX < 0 || gridY < 0 || gridX >= workspace.width || gridY >= workspace.height) {
@@ -152,7 +156,7 @@ export class PlaceFurnitureCommand extends Command<
       return
     }
 
-    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'vendingmachine', 'rug']
+    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'rug']
     const baseType = itemType.split(':')[0]
     if (!validItems.includes(baseType)) {
       client.send(Message.DESIGN_ERROR, {
@@ -224,6 +228,11 @@ export class PlaceFurnitureCommand extends Command<
       }
     }
 
+    const chairDirections = ['down', 'left', 'up', 'right']
+    if (baseType === 'chair') {
+      itemDirection = chairDirections[((orientation % 4) + 4) % 4]
+    }
+
     let furniture = this.room.state.furniture.get(id)
     if (!furniture) {
       furniture = new FurnitureState()
@@ -234,6 +243,8 @@ export class PlaceFurnitureCommand extends Command<
     furniture.gridX = gridX
     furniture.gridY = gridY
     furniture.orientation = orientation
+    furniture.itemDirection = itemDirection
+    furniture.tint = tint
 
     this.room.state.furniture.set(id, furniture)
 
@@ -241,6 +252,12 @@ export class PlaceFurnitureCommand extends Command<
     if (baseType === 'table') {
       this.room.state.furniture.forEach((f) => {
         if (f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY) {
+          f.orientation = orientation
+        }
+      })
+    } else if (baseType === 'computer') {
+      this.room.state.furniture.forEach((f) => {
+        if (f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY) {
           f.orientation = orientation
         }
       })

@@ -72,4 +72,11 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
   clearStatusBox() {
     this.statusBox.removeAll(true)
   }
+
+  setCustomColor(color: number) {
+    if (this.name !== 'computer' && this.name !== 'whiteboard') {
+      this.setTint(color)
+      this.tint = color
+    }
+  }
 }
