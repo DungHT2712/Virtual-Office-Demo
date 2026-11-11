@@ -24,6 +24,7 @@ import {
   setSuccessNotice,
   setSelectedTool,
   setCloneTemplate,
+  setCloneTemplates,
   setCloneContinuous,
   setSelectedFurnitureIds,
   clearSelectedFurnitureIds,
@@ -119,6 +120,7 @@ export default class Game extends Phaser.Scene {
       if (state.workspace.selectedTool) {
         store.dispatch(setSelectedTool(null))
         store.dispatch(setCloneTemplate(null))
+        store.dispatch(setCloneTemplates([]))
         store.dispatch(setCloneContinuous(false))
         store.dispatch(setSuccessNotice('Đã dừng chế độ đặt / nhân bản.'))
         return
@@ -517,35 +519,79 @@ export default class Game extends Phaser.Scene {
         this.ghostMarker.setPosition(snapX, snapY)
         this.ghostMarker.setVisible(true)
 
-        if (selectedTool === 'clone' && state.workspace.cloneTemplate) {
-          const template = state.workspace.cloneTemplate
-          const baseType = template.itemType.split(':')[0]
-          this.ghostMarker.setAngle((template.orientation || 0) * 90)
+        if (selectedTool === 'clone') {
+          const templates =
+            state.workspace.cloneTemplates && state.workspace.cloneTemplates.length > 0
+              ? state.workspace.cloneTemplates
+              : state.workspace.cloneTemplate
+              ? [state.workspace.cloneTemplate]
+              : []
 
-          if (baseType === 'computer') {
-            const tableAtTile = Object.values(state.workspace.furnitures).find(
-              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+          if (templates.length > 0) {
+            const tableTemplate = templates.find((t) => t.itemType === 'table')
+            const computerTemplate = templates.find((t) => t.itemType === 'computer')
+            const rugTemplate = templates.find((t) => t.itemType.startsWith('rug'))
+            const solidTemplates = templates.filter(
+              (t) => !t.itemType.startsWith('rug') && t.itemType !== 'computer'
             )
-            const hasExistingComputer = Object.values(state.workspace.furnitures).some(
-              (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
-            )
-            if (tableAtTile && !hasExistingComputer) {
-              this.ghostMarker.setFillStyle(0x22c55e, 0.5)
-              this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
-              this.ghostMarker.setAngle((tableAtTile.orientation || 0) * 90)
-            } else {
-              this.ghostMarker.setFillStyle(0xef4444, 0.5)
-              this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+
+            let canPlace = true
+
+            // 1. Máy tính: Nếu không có bàn đi kèm trong bản nhân bản, bắt buộc phải có sẵn bàn tại ô
+            if (computerTemplate && !tableTemplate) {
+              const hasTable = Object.values(state.workspace.furnitures).some(
+                (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+              )
+              const hasExistingComputer = Object.values(state.workspace.furnitures).some(
+                (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+              )
+              if (!hasTable || hasExistingComputer) {
+                canPlace = false
+              }
             }
-          } else if (template.itemType.startsWith('rug')) {
-            const colorHex = template.itemType.includes(':') ? template.itemType.split(':')[1] : '#2563eb'
-            const numColor = parseInt(colorHex.replace('#', ''), 16) || 0x2563eb
-            this.ghostMarker.setFillStyle(numColor, 0.5)
-            this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
-          } else {
-            const tint = template.tint && template.tint !== 0xffffff ? template.tint : 0x38bdf8
-            this.ghostMarker.setFillStyle(tint, 0.5)
-            this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
+
+            // 2. Vật thể đặc (Bàn, ghế, bình hoa, bảng trắng): Không được đè lên vật thể đặc khác
+            if (canPlace && solidTemplates.length > 0) {
+              const existingSolid = Object.values(state.workspace.furnitures).some(
+                (f) =>
+                  f.gridX === gridX &&
+                  f.gridY === gridY &&
+                  !f.itemType.startsWith('rug') &&
+                  f.itemType !== 'computer'
+              )
+              if (existingSolid) {
+                canPlace = false
+              }
+            }
+
+            // 3. Thảm: Không được đè lên thảm khác
+            if (canPlace && rugTemplate) {
+              const existingRug = Object.values(state.workspace.furnitures).some(
+                (f) => f.gridX === gridX && f.gridY === gridY && f.itemType.startsWith('rug')
+              )
+              if (existingRug) {
+                canPlace = false
+              }
+            }
+
+            if (!canPlace) {
+              this.ghostMarker.setFillStyle(0xef4444, 0.5) // Đỏ: không hợp lệ
+              this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+              this.ghostMarker.setAngle(0)
+            } else {
+              this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: hợp lệ
+              this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
+              if (tableTemplate) {
+                this.ghostMarker.setAngle((tableTemplate.orientation || 0) * 90)
+              } else if (computerTemplate && !tableTemplate) {
+                const tableAtTile = Object.values(state.workspace.furnitures).find(
+                  (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+                )
+                this.ghostMarker.setAngle((tableAtTile?.orientation || 0) * 90)
+              } else {
+                this.ghostMarker.setAngle((templates[0].orientation || 0) * 90)
+              }
+            }
           }
         } else if (selectedTool === 'computer') {
           const tableAtTile = Object.values(state.workspace.furnitures).find(
@@ -622,7 +668,7 @@ export default class Game extends Phaser.Scene {
         }
 
         // Tìm kiếm đối tượng tại vị trí click
-        const clickedFurn = Object.values(state.workspace.furnitures).find(
+        const clickedFurns = Object.values(state.workspace.furnitures).filter(
           (f) => f.gridX === gridX && f.gridY === gridY
         )
         const clickedRoom = Object.values(state.workspace.rooms).find(
@@ -635,8 +681,16 @@ export default class Game extends Phaser.Scene {
 
         // 1. Chế độ TẨY XÓA (Eraser)
         if (selectedTool === 'eraser') {
-          if (clickedFurn) {
-            this.network.removeFurniture(clickedFurn.id)
+          if (clickedFurns.length > 0) {
+            const sortedForDelete = [...clickedFurns].sort((a, b) => {
+              const getWeight = (item: any) => {
+                if (item.itemType === 'computer') return 3
+                if (!item.itemType.startsWith('rug')) return 2
+                return 1
+              }
+              return getWeight(b) - getWeight(a)
+            })
+            this.network.removeFurniture(sortedForDelete[0].id)
             store.dispatch(setSuccessNotice('Đã xóa vật thể khỏi bản đồ.'))
             return
           }
@@ -650,8 +704,8 @@ export default class Game extends Phaser.Scene {
 
         // 2. Chế độ Con trỏ tự do (!selectedTool): Click vào nội thất hoặc phòng để sửa / đổi hướng / xóa
         if (!selectedTool) {
-          if (clickedFurn) {
-            phaserEvents.emit(Event.OPEN_FURNITURE_DIALOG, clickedFurn)
+          if (clickedFurns.length > 0) {
+            phaserEvents.emit(Event.OPEN_FURNITURE_DIALOG, clickedFurns)
             return
           }
           if (clickedRoom) {
@@ -670,17 +724,37 @@ export default class Game extends Phaser.Scene {
         }
 
         // 4. Chế độ NHÂN BẢN NỘI THẤT (Clone)
-        if (selectedTool === 'clone' && state.workspace.cloneTemplate) {
-          const template = state.workspace.cloneTemplate
-          const baseType = template.itemType.split(':')[0]
+        if (selectedTool === 'clone') {
+          const templates =
+            state.workspace.cloneTemplates && state.workspace.cloneTemplates.length > 0
+              ? state.workspace.cloneTemplates
+              : state.workspace.cloneTemplate
+              ? [state.workspace.cloneTemplate]
+              : []
 
-          if (baseType === 'computer') {
+          if (templates.length === 0) return
+
+          const tableTemplate = templates.find((t) => t.itemType === 'table')
+          const computerTemplate = templates.find((t) => t.itemType === 'computer')
+          const rugTemplate = templates.find((t) => t.itemType.startsWith('rug'))
+          const otherSolidTemplates = templates.filter(
+            (t) =>
+              !t.itemType.startsWith('rug') &&
+              t.itemType !== 'computer' &&
+              t.itemType !== 'table'
+          )
+
+          // 1. Kiểm tra điều kiện Máy Tính:
+          // Nếu nhân bản máy tính mà KHÔNG nhân bản bàn, bắt buộc ô click phải có sẵn 1 cái bàn
+          if (computerTemplate && !tableTemplate) {
             const hasTable = Object.values(state.workspace.furnitures).some(
               (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
             )
             if (!hasTable) {
               store.dispatch(
-                setErrorNotice('Máy tính bắt buộc phải được đặt trên Bàn! Vui lòng đặt Bàn tại ô này trước.')
+                setErrorNotice(
+                  'Máy tính bắt buộc phải được đặt trên Bàn! Vui lòng đặt Bàn tại ô này trước.'
+                )
               )
               return
             }
@@ -695,47 +769,126 @@ export default class Game extends Phaser.Scene {
             }
           }
 
-          const tableAtTile = Object.values(state.workspace.furnitures).find(
-            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
-          )
-          const orientation = baseType === 'computer' ? tableAtTile?.orientation || 0 : template.orientation || 0
-          const newId = `${baseType}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+          // 2. Kiểm tra vật thể đặc (Bàn hoặc vật thể khác):
+          if (tableTemplate || otherSolidTemplates.length > 0) {
+            const existingSolid = Object.values(state.workspace.furnitures).find(
+              (f) =>
+                f.gridX === gridX &&
+                f.gridY === gridY &&
+                !f.itemType.startsWith('rug') &&
+                f.itemType !== 'computer'
+            )
+            if (existingSolid) {
+              store.dispatch(
+                setErrorNotice(`Toạ độ (${gridX}, ${gridY}) đã có vật dụng khác chiếm chỗ!`)
+              )
+              return
+            }
+          }
 
-          this.network.placeFurniture({
-            id: newId,
-            itemType: template.itemType,
-            gridX,
-            gridY,
-            orientation,
-            itemDirection: template.itemDirection,
-            tint: template.tint || 0xffffff,
+          // 3. Kiểm tra Thảm:
+          if (rugTemplate) {
+            const existingRug = Object.values(state.workspace.furnitures).some(
+              (f) => f.gridX === gridX && f.gridY === gridY && f.itemType.startsWith('rug')
+            )
+            if (existingRug) {
+              store.dispatch(
+                setErrorNotice('Tại ô này đã có sẵn một tấm thảm khác!')
+              )
+              return
+            }
+          }
+
+          // --- ĐẶT CÁC VẬT PHẨM THEO THỨ TỰ HỢP LÝ: Thảm -> Bàn / Vật thể đặc -> Máy tính ---
+          const timestamp = Date.now()
+
+          // A. Đặt thảm nếu có
+          if (rugTemplate) {
+            this.network.placeFurniture({
+              id: `rug_${timestamp}_${Math.floor(Math.random() * 10000)}_0`,
+              itemType: rugTemplate.itemType,
+              gridX,
+              gridY,
+              orientation: rugTemplate.orientation || 0,
+              itemDirection: rugTemplate.itemDirection,
+              tint: rugTemplate.tint || 0xffffff,
+            })
+          }
+
+          // B. Đặt bàn nếu có
+          if (tableTemplate) {
+            this.network.placeFurniture({
+              id: `table_${timestamp}_${Math.floor(Math.random() * 10000)}_1`,
+              itemType: tableTemplate.itemType,
+              gridX,
+              gridY,
+              orientation: tableTemplate.orientation || 0,
+              itemDirection: tableTemplate.itemDirection,
+              tint: tableTemplate.tint || 0xffffff,
+            })
+          }
+
+          // C. Đặt các vật thể đặc khác nếu có
+          otherSolidTemplates.forEach((other, idx) => {
+            const base = other.itemType.split(':')[0]
+            this.network.placeFurniture({
+              id: `${base}_${timestamp}_${Math.floor(Math.random() * 10000)}_${idx + 2}`,
+              itemType: other.itemType,
+              gridX,
+              gridY,
+              orientation: other.orientation || 0,
+              itemDirection: other.itemDirection,
+              tint: other.tint || 0xffffff,
+            })
           })
 
-          const toolLabel = template.itemType.startsWith('rug')
-            ? 'thảm trải sàn'
-            : baseType === 'computer'
-            ? 'máy tính lên bàn'
-            : baseType === 'table'
-            ? 'bàn làm việc'
-            : baseType === 'chair'
-            ? 'ghế ngồi'
-            : baseType === 'vase'
-            ? 'bình hoa'
-            : baseType
+          // D. Đặt máy tính nếu có
+          if (computerTemplate) {
+            const existingTable = Object.values(state.workspace.furnitures).find(
+              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+            )
+            const tableOrientation = tableTemplate
+              ? tableTemplate.orientation || 0
+              : existingTable?.orientation || 0
+
+            this.network.placeFurniture({
+              id: `computer_${timestamp}_${Math.floor(Math.random() * 10000)}_9`,
+              itemType: computerTemplate.itemType,
+              gridX,
+              gridY,
+              orientation: tableOrientation,
+              itemDirection: computerTemplate.itemDirection,
+              tint: computerTemplate.tint || 0xffffff,
+            })
+          }
+
+          const label = templates
+            .map((t) => {
+              const base = t.itemType.split(':')[0]
+              if (base === 'table') return 'Bàn làm việc'
+              if (base === 'computer') return 'Máy tính'
+              if (base === 'rug') return 'Thảm trải sàn'
+              if (base === 'chair') return 'Ghế ngồi'
+              if (base === 'vase') return 'Bình hoa'
+              if (base === 'whiteboard') return 'Bảng trắng'
+              return base
+            })
+            .join(' + ')
 
           const isContinuous = state.workspace.cloneContinuous
           if (isContinuous) {
             store.dispatch(
               setSuccessNotice(
-                `Đã đặt "${toolLabel}" tại (${gridX}, ${gridY})! Tiếp tục bấm để đặt thêm, hoặc nhấn ESC để dừng.`
+                `Đã đặt [${label}] tại (${gridX}, ${gridY})! Tiếp tục bấm để đặt thêm, hoặc nhấn ESC để dừng.`
               )
             )
           } else {
             store.dispatch(
-              setSuccessNotice(`Đã đặt "${toolLabel}" nhân bản tại ô (${gridX}, ${gridY}) thành công!`)
+              setSuccessNotice(`Đã đặt [${label}] nhân bản tại ô (${gridX}, ${gridY}) thành công!`)
             )
             store.dispatch(setSelectedTool(null))
             store.dispatch(setCloneTemplate(null))
+            store.dispatch(setCloneTemplates([]))
           }
           return
         }

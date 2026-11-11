@@ -7,6 +7,7 @@ import {
   closeDesignMode,
   setSelectedTool,
   setCloneTemplate,
+  setCloneTemplates,
   setCloneContinuous,
   clearSelectedFurnitureIds,
   setSuccessNotice,
@@ -554,6 +555,7 @@ export default function DesignWorkspaceDialog() {
     designMode,
     selectedTool,
     cloneTemplate,
+    cloneTemplates,
     cloneContinuous,
     selectedFurnitureIds,
     furnitures,
@@ -566,20 +568,46 @@ export default function DesignWorkspaceDialog() {
 
   // Tương tác trực tiếp: Nội thất và Phòng được chọn khi click trên map
   const [editingFurniture, setEditingFurniture] = useState<FurnitureLayoutItem | null>(null)
+  const [tileFurnitures, setTileFurnitures] = useState<FurnitureLayoutItem[]>([])
+  const [selectedCloneIds, setSelectedCloneIds] = useState<string[]>([])
   const [editingRoom, setEditingRoom] = useState<RoomLayoutItem | null>(null)
   const [editingRoomName, setEditingRoomName] = useState('')
   const [clipboardItem, setClipboardItem] = useState<FurnitureLayoutItem | null>(null)
 
   // Lắng nghe sự kiện click từ Phaser Scene
   useEffect(() => {
-    const onOpenFurn = (furn: FurnitureLayoutItem) => {
-      setEditingFurniture(furn)
+    const onOpenFurn = (furnOrFurns: FurnitureLayoutItem | FurnitureLayoutItem[]) => {
+      const furnList = Array.isArray(furnOrFurns) ? furnOrFurns : [furnOrFurns]
+      // Sắp xếp thứ tự layer: Thảm -> Bàn/Ghế/Vật phẩm -> Máy tính
+      const sortedFurnList = [...furnList].sort((a, b) => {
+        const getWeight = (item: FurnitureLayoutItem) => {
+          if (item.itemType.startsWith('rug')) return 1
+          if (item.itemType === 'computer') return 3
+          return 2
+        }
+        return getWeight(a) - getWeight(b)
+      })
+
+      setTileFurnitures(sortedFurnList)
+      // Ưu tiên chọn bàn hoặc vật thể đặc làm item sửa mặc định, nếu không thì máy tính hoặc thảm
+      const primaryItem =
+        sortedFurnList.find(
+          (f) => !f.itemType.startsWith('rug') && f.itemType !== 'computer'
+        ) ||
+        sortedFurnList.find((f) => f.itemType === 'computer') ||
+        sortedFurnList[0] ||
+        null
+
+      setEditingFurniture(primaryItem)
+      setSelectedCloneIds(sortedFurnList.map((f) => f.id))
       setEditingRoom(null)
     }
     const onOpenRoom = (room: RoomLayoutItem) => {
       setEditingRoom(room)
       setEditingRoomName(room.name)
       setEditingFurniture(null)
+      setTileFurnitures([])
+      setSelectedCloneIds([])
     }
 
     phaserEvents.on(Event.OPEN_FURNITURE_DIALOG, onOpenFurn)
@@ -657,6 +685,9 @@ export default function DesignWorkspaceDialog() {
 
     bootstrap.network.placeFurniture(updatedFurniture)
     setEditingFurniture(updatedFurniture)
+    setTileFurnitures((prev) =>
+      prev.map((f) => (f.id === updatedFurniture.id ? updatedFurniture : f))
+    )
 
     // Nếu xoay Bàn: Tự động xoay luôn máy tính đang đặt trên bàn đó
     if (editingFurniture.itemType === 'table') {
@@ -699,29 +730,61 @@ export default function DesignWorkspaceDialog() {
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     bootstrap.network.removeFurniture(editingFurniture.id)
     dispatch(setSuccessNotice('Đã xóa nội thất khỏi bản đồ!'))
-    setEditingFurniture(null)
+    const remaining = tileFurnitures.filter((f) => f.id !== editingFurniture.id)
+    setTileFurnitures(remaining)
+    setSelectedCloneIds((prev) => prev.filter((id) => id !== editingFurniture.id))
+    setEditingFurniture(remaining.length > 0 ? remaining[0] : null)
   }
 
   // --- COPY / PASTE & CLONE NỘI THẤT ---
   // Bắt đầu chế độ nhân bản: Chọn nội thất -> Nhân bản -> Click vào vị trí cần đặt
-  const handleStartClone = (furnToClone?: FurnitureLayoutItem, continuous = false) => {
-    const item = furnToClone || editingFurniture
-    if (!item) return
-    dispatch(setCloneTemplate(item))
+  const handleStartClone = (continuous = false, explicitItem?: FurnitureLayoutItem) => {
+    let itemsToClone: FurnitureLayoutItem[] = []
+    if (explicitItem) {
+      itemsToClone = [explicitItem]
+    } else if (tileFurnitures.length > 1) {
+      itemsToClone = tileFurnitures.filter((f) => selectedCloneIds.includes(f.id))
+      if (itemsToClone.length === 0) {
+        dispatch(setErrorNotice('Vui lòng tích chọn ít nhất một vật phẩm để nhân bản!'))
+        return
+      }
+    } else if (editingFurniture) {
+      itemsToClone = [editingFurniture]
+    } else if (tileFurnitures.length === 1) {
+      itemsToClone = [tileFurnitures[0]]
+    }
+
+    if (itemsToClone.length === 0) return
+
+    // Sắp xếp thứ tự: Thảm (1) -> Bàn / Vật thể khác (2) -> Máy tính (3)
+    const sorted = [...itemsToClone].sort((a, b) => {
+      const getWeight = (item: FurnitureLayoutItem) => {
+        if (item.itemType.startsWith('rug')) return 1
+        if (item.itemType === 'computer') return 3
+        return 2
+      }
+      return getWeight(a) - getWeight(b)
+    })
+
+    dispatch(setCloneTemplates(sorted))
     dispatch(setCloneContinuous(continuous))
     dispatch(setSelectedTool('clone'))
     dispatch(clearNotices())
     setEditingFurniture(null)
+    setTileFurnitures([])
+    setSelectedCloneIds([])
+
+    const names = sorted.map((it) => getFurnitureName(it.itemType)).join(' + ')
     if (continuous) {
       dispatch(
         setSuccessNotice(
-          `♾️ Đang nhân bản liên tục "${getFurnitureName(item.itemType)}". Hãy bấm các ô trên bản đồ để đặt (Nhấn ESC hoặc Bỏ chọn để dừng)!`
+          `♾️ Đang nhân bản liên tục [${names}]. Hãy bấm các ô trên bản đồ để đặt (Nhấn ESC hoặc Bỏ chọn để dừng)!`
         )
       )
     } else {
       dispatch(
         setSuccessNotice(
-          `👉 Đang nhân bản "${getFurnitureName(item.itemType)}". Hãy bấm vào vị trí trên bản đồ để đặt!`
+          `👉 Đang nhân bản [${names}]. Hãy bấm vào vị trí trên bản đồ để đặt!`
         )
       )
     }
@@ -781,7 +844,7 @@ export default function DesignWorkspaceDialog() {
       dispatch(setErrorNotice('Chưa có nội thất nào trong bộ nhớ đệm để dán!'))
       return
     }
-    handleStartClone(clipboardItem, false)
+    handleStartClone(false, clipboardItem)
   }
 
   // Xóa hàng loạt các nội thất đã quét chọn bằng Shift + Kéo chuột
@@ -832,11 +895,14 @@ export default function DesignWorkspaceDialog() {
           e.preventDefault()
           dispatch(setSelectedTool(null))
           dispatch(setCloneTemplate(null))
+          dispatch(setCloneTemplates([]))
           dispatch(setCloneContinuous(false))
           dispatch(setSuccessNotice('Đã dừng chế độ đặt / nhân bản.'))
         } else if (editingFurniture) {
           e.preventDefault()
           setEditingFurniture(null)
+          setTileFurnitures([])
+          setSelectedCloneIds([])
         } else if (editingRoom) {
           e.preventDefault()
           setEditingRoom(null)
@@ -880,6 +946,9 @@ export default function DesignWorkspaceDialog() {
       }
       bootstrap.network.placeFurniture(updated)
       setEditingFurniture(updated)
+      setTileFurnitures((prev) =>
+        prev.map((f) => (f.id === updated.id ? updated : f))
+      )
       dispatch(setSuccessNotice(`Đã đổi màu thảm sang ${hex}!`))
     } else {
       const updated = {
@@ -888,6 +957,9 @@ export default function DesignWorkspaceDialog() {
       }
       bootstrap.network.placeFurniture(updated)
       setEditingFurniture(updated)
+      setTileFurnitures((prev) =>
+        prev.map((f) => (f.id === updated.id ? updated : f))
+      )
       dispatch(setSuccessNotice(`Đã đổi màu nội thất sang ${hex}!`))
     }
   }
@@ -957,11 +1029,14 @@ export default function DesignWorkspaceDialog() {
   const handleClose = () => {
     dispatch(setSelectedTool(null))
     dispatch(setCloneTemplate(null))
+    dispatch(setCloneTemplates([]))
     dispatch(setCloneContinuous(false))
     dispatch(clearSelectedFurnitureIds())
     const game = phaserGame.scene.keys.game as Game
     if (game?.drawSelectedHighlights) game.drawSelectedHighlights([])
     setEditingFurniture(null)
+    setTileFurnitures([])
+    setSelectedCloneIds([])
     setEditingRoom(null)
     dispatch(closeDesignMode())
   }
@@ -1002,11 +1077,18 @@ export default function DesignWorkspaceDialog() {
     return furnitureLabels[type] || type
   }
 
+  const activeCloneList =
+    cloneTemplates && cloneTemplates.length > 0
+      ? cloneTemplates
+      : cloneTemplate
+      ? [cloneTemplate]
+      : []
+
   const currentToolLabel =
-    selectedTool === 'clone' && cloneTemplate
+    selectedTool === 'clone' && activeCloneList.length > 0
       ? cloneContinuous
-        ? `♾️ Nhân Bản Liên Tục "${getFurnitureName(cloneTemplate.itemType)}" (Bấm các ô để đặt liên tục - ESC để dừng)`
-        : `Nhân Bản "${getFurnitureName(cloneTemplate.itemType)}" (Bấm ô trên map để đặt)`
+        ? `♾️ Nhân Bản Liên Tục "${activeCloneList.map((t) => getFurnitureName(t.itemType)).join(' + ')}" (Bấm các ô để đặt liên tục - ESC để dừng)`
+        : `Nhân Bản "${activeCloneList.map((t) => getFurnitureName(t.itemType)).join(' + ')}" (Bấm ô trên map để đặt)`
       : selectedTool?.startsWith('rug')
       ? (() => {
           const color = selectedTool.split(':')[1] || selectedRugColor
@@ -1081,6 +1163,7 @@ export default function DesignWorkspaceDialog() {
               onClick={() => {
                 dispatch(setSelectedTool(null))
                 dispatch(setCloneTemplate(null))
+                dispatch(setCloneTemplates([]))
                 dispatch(setCloneContinuous(false))
               }}
             >
@@ -1150,10 +1233,19 @@ export default function DesignWorkspaceDialog() {
           <EditBox>
             <div className="header">
               <span>🛋️ Chỉnh Sửa Nội Thất Đã Chọn</span>
-              <button className="dismiss-btn" onClick={() => setEditingFurniture(null)}>✕</button>
+              <button
+                className="dismiss-btn"
+                onClick={() => {
+                  setEditingFurniture(null)
+                  setTileFurnitures([])
+                  setSelectedCloneIds([])
+                }}
+              >
+                ✕
+              </button>
             </div>
             <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
-              <strong>Vật phẩm:</strong> {getFurnitureName(editingFurniture.itemType)}
+              <strong>Vật phẩm đang sửa:</strong> {getFurnitureName(editingFurniture.itemType)}
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>
               Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | Hướng: {
@@ -1162,6 +1254,127 @@ export default function DesignWorkspaceDialog() {
                 ]
               }
             </div>
+
+            {/* Nếu ô được chọn có chứa nhiều vật phẩm, hiển thị checkbox các vật phẩm muốn nhân bản */}
+            {tileFurnitures.length > 1 && (
+              <div
+                style={{
+                  margin: '8px 0',
+                  padding: '8px 10px',
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#38bdf8',
+                    marginBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>📦 Ô có {tileFurnitures.length} vật phẩm (Tích để nhân bản):</span>
+                  <span
+                    onClick={() => {
+                      if (selectedCloneIds.length === tileFurnitures.length) {
+                        setSelectedCloneIds([])
+                      } else {
+                        setSelectedCloneIds(tileFurnitures.map((f) => f.id))
+                      }
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: '10px',
+                      color: '#94a3b8',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    {selectedCloneIds.length === tileFurnitures.length ? 'Bỏ chọn hết' : 'Chọn tất cả'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  {tileFurnitures.map((f) => {
+                    const isChecked = selectedCloneIds.includes(f.id)
+                    const isCurrent = editingFurniture?.id === f.id
+                    const baseType = f.itemType.split(':')[0]
+                    const emoji =
+                      furnitureTools.find((item) => item.type === baseType)?.emoji || '🛋️'
+                    return (
+                      <div
+                        key={f.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 6px',
+                          borderRadius: '4px',
+                          background: isCurrent ? 'rgba(56, 189, 248, 0.15)' : 'rgba(30, 41, 59, 0.5)',
+                          border: isCurrent
+                            ? '1px solid rgba(56, 189, 248, 0.5)'
+                            : '1px solid transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          id={`clone_chk_${f.id}`}
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCloneIds((prev) => [...prev, f.id])
+                            } else {
+                              setSelectedCloneIds((prev) => prev.filter((id) => id !== f.id))
+                            }
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            accentColor: '#38bdf8',
+                            width: '15px',
+                            height: '15px',
+                          }}
+                        />
+                        <label
+                          htmlFor={`clone_chk_${f.id}`}
+                          style={{
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            color: isChecked ? '#f8fafc' : '#94a3b8',
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>{emoji}</span>
+                          <span style={{ fontWeight: isChecked ? 600 : 400 }}>
+                            {getFurnitureName(f.itemType)}
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setEditingFurniture(f)}
+                          style={{
+                            background: isCurrent ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
+                            border: 'none',
+                            color: '#ffffff',
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                          title="Chọn vật phẩm này để sửa màu sắc / đổi hướng / xóa"
+                        >
+                          {isCurrent ? 'Đang sửa' : 'Sửa'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Đổi màu nội thất cho tất cả các item generic trừ computer và whiteboard */}
             {editingFurniture.itemType !== 'computer' &&
@@ -1246,11 +1459,11 @@ export default function DesignWorkspaceDialog() {
                   🔄 Đổi Hướng (R)
                 </button>
               )}
-              <button className="clone-btn" onClick={() => handleStartClone(editingFurniture, false)}>
-                📑 Nhân Bản (1 Lần)
+              <button className="clone-btn" onClick={() => handleStartClone(false)}>
+                📑 Nhân Bản ({tileFurnitures.length > 1 ? `${selectedCloneIds.length} Đã Chọn (1 Lần)` : '1 Lần'})
               </button>
-              <button className="continuous-clone-btn" onClick={() => handleStartClone(editingFurniture, true)}>
-                ♾️ Nhân Bản Liên Tục
+              <button className="continuous-clone-btn" onClick={() => handleStartClone(true)}>
+                ♾️ Nhân Bản Liên Tục {tileFurnitures.length > 1 ? `(${selectedCloneIds.length} Đã Chọn)` : ''}
               </button>
               <button className="delete-btn" onClick={handleDeleteFurniture}>
                 🗑️ Xóa Khỏi Map

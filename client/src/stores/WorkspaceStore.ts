@@ -38,6 +38,7 @@ interface WorkspaceStoreState {
   designMode: boolean
   selectedTool: string | null
   cloneTemplate: FurnitureLayoutItem | null
+  cloneTemplates: FurnitureLayoutItem[]
   cloneContinuous: boolean
   selectedFurnitureIds: string[]
   errorNotice: string | null
@@ -55,6 +56,7 @@ const initialState: WorkspaceStoreState = {
   designMode: false,
   selectedTool: null,
   cloneTemplate: null,
+  cloneTemplates: [],
   cloneContinuous: false,
   selectedFurnitureIds: [],
   errorNotice: null,
@@ -78,6 +80,7 @@ export const workspaceSlice = createSlice({
       if (game && game.enableKeys) game.enableKeys()
       state.designMode = false
       state.cloneTemplate = null
+      state.cloneTemplates = []
       state.cloneContinuous = false
       state.selectedFurnitureIds = []
       phaserEvents.emit(Event.DESIGN_MODE_TOGGLED, false)
@@ -86,11 +89,17 @@ export const workspaceSlice = createSlice({
       state.selectedTool = action.payload
       if (action.payload !== 'clone') {
         state.cloneTemplate = null
+        state.cloneTemplates = []
         state.cloneContinuous = false
       }
     },
     setCloneTemplate: (state, action: PayloadAction<FurnitureLayoutItem | null>) => {
       state.cloneTemplate = action.payload
+      state.cloneTemplates = action.payload ? [action.payload] : []
+    },
+    setCloneTemplates: (state, action: PayloadAction<FurnitureLayoutItem[]>) => {
+      state.cloneTemplates = action.payload
+      state.cloneTemplate = action.payload.length > 0 ? action.payload[0] : null
     },
     setCloneContinuous: (state, action: PayloadAction<boolean>) => {
       state.cloneContinuous = action.payload
@@ -135,6 +144,7 @@ export const {
   closeDesignMode,
   setSelectedTool,
   setCloneTemplate,
+  setCloneTemplates,
   setCloneContinuous,
   setSelectedFurnitureIds,
   clearSelectedFurnitureIds,
