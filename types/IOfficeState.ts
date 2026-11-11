@@ -22,6 +22,7 @@ export interface IPlayer extends Schema {
   hairColor: string
   outfitType: string
   outfitColor: string
+  floor?: number
   onChange?: (changes: any[]) => void
 }
 
@@ -47,6 +48,7 @@ export interface IWorkspaceState extends Schema {
   sizeType: string
   width: number
   height: number
+  floorsConfig?: string
   onChange?: (changes: any[]) => void
 }
 
@@ -60,6 +62,7 @@ export interface IRoomLayout extends Schema {
   height: number
   doorX?: number
   doorY?: number
+  floor?: number
   onChange?: (changes: any[]) => void
 }
 
@@ -71,6 +74,7 @@ export interface IFurnitureItem extends Schema {
   orientation: number
   itemDirection?: string
   tint?: number
+  floor?: number
   onChange?: (changes: any[]) => void
 }
 

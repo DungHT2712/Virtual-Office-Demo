@@ -9,4 +9,5 @@ export class FurnitureState extends Schema implements IFurnitureItem {
   @type('number') orientation = 0
   @type('string') itemDirection = 'down'
   @type('number') tint = 0xffffff
+  @type('number') floor = 1
 }

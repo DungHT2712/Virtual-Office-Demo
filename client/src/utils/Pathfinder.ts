@@ -60,7 +60,7 @@ export class Pathfinder {
       const children = group.getChildren()
       for (const child of children) {
         const sprite = child as Phaser.Types.Physics.Arcade.SpriteWithStaticBody
-        if (!sprite.body) continue
+        if (!sprite.body || !sprite.body.enable || !sprite.visible) continue
 
         const body = sprite.body
         const startTileX = Math.max(0, Math.floor((body.x + 2) / this.tileWidth))

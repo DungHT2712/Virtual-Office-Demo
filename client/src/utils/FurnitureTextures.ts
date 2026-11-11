@@ -956,6 +956,55 @@ export function registerFurnitureTextures(scene: Phaser.Scene) {
       scene.textures.addCanvas(key, createRugCanvas(c.hex))
     }
   })
+
+  // 6. Cửa nối tầng (Stairs / Door Up & Down)
+  if (!scene.textures.exists('floor_door_up')) {
+    scene.textures.addCanvas('floor_door_up', createFloorDoorCanvas(true))
+  }
+  if (!scene.textures.exists('floor_door_down')) {
+    scene.textures.addCanvas('floor_door_down', createFloorDoorCanvas(false))
+  }
+}
+
+export function createFloorDoorCanvas(isUp: boolean = true): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+
+  // Đổ bóng sàn
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'
+  ctx.fillRect(2, 2, 28, 28)
+
+  // Khung viền ngoài
+  ctx.fillStyle = isUp ? '#0284c7' : '#d97706'
+  ctx.fillRect(1, 1, 30, 30)
+
+  // Nền bên trong
+  ctx.fillStyle = '#0f172a'
+  ctx.fillRect(3, 3, 26, 26)
+
+  // Các bậc thang
+  const stepColors = isUp
+    ? ['#0369a1', '#0284c7', '#38bdf8', '#7dd3fc']
+    : ['#92400e', '#b45309', '#d97706', '#f59e0b']
+
+  for (let i = 0; i < 4; i++) {
+    const y = isUp ? 22 - i * 5 : 5 + i * 5
+    ctx.fillStyle = stepColors[i]
+    ctx.fillRect(5, y, 22, 4)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
+    ctx.fillRect(5, y, 22, 1)
+  }
+
+  // Mũi tên chỉ hướng nổi bật
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 11px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(isUp ? '▲' : '▼', 16, 16)
+
+  return canvas
 }
 
 /**

@@ -28,6 +28,7 @@ import {
   setCloneContinuous,
   setSelectedFurnitureIds,
   clearSelectedFurnitureIds,
+  setCurrentFloor,
 } from '../stores/WorkspaceStore'
 import { setLoggedIn } from '../stores/UserStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
@@ -76,6 +77,11 @@ export default class Game extends Phaser.Scene {
   private computersGroup!: Phaser.Physics.Arcade.StaticGroup
   private whiteboardsGroup!: Phaser.Physics.Arcade.StaticGroup
   private obstaclesGroup!: Phaser.Physics.Arcade.StaticGroup
+
+  // Hệ thống Tầng (Floors)
+  currentFloor = 1
+  private floorDoorsMap = new Map<string, { container: Phaser.GameObjects.Container }>()
+  private doorCooldown = 0
 
   constructor() {
     super('game')
@@ -298,8 +304,9 @@ export default class Game extends Phaser.Scene {
     // [DYNAMIC MAPMAKER LOGIC]: Lắng nghe thay đổi từ Colyseus State
     phaserEvents.on(
       Event.WORKSPACE_UPDATED,
-      (ws: { width: number; height: number; sizeType: string }) => {
-        // Cập nhật kích thước nếu cần
+      (ws: any) => {
+        this.renderFloorDoors()
+        this.refreshFloorVisibility()
       },
       this
     )
@@ -513,11 +520,31 @@ export default class Game extends Phaser.Scene {
         return
       }
 
-      // Chế độ NỘI THẤT (Bàn, ghế, máy tính, bảng trắng, bình hoa, máy bán nước, tẩy xóa)
+      // Chế độ NỘI THẤT & CỬA TẦNG (Bàn, ghế, máy tính, bảng trắng, bình hoa, thảm, cửa tầng, tẩy xóa)
       if (this.ghostMarker) {
         this.ghostMarker.setSize(32, 32)
         this.ghostMarker.setPosition(snapX, snapY)
         this.ghostMarker.setVisible(true)
+
+        if (selectedTool === 'place_new_floor_door' || selectedTool?.startsWith('move_floor_door:')) {
+          this.ghostMarker.setAngle(0)
+          const stateFurnitures = Object.values(state.workspace.furnitures)
+          const hasSolid = stateFurnitures.some(
+            (f) =>
+              f.gridX === gridX &&
+              f.gridY === gridY &&
+              (f.floor || 1) === this.currentFloor &&
+              !f.itemType.startsWith('rug')
+          )
+          if (hasSolid) {
+            this.ghostMarker.setFillStyle(0xef4444, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xf87171, 1)
+          } else {
+            this.ghostMarker.setFillStyle(0x0284c7, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x38bdf8, 1)
+          }
+          return
+        }
 
         if (selectedTool === 'clone') {
           const templates =
@@ -540,10 +567,10 @@ export default class Game extends Phaser.Scene {
             // 1. Máy tính: Nếu không có bàn đi kèm trong bản nhân bản, bắt buộc phải có sẵn bàn tại ô
             if (computerTemplate && !tableTemplate) {
               const hasTable = Object.values(state.workspace.furnitures).some(
-                (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+                (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
               )
               const hasExistingComputer = Object.values(state.workspace.furnitures).some(
-                (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+                (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
               )
               if (!hasTable || hasExistingComputer) {
                 canPlace = false
@@ -556,6 +583,7 @@ export default class Game extends Phaser.Scene {
                 (f) =>
                   f.gridX === gridX &&
                   f.gridY === gridY &&
+                  (f.floor || 1) === this.currentFloor &&
                   !f.itemType.startsWith('rug') &&
                   f.itemType !== 'computer'
               )
@@ -567,7 +595,7 @@ export default class Game extends Phaser.Scene {
             // 3. Thảm: Không được đè lên thảm khác
             if (canPlace && rugTemplate) {
               const existingRug = Object.values(state.workspace.furnitures).some(
-                (f) => f.gridX === gridX && f.gridY === gridY && f.itemType.startsWith('rug')
+                (f) => f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor && f.itemType.startsWith('rug')
               )
               if (existingRug) {
                 canPlace = false
@@ -585,7 +613,7 @@ export default class Game extends Phaser.Scene {
                 this.ghostMarker.setAngle((tableTemplate.orientation || 0) * 90)
               } else if (computerTemplate && !tableTemplate) {
                 const tableAtTile = Object.values(state.workspace.furnitures).find(
-                  (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+                  (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
                 )
                 this.ghostMarker.setAngle((tableAtTile?.orientation || 0) * 90)
               } else {
@@ -595,10 +623,10 @@ export default class Game extends Phaser.Scene {
           }
         } else if (selectedTool === 'computer') {
           const tableAtTile = Object.values(state.workspace.furnitures).find(
-            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
           )
           const hasExistingComputer = Object.values(state.workspace.furnitures).some(
-            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
           )
           if (tableAtTile && !hasExistingComputer) {
             this.ghostMarker.setFillStyle(0x22c55e, 0.5) // Xanh lá: Hợp lệ (đặt trên bàn)
@@ -667,16 +695,64 @@ export default class Game extends Phaser.Scene {
           return
         }
 
-        // Tìm kiếm đối tượng tại vị trí click
+        // Chế độ ĐẶT CỬA TẦNG MỚI (place_new_floor_door)
+        if (selectedTool === 'place_new_floor_door') {
+          const hasSolid = Object.values(state.workspace.furnitures).some(
+            (f) =>
+              f.gridX === gridX &&
+              f.gridY === gridY &&
+              (f.floor || 1) === this.currentFloor &&
+              !f.itemType.startsWith('rug')
+          )
+          if (hasSolid) {
+            store.dispatch(
+              setErrorNotice('Toạ độ này đã có vật dụng khác! Vui lòng chọn ô trống để đặt cửa tầng.')
+            )
+            return
+          }
+          this.network.createFloor(gridX, gridY)
+          store.dispatch(setSelectedTool(null))
+          store.dispatch(
+            setSuccessNotice(`Đã đặt cửa tại (${gridX}, ${gridY}) và tạo tầng mới thành công!`)
+          )
+          return
+        }
+
+        // Chế độ ĐỔI VỊ TRÍ CỬA TẦNG (move_floor_door:<doorId>)
+        if (selectedTool?.startsWith('move_floor_door:')) {
+          const doorId = selectedTool.replace('move_floor_door:', '')
+          const hasSolid = Object.values(state.workspace.furnitures).some(
+            (f) =>
+              f.gridX === gridX &&
+              f.gridY === gridY &&
+              (f.floor || 1) === this.currentFloor &&
+              !f.itemType.startsWith('rug')
+          )
+          if (hasSolid) {
+            store.dispatch(
+              setErrorNotice('Toạ độ này đã có vật dụng khác! Vui lòng chọn ô trống để đặt cửa.')
+            )
+            return
+          }
+          this.network.updateFloorDoor(doorId, gridX, gridY)
+          store.dispatch(setSelectedTool(null))
+          store.dispatch(
+            setSuccessNotice(`Đã chuyển vị trí cửa sang ô (${gridX}, ${gridY}) thành công!`)
+          )
+          return
+        }
+
+        // Tìm kiếm đối tượng tại vị trí click trên tầng hiện tại
         const clickedFurns = Object.values(state.workspace.furnitures).filter(
-          (f) => f.gridX === gridX && f.gridY === gridY
+          (f) => f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
         )
         const clickedRoom = Object.values(state.workspace.rooms).find(
           (r) =>
             gridX >= r.gridX &&
             gridX < r.gridX + r.width &&
             gridY >= r.gridY &&
-            gridY < r.gridY + r.height
+            gridY < r.gridY + r.height &&
+            (r.floor || 1) === this.currentFloor
         )
 
         // 1. Chế độ TẨY XÓA (Eraser)
@@ -748,7 +824,7 @@ export default class Game extends Phaser.Scene {
           // Nếu nhân bản máy tính mà KHÔNG nhân bản bàn, bắt buộc ô click phải có sẵn 1 cái bàn
           if (computerTemplate && !tableTemplate) {
             const hasTable = Object.values(state.workspace.furnitures).some(
-              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
             )
             if (!hasTable) {
               store.dispatch(
@@ -759,7 +835,7 @@ export default class Game extends Phaser.Scene {
               return
             }
             const hasExistingComputer = Object.values(state.workspace.furnitures).some(
-              (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+              (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
             )
             if (hasExistingComputer) {
               store.dispatch(
@@ -775,6 +851,7 @@ export default class Game extends Phaser.Scene {
               (f) =>
                 f.gridX === gridX &&
                 f.gridY === gridY &&
+                (f.floor || 1) === this.currentFloor &&
                 !f.itemType.startsWith('rug') &&
                 f.itemType !== 'computer'
             )
@@ -789,7 +866,7 @@ export default class Game extends Phaser.Scene {
           // 3. Kiểm tra Thảm:
           if (rugTemplate) {
             const existingRug = Object.values(state.workspace.furnitures).some(
-              (f) => f.gridX === gridX && f.gridY === gridY && f.itemType.startsWith('rug')
+              (f) => f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor && f.itemType.startsWith('rug')
             )
             if (existingRug) {
               store.dispatch(
@@ -812,6 +889,7 @@ export default class Game extends Phaser.Scene {
               orientation: rugTemplate.orientation || 0,
               itemDirection: rugTemplate.itemDirection,
               tint: rugTemplate.tint || 0xffffff,
+              floor: this.currentFloor,
             })
           }
 
@@ -825,6 +903,7 @@ export default class Game extends Phaser.Scene {
               orientation: tableTemplate.orientation || 0,
               itemDirection: tableTemplate.itemDirection,
               tint: tableTemplate.tint || 0xffffff,
+              floor: this.currentFloor,
             })
           }
 
@@ -839,13 +918,14 @@ export default class Game extends Phaser.Scene {
               orientation: other.orientation || 0,
               itemDirection: other.itemDirection,
               tint: other.tint || 0xffffff,
+              floor: this.currentFloor,
             })
           })
 
           // D. Đặt máy tính nếu có
           if (computerTemplate) {
             const existingTable = Object.values(state.workspace.furnitures).find(
-              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+              (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
             )
             const tableOrientation = tableTemplate
               ? tableTemplate.orientation || 0
@@ -859,6 +939,7 @@ export default class Game extends Phaser.Scene {
               orientation: tableOrientation,
               itemDirection: computerTemplate.itemDirection,
               tint: computerTemplate.tint || 0xffffff,
+              floor: this.currentFloor,
             })
           }
 
@@ -896,7 +977,7 @@ export default class Game extends Phaser.Scene {
         // 5. Chế độ ĐẶT NỘI THẤT (Bàn, Ghế, Máy tính 1 màn hình, Bình hoa, Thảm, ...)
         if (selectedTool === 'computer') {
           const hasTable = Object.values(state.workspace.furnitures).some(
-            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+            (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
           )
           if (!hasTable) {
             store.dispatch(
@@ -905,7 +986,7 @@ export default class Game extends Phaser.Scene {
             return
           }
           const hasExistingComputer = Object.values(state.workspace.furnitures).some(
-            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY
+            (f) => f.itemType === 'computer' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
           )
           if (hasExistingComputer) {
             store.dispatch(
@@ -916,10 +997,10 @@ export default class Game extends Phaser.Scene {
         }
 
         const tableAtTile = Object.values(state.workspace.furnitures).find(
-          (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY
+          (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
         )
         const orientation = selectedTool === 'computer' ? tableAtTile?.orientation || 0 : 0
-        this.network.placeFurniture(selectedTool, gridX, gridY, orientation)
+        this.network.placeFurniture(selectedTool, gridX, gridY, orientation, undefined, undefined, this.currentFloor)
         const toolLabel = selectedTool.startsWith('rug')
           ? 'thảm trải sàn'
           : selectedTool === 'computer'
@@ -1085,12 +1166,15 @@ export default class Game extends Phaser.Scene {
         }
         const roomName = `${typeLabels[roomType] || 'Phòng'} ${width}x${height} ô`
 
-        this.network.updateRoom(roomId, roomType, roomName, minX, minY, width, height, doorX, doorY)
+        this.network.updateRoom(roomId, roomType, roomName, minX, minY, width, height, doorX, doorY, this.currentFloor)
         store.dispatch(
           setSuccessNotice(`Đã tạo ${roomName} với tường bao quanh và cửa ra vào thành công!`)
         )
       }
     })
+
+    this.renderFloorDoors()
+    this.refreshFloorVisibility()
   }
 
   /**
@@ -1102,6 +1186,129 @@ export default class Game extends Phaser.Scene {
       this.obstaclesGroup,
       this.chairsGroup,
     ])
+  }
+
+  /**
+   * Hiển thị cửa nối giữa các tầng trên tầng hiện tại
+   */
+  renderFloorDoors() {
+    this.floorDoorsMap.forEach((entry) => {
+      entry.container.destroy()
+    })
+    this.floorDoorsMap.clear()
+
+    const state = store.getState()
+    const doors = state.workspace.floorsConfig?.doors || []
+
+    doors.forEach((door) => {
+      const isUp = door.fromFloor === this.currentFloor
+      const isDown = door.toFloor === this.currentFloor
+
+      if (!isUp && !isDown) return
+
+      const worldX = door.gridX * 32 + 16
+      const worldY = door.gridY * 32 + 16
+
+      const container = this.add.container(worldX, worldY)
+      container.setDepth(worldY)
+
+      const textureKey = isUp ? 'floor_door_up' : 'floor_door_down'
+      const sprite = this.add.sprite(0, 0, textureKey)
+
+      const targetFloorNum = isUp ? door.toFloor : door.fromFloor
+      const labelText = isUp ? `⬆ T${targetFloorNum}` : `⬇ T${targetFloorNum}`
+
+      const label = this.add.text(0, -18, labelText, {
+        fontFamily: 'Arial',
+        fontSize: '10px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        backgroundColor: isUp ? '#2563ebdd' : '#059669dd',
+        padding: { x: 3, y: 1 },
+      }).setOrigin(0.5, 0.5)
+
+      container.add([sprite, label])
+      this.floorDoorsMap.set(door.id, { container })
+    })
+  }
+
+  /**
+   * Cập nhật hiển thị vật phẩm, phòng, người chơi theo tầng hiện tại
+   */
+  refreshFloorVisibility() {
+    const state = store.getState()
+    const furnitures = state.workspace.furnitures
+    const rooms = state.workspace.roomLayouts
+
+    this.furnitureMap.forEach((obj, id) => {
+      const item = furnitures[id]
+      const itemFloor = item?.floor ?? 1
+      const isVisible = itemFloor === this.currentFloor
+      obj.setVisible(isVisible)
+      if ((obj as any).body) {
+        (obj as any).body.enable = isVisible
+      }
+    })
+
+    this.roomZonesMap.forEach((zone, id) => {
+      const room = rooms[id]
+      const roomFloor = room?.floor ?? 1
+      const isVisible = roomFloor === this.currentFloor
+      zone.graphics.setVisible(isVisible)
+      zone.text.setVisible(isVisible)
+    })
+
+    this.roomWallsMap.forEach((walls, id) => {
+      const room = rooms[id]
+      const roomFloor = room?.floor ?? 1
+      const isVisible = roomFloor === this.currentFloor
+      walls.forEach((w) => {
+        w.setVisible(isVisible)
+        if ((w as any).body) {
+          (w as any).body.enable = isVisible
+        }
+      })
+    })
+
+    this.otherPlayerMap.forEach((otherPlayer, id) => {
+      const serverPlayer = this.network?.room?.state?.players?.get(id)
+      const playerFloor = otherPlayer.floor ?? serverPlayer?.floor ?? 1
+      const isVisible = playerFloor === this.currentFloor && !state.workspace.designMode
+      otherPlayer.setVisible(isVisible)
+      if (otherPlayer.playerContainer) {
+        otherPlayer.playerContainer.setVisible(isVisible)
+      }
+    })
+
+    this.rebuildPathfinder()
+  }
+
+  /**
+   * Di chuyển người chơi giữa các tầng
+   */
+  changeFloor(targetFloor: number, targetX?: number, targetY?: number) {
+    if (this.currentFloor === targetFloor) return
+    this.currentFloor = targetFloor
+    store.dispatch(setCurrentFloor(targetFloor))
+
+    if (targetX !== undefined && targetY !== undefined && this.myPlayer) {
+      this.myPlayer.setPosition(targetX * 32 + 16, targetY * 32 + 16)
+      if (this.myPlayer.playerContainer) {
+        this.myPlayer.playerContainer.setPosition(targetX * 32 + 16, targetY * 32 + 16 - 30)
+      }
+    }
+
+    if (this.network) {
+      this.network.switchPlayerFloor(
+        targetFloor,
+        targetX !== undefined ? targetX * 32 + 16 : undefined,
+        targetY !== undefined ? targetY * 32 + 16 : undefined
+      )
+    }
+
+    this.renderFloorDoors()
+    this.refreshFloorVisibility()
+    store.dispatch(setSuccessNotice(`Đã chuyển tới Tầng ${targetFloor}`))
   }
 
   /**
@@ -1237,6 +1444,7 @@ export default class Game extends Phaser.Scene {
     orientation?: number
     itemDirection?: string
     tint?: number
+    floor?: number
   }) {
     this.handleFurnitureRemoved(item.id)
 
@@ -1331,6 +1539,12 @@ export default class Game extends Phaser.Scene {
     }
 
     if (obj) {
+      const itemFloor = item.floor ?? 1
+      const isVisible = itemFloor === this.currentFloor
+      obj.setVisible(isVisible)
+      if ((obj as any).body) {
+        (obj as any).body.enable = isVisible
+      }
       this.furnitureMap.set(item.id, obj)
       this.rebuildPathfinder()
     }
@@ -1370,6 +1584,7 @@ export default class Game extends Phaser.Scene {
     height: number
     doorX?: number
     doorY?: number
+    floor?: number
   }) {
     this.handleRoomLayoutRemoved(room.id)
 
@@ -1444,6 +1659,17 @@ export default class Game extends Phaser.Scene {
 
     // 8. Góc dưới - phải (Bottom-right corner)
     createWallTile(maxX, maxY, 217)
+
+    const roomFloor = room.floor ?? 1
+    const isVisible = roomFloor === this.currentFloor
+    graphics.setVisible(isVisible)
+    text.setVisible(isVisible)
+    wallSprites.forEach((w) => {
+      w.setVisible(isVisible)
+      if ((w as any).body) {
+        (w as any).body.enable = isVisible
+      }
+    })
 
     this.roomWallsMap.set(room.id, wallSprites)
     this.rebuildPathfinder()
@@ -1562,6 +1788,7 @@ export default class Game extends Phaser.Scene {
     this.otherPlayerMap.set(id, otherPlayer)
 
     otherPlayer.characterName = baseCharacter
+    otherPlayer.floor = newPlayer.floor ?? 1
     if (newPlayer.skinColor) otherPlayer.skinColor = newPlayer.skinColor
     if (newPlayer.hairColor) otherPlayer.hairColor = newPlayer.hairColor
     if (newPlayer.outfitType) otherPlayer.outfitType = newPlayer.outfitType as OutfitType
@@ -1576,6 +1803,12 @@ export default class Game extends Phaser.Scene {
 
     if (newPlayer.anim) {
       otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
+    }
+
+    const isVisible = otherPlayer.floor === this.currentFloor && !store.getState().workspace.designMode
+    otherPlayer.setVisible(isVisible)
+    if (otherPlayer.playerContainer) {
+      otherPlayer.playerContainer.setVisible(isVisible)
     }
   }
 
@@ -1599,9 +1832,13 @@ export default class Game extends Phaser.Scene {
   private handlePlayerUpdated(field: string, value: number | string, id: string) {
     const otherPlayer = this.otherPlayerMap.get(id)
     otherPlayer?.updateOtherPlayer(field, value)
+    if (field === 'floor') {
+      this.refreshFloorVisibility()
+    }
   }
 
   private handlePlayersOverlap(myPlayer: any, otherPlayer: any) {
+    if (otherPlayer.floor !== this.currentFloor) return
     otherPlayer.makeCall(myPlayer, this.network?.webRTC)
   }
 
@@ -1643,6 +1880,29 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+
+      // Kiểm tra bước lên cửa chuyển tầng
+      if (this.doorCooldown > 0) {
+        this.doorCooldown -= dt
+      } else if (this.myPlayer.playerBehavior !== PlayerBehavior.SITTING) {
+        const playerGridX = Math.floor(this.myPlayer.x / 32)
+        const playerGridY = Math.floor(this.myPlayer.y / 32)
+        const doors = state.workspace.floorsConfig?.doors || []
+
+        for (const door of doors) {
+          if (door.gridX === playerGridX && door.gridY === playerGridY) {
+            if (door.fromFloor === this.currentFloor) {
+              this.doorCooldown = 2000
+              this.changeFloor(door.toFloor, door.gridX, door.gridY)
+              break
+            } else if (door.toFloor === this.currentFloor) {
+              this.doorCooldown = 2000
+              this.changeFloor(door.fromFloor, door.gridX, door.gridY)
+              break
+            }
+          }
+        }
+      }
     }
   }
 }

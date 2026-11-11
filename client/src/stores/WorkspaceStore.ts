@@ -3,6 +3,24 @@ import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 import { phaserEvents, Event } from '../events/EventCenter'
 
+export interface FloorData {
+  floorNumber: number
+  name: string
+}
+
+export interface FloorDoorData {
+  id: string
+  fromFloor: number
+  toFloor: number
+  gridX: number
+  gridY: number
+}
+
+export interface WorkspaceFloorsConfig {
+  floors: FloorData[]
+  doors: FloorDoorData[]
+}
+
 export interface RoomLayoutItem {
   id: string
   roomType: string
@@ -13,6 +31,7 @@ export interface RoomLayoutItem {
   height: number
   doorX?: number
   doorY?: number
+  floor?: number
 }
 
 export interface FurnitureLayoutItem {
@@ -23,12 +42,14 @@ export interface FurnitureLayoutItem {
   orientation: number
   itemDirection?: string
   tint?: number
+  floor?: number
 }
 
 export interface WorkspaceData {
   sizeType: string
   width: number
   height: number
+  floorsConfig?: string
 }
 
 interface WorkspaceStoreState {
@@ -41,6 +62,8 @@ interface WorkspaceStoreState {
   cloneTemplates: FurnitureLayoutItem[]
   cloneContinuous: boolean
   selectedFurnitureIds: string[]
+  currentFloor: number
+  floorsConfig: WorkspaceFloorsConfig
   errorNotice: string | null
   successNotice: string | null
 }
@@ -59,6 +82,11 @@ const initialState: WorkspaceStoreState = {
   cloneTemplates: [],
   cloneContinuous: false,
   selectedFurnitureIds: [],
+  currentFloor: 1,
+  floorsConfig: {
+    floors: [{ floorNumber: 1, name: 'Tầng 1' }],
+    doors: [],
+  },
   errorNotice: null,
   successNotice: null,
 }
@@ -106,6 +134,22 @@ export const workspaceSlice = createSlice({
     },
     setWorkspaceData: (state, action: PayloadAction<WorkspaceData>) => {
       state.workspace = action.payload
+      if (action.payload.floorsConfig) {
+        try {
+          const parsed = JSON.parse(action.payload.floorsConfig)
+          if (parsed && Array.isArray(parsed.floors)) {
+            state.floorsConfig = parsed
+          }
+        } catch (e) {
+          console.error('Failed to parse floorsConfig:', e)
+        }
+      }
+    },
+    setCurrentFloor: (state, action: PayloadAction<number>) => {
+      state.currentFloor = action.payload
+    },
+    setFloorsConfig: (state, action: PayloadAction<WorkspaceFloorsConfig>) => {
+      state.floorsConfig = action.payload
     },
     addOrUpdateRoom: (state, action: PayloadAction<RoomLayoutItem>) => {
       state.rooms[action.payload.id] = action.payload
@@ -149,6 +193,8 @@ export const {
   setSelectedFurnitureIds,
   clearSelectedFurnitureIds,
   setWorkspaceData,
+  setCurrentFloor,
+  setFloorsConfig,
   addOrUpdateRoom,
   removeRoom,
   addOrUpdateFurniture,

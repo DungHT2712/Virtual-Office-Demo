@@ -11,4 +11,5 @@ export class RoomState extends Schema implements IRoomLayout {
   @type('number') height = 10
   @type('number') doorX = 0
   @type('number') doorY = 0
+  @type('number') floor = 1
 }

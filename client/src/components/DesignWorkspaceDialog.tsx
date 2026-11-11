@@ -13,12 +13,14 @@ import {
   setSuccessNotice,
   setErrorNotice,
   clearNotices,
+  setCurrentFloor,
   FurnitureLayoutItem,
   RoomLayoutItem,
 } from '../stores/WorkspaceStore'
 import store from '../stores'
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
+import Game from '../scenes/Game'
 import { phaserEvents, Event } from '../events/EventCenter'
 import { RUG_COLORS } from '../utils/FurnitureTextures'
 
@@ -547,6 +549,170 @@ const AlertMessage = styled.div<{ $type: 'error' | 'success' }>`
   }
 `
 
+const FloorCard = styled.div<{ $isCurrent: boolean }>`
+  background: ${(props) => (props.$isCurrent ? 'rgba(2, 132, 199, 0.15)' : '#1e293b')};
+  border: 1px solid
+    ${(props) => (props.$isCurrent ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)')};
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .floor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .floor-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: ${(props) => (props.$isCurrent ? '#38bdf8' : '#f1f5f9')};
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  }
+
+  .door-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .door-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #cbd5e1;
+
+    .door-edit-btn {
+      background: #334155;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: #0284c7;
+        color: #ffffff;
+      }
+    }
+  }
+
+  .floor-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+
+    button {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .switch-btn {
+      background: #0284c7;
+      color: #ffffff;
+      &:hover {
+        background: #0369a1;
+      }
+    }
+
+    .delete-floor-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      &:hover {
+        background: #ef4444;
+        color: #ffffff;
+      }
+    }
+  }
+`
+
+const AddFloorButton = styled.button`
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+
+  &:hover {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  }
+`
+
+const FloorPillContainer = styled.div`
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+`
+
+const FloorPill = styled.button<{ $active: boolean }>`
+  background: ${(props) => (props.$active ? '#0284c7' : '#1e293b')};
+  color: ${(props) => (props.$active ? '#ffffff' : '#94a3b8')};
+  border: 1px solid
+    ${(props) => (props.$active ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)')};
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+
+  &:hover {
+    background: ${(props) => (props.$active ? '#0284c7' : 'rgba(255, 255, 255, 0.08)')};
+    color: #ffffff;
+  }
+`
+
 export default function DesignWorkspaceDialog() {
   const dispatch = useAppDispatch()
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
@@ -559,11 +725,13 @@ export default function DesignWorkspaceDialog() {
     cloneContinuous,
     selectedFurnitureIds,
     furnitures,
+    currentFloor,
+    floorsConfig,
     errorNotice,
     successNotice,
   } = useAppSelector((state) => state.workspace)
 
-  const [activeTab, setActiveTab] = useState<'furniture' | 'room'>('furniture')
+  const [activeTab, setActiveTab] = useState<'furniture' | 'room' | 'floor'>('furniture')
   const [selectedRugColor, setSelectedRugColor] = useState('#2563eb')
 
   // Tương tác trực tiếp: Nội thất và Phòng được chọn khi click trên map
@@ -1085,7 +1253,11 @@ export default function DesignWorkspaceDialog() {
       : []
 
   const currentToolLabel =
-    selectedTool === 'clone' && activeCloneList.length > 0
+    selectedTool === 'place_new_floor_door'
+      ? '🚪 Đặt Cửa Lên Tầng Mới (Click vào ô trống trên bản đồ)'
+      : selectedTool?.startsWith('move_floor_door:')
+      ? '✏️ Đổi Vị Trí Cửa Nối Tầng (Click vào ô trống mới trên bản đồ)'
+      : selectedTool === 'clone' && activeCloneList.length > 0
       ? cloneContinuous
         ? `♾️ Nhân Bản Liên Tục "${activeCloneList.map((t) => getFurnitureName(t.itemType)).join(' + ')}" (Bấm các ô để đặt liên tục - ESC để dừng)`
         : `Nhân Bản "${activeCloneList.map((t) => getFurnitureName(t.itemType)).join(' + ')}" (Bấm ô trên map để đặt)`
@@ -1512,7 +1684,7 @@ export default function DesignWorkspaceDialog() {
           </EditBox>
         )}
 
-        {/* Thanh chuyển đổi 2 Tab */}
+        {/* Thanh chuyển đổi 3 Tab */}
         <TabNav>
           <TabButton
             $active={activeTab === 'furniture'}
@@ -1533,6 +1705,16 @@ export default function DesignWorkspaceDialog() {
             }}
           >
             🚪 Phân Vùng Phòng
+          </TabButton>
+          <TabButton
+            $active={activeTab === 'floor'}
+            onClick={() => {
+              setActiveTab('floor')
+              dispatch(setSelectedTool(null))
+              dispatch(clearNotices())
+            }}
+          >
+            🏢 Quản Lý Tầng
           </TabButton>
         </TabNav>
 
@@ -1620,6 +1802,182 @@ export default function DesignWorkspaceDialog() {
                 </ToolItem>
               ))}
             </ToolGrid>
+          </>
+        )}
+
+        {/* TAB 3: QUẢN LÝ TẦNG (FLOORS) */}
+        {activeTab === 'floor' && (
+          <>
+            <InstructionBox>
+              🏢 <strong>Hệ thống Quản lý Tầng:</strong>
+              <br />
+              • Bạn đang đứng và thiết kế tại <strong>Tầng {currentFloor || 1}</strong>.
+              <br />
+              • Để thiết kế tầng khác, hãy bấm chọn tầng bên dưới hoặc điều khiển nhân vật bước vào cửa chuyển tầng trên map.
+              <br />
+              • Bấm <strong>➕ Thêm Tầng Mới</strong> và click vào 1 ô trống trên map để đặt cửa nối lên tầng mới.
+              <br />
+              • Bạn có thể sửa vị trí cửa hoặc xóa tầng bất kỳ (yêu cầu tối thiểu còn 1 tầng).
+            </InstructionBox>
+
+            {/* Thanh chuyển đổi nhanh tầng đang chỉnh sửa */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
+                📍 Chọn tầng muốn thiết kế / di chuyển đến:
+              </div>
+              <FloorPillContainer>
+                {(floorsConfig?.floors || [{ floorNumber: 1, name: 'Tầng 1' }]).map((f) => (
+                  <FloorPill
+                    key={f.floorNumber}
+                    $active={(currentFloor || 1) === f.floorNumber}
+                    onClick={() => {
+                      const game = phaserGame.scene.keys.game as Game
+                      game?.changeFloor?.(f.floorNumber)
+                    }}
+                  >
+                    <span>🏢</span>
+                    <span>{f.name}</span>
+                    {(currentFloor || 1) === f.floorNumber && <span>✓</span>}
+                  </FloorPill>
+                ))}
+              </FloorPillContainer>
+            </div>
+
+            {/* Nút Thêm Tầng Mới */}
+            <AddFloorButton
+              onClick={() => {
+                dispatch(setSelectedTool('place_new_floor_door'))
+                dispatch(
+                  setSuccessNotice(
+                    '👉 Hãy CLICK vào một ô trống trên bản đồ của Tầng hiện tại để đặt cửa nối lên Tầng mới!'
+                  )
+                )
+              }}
+            >
+              ➕ Thêm Tầng Mới (Đặt Cửa Nối)
+            </AddFloorButton>
+
+            {/* Danh sách các tầng và cấu hình cửa */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#e2e8f0' }}>
+                📋 Danh Sách Các Tầng ({floorsConfig?.floors?.length || 1} tầng):
+              </div>
+
+              {(floorsConfig?.floors || [{ floorNumber: 1, name: 'Tầng 1' }])
+                .slice()
+                .sort((a, b) => a.floorNumber - b.floorNumber)
+                .map((f) => {
+                  const isCurrent = (currentFloor || 1) === f.floorNumber
+                  const upDoors = (floorsConfig?.doors || []).filter(
+                    (d) => d.fromFloor === f.floorNumber
+                  )
+                  const downDoors = (floorsConfig?.doors || []).filter(
+                    (d) => d.toFloor === f.floorNumber
+                  )
+
+                  return (
+                    <FloorCard key={f.floorNumber} $isCurrent={isCurrent}>
+                      <div className="floor-header">
+                        <div className="floor-title">
+                          <span>🏢</span>
+                          <span>{f.name}</span>
+                        </div>
+                        {isCurrent && <span className="badge">Đang đứng ở tầng này</span>}
+                      </div>
+
+                      <div className="door-list">
+                        {upDoors.length === 0 && downDoors.length === 0 && (
+                          <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+                            Chưa có cửa nối tầng nào
+                          </div>
+                        )}
+
+                        {upDoors.map((door) => (
+                          <div key={door.id} className="door-row">
+                            <span>
+                              🚪 <strong>Lên Tầng {door.toFloor}</strong>: Ô ({door.gridX}, {door.gridY})
+                            </span>
+                            <button
+                              className="door-edit-btn"
+                              onClick={() => {
+                                dispatch(setSelectedTool(`move_floor_door:${door.id}`))
+                                dispatch(
+                                  setSuccessNotice(
+                                    `👉 Click vào ô trống mới trên map để dời cửa lên Tầng ${door.toFloor}!`
+                                  )
+                                )
+                              }}
+                              title="Bấm để dời vị trí cửa sang ô khác"
+                            >
+                              ✏️ Đổi Vị Trí
+                            </button>
+                          </div>
+                        ))}
+
+                        {downDoors.map((door) => (
+                          <div key={door.id} className="door-row">
+                            <span>
+                              🚪 <strong>Xuống Tầng {door.fromFloor}</strong>: Ô ({door.gridX}, {door.gridY})
+                            </span>
+                            <button
+                              className="door-edit-btn"
+                              onClick={() => {
+                                dispatch(setSelectedTool(`move_floor_door:${door.id}`))
+                                dispatch(
+                                  setSuccessNotice(
+                                    `👉 Click vào ô trống mới trên map để dời cửa xuống Tầng ${door.fromFloor}!`
+                                  )
+                                )
+                              }}
+                              title="Bấm để dời vị trí cửa sang ô khác"
+                            >
+                              ✏️ Đổi Vị Trí
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="floor-actions">
+                        {!isCurrent && (
+                          <button
+                            className="switch-btn"
+                            onClick={() => {
+                              const game = phaserGame.scene.keys.game as Game
+                              game?.changeFloor?.(f.floorNumber)
+                            }}
+                          >
+                            🚀 Chuyển Đến {f.name}
+                          </button>
+                        )}
+                        {(floorsConfig?.floors?.length || 1) > 1 && (
+                          <button
+                            className="delete-floor-btn"
+                            onClick={() => {
+                              const confirmMsg = `Bạn có chắc chắn muốn xóa ${f.name}?\n- Toàn bộ nội thất và phòng trên tầng này sẽ bị xóa.\n- Vị trí cửa nối sẽ tự động liên kết với tầng liền kề theo quy tắc.`
+                              if (window.confirm(confirmMsg)) {
+                                const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+                                bootstrap.network.deleteFloor(f.floorNumber)
+                                if ((currentFloor || 1) === f.floorNumber) {
+                                  const remaining = floorsConfig?.floors.find(
+                                    (x) => x.floorNumber !== f.floorNumber
+                                  )
+                                  if (remaining) {
+                                    const game = phaserGame.scene.keys.game as Game
+                                    game?.changeFloor?.(remaining.floorNumber)
+                                  }
+                                }
+                                dispatch(setSuccessNotice(`Đã gửi yêu cầu xóa ${f.name}!`))
+                              }
+                            }}
+                          >
+                            🗑️ Xóa Tầng
+                          </button>
+                        )}
+                      </div>
+                    </FloorCard>
+                  )
+                })}
+            </div>
           </>
         )}
       </SidebarBody>

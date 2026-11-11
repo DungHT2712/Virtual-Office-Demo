@@ -22,6 +22,10 @@ import {
   RemoveRoomCommand,
   PlaceFurnitureCommand,
   RemoveFurnitureCommand,
+  CreateFloorCommand,
+  DeleteFloorCommand,
+  UpdateFloorDoorCommand,
+  SwitchPlayerFloorCommand,
 } from './commands/DesignCommands'
 import { RoomState } from './schema/RoomState'
 import { FurnitureState } from './schema/FurnitureState'
@@ -128,12 +132,13 @@ export class SkyOffice extends Room<OfficeState> {
     // when receiving updatePlayer message, call the PlayerUpdateCommand
     this.onMessage(
       Message.UPDATE_PLAYER,
-      (client, message: { x: number; y: number; anim: string }) => {
+      (client, message: { x: number; y: number; anim: string; floor?: number }) => {
         this.dispatcher.dispatch(new PlayerUpdateCommand(), {
           client,
           x: message.x,
           y: message.y,
           anim: message.anim,
+          floor: message.floor,
         })
       }
     )
@@ -245,6 +250,9 @@ export class SkyOffice extends Room<OfficeState> {
           gridY: number
           width: number
           height: number
+          doorX?: number
+          doorY?: number
+          floor?: number
         }
       ) => {
         this.dispatcher.dispatch(new UpdateRoomCommand(), {
@@ -273,6 +281,7 @@ export class SkyOffice extends Room<OfficeState> {
           orientation?: number
           itemDirection?: string
           tint?: number
+          floor?: number
         }
       ) => {
         this.dispatcher.dispatch(new PlaceFurnitureCommand(), {
@@ -288,6 +297,51 @@ export class SkyOffice extends Room<OfficeState> {
         id: message.id,
       })
     })
+
+    this.onMessage(
+      Message.CREATE_FLOOR,
+      (client, message: { gridX: number; gridY: number }) => {
+        this.dispatcher.dispatch(new CreateFloorCommand(), {
+          client,
+          gridX: message.gridX,
+          gridY: message.gridY,
+        })
+      }
+    )
+
+    this.onMessage(
+      Message.DELETE_FLOOR,
+      (client, message: { floorNumber: number }) => {
+        this.dispatcher.dispatch(new DeleteFloorCommand(), {
+          client,
+          floorNumber: message.floorNumber,
+        })
+      }
+    )
+
+    this.onMessage(
+      Message.UPDATE_FLOOR_DOOR,
+      (client, message: { doorId: string; gridX: number; gridY: number }) => {
+        this.dispatcher.dispatch(new UpdateFloorDoorCommand(), {
+          client,
+          doorId: message.doorId,
+          gridX: message.gridX,
+          gridY: message.gridY,
+        })
+      }
+    )
+
+    this.onMessage(
+      Message.SWITCH_PLAYER_FLOOR,
+      (client, message: { floor: number; x?: number; y?: number }) => {
+        this.dispatcher.dispatch(new SwitchPlayerFloorCommand(), {
+          client,
+          floor: message.floor,
+          x: message.x,
+          y: message.y,
+        })
+      }
+    )
 
     this.onMessage(Message.DELETE_WORKSPACE, async () => {
       removeWorkspace(this.roomId)

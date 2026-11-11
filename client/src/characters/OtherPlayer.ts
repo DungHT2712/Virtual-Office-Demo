@@ -16,6 +16,7 @@ export default class OtherPlayer extends Player {
   hairColor = '#4a3728'
   outfitType: OutfitType = 'casual'
   outfitColor = '#3b82f6'
+  floor = 1
 
   constructor(
     scene: Phaser.Scene,
@@ -130,6 +131,12 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+        }
+        break
+
+      case 'floor':
+        if (typeof value === 'number') {
+          this.floor = value
         }
         break
     }

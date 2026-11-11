@@ -256,19 +256,15 @@ export default class Network {
 
     // Mapmaker: Workspace Grid changes
     if (this.room.state.workspace) {
-      store.dispatch(
-        setWorkspaceData({
-          sizeType: this.room.state.workspace.sizeType,
-          width: this.room.state.workspace.width,
-          height: this.room.state.workspace.height,
-        })
-      )
+      const getWs = () => ({
+        sizeType: this.room!.state.workspace.sizeType,
+        width: this.room!.state.workspace.width,
+        height: this.room!.state.workspace.height,
+        floorsConfig: (this.room!.state.workspace as any).floorsConfig,
+      })
+      store.dispatch(setWorkspaceData(getWs()))
       this.room.state.workspace.onChange = () => {
-        const ws = {
-          sizeType: this.room!.state.workspace.sizeType,
-          width: this.room!.state.workspace.width,
-          height: this.room!.state.workspace.height,
-        }
+        const ws = getWs()
         store.dispatch(setWorkspaceData(ws))
         phaserEvents.emit(Event.WORKSPACE_UPDATED, ws)
       }
@@ -287,6 +283,7 @@ export default class Network {
           height: room.height,
           doorX: room.doorX,
           doorY: room.doorY,
+          floor: (room as any).floor || 1,
         }
         store.dispatch(addOrUpdateRoom(roomData))
         phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, roomData)
@@ -302,6 +299,7 @@ export default class Network {
             height: room.height,
             doorX: room.doorX,
             doorY: room.doorY,
+            floor: (room as any).floor || 1,
           }
           store.dispatch(addOrUpdateRoom(updated))
           phaserEvents.emit(Event.ROOM_LAYOUT_ADDED, updated)
@@ -325,6 +323,7 @@ export default class Network {
           orientation: item.orientation,
           itemDirection: (item as any).itemDirection,
           tint: (item as any).tint,
+          floor: (item as any).floor || 1,
         }
         store.dispatch(addOrUpdateFurniture(furnData))
         phaserEvents.emit(Event.FURNITURE_PLACED, furnData)
@@ -338,6 +337,7 @@ export default class Network {
             orientation: item.orientation,
             itemDirection: (item as any).itemDirection,
             tint: (item as any).tint,
+            floor: (item as any).floor || 1,
           }
           store.dispatch(addOrUpdateFurniture(updated))
           phaserEvents.emit(Event.FURNITURE_PLACED, updated)
@@ -500,6 +500,7 @@ export default class Network {
           height: number
           doorX?: number
           doorY?: number
+          floor?: number
         }
       | string,
     roomType?: string,
@@ -509,10 +510,15 @@ export default class Network {
     width?: number,
     height?: number,
     doorX?: number,
-    doorY?: number
+    doorY?: number,
+    floor?: number
   ) {
+    const currentFloor = floor || store.getState().workspace.currentFloor || 1
     if (typeof roomDataOrId === 'object') {
-      this.room?.send(Message.UPDATE_ROOM, roomDataOrId)
+      this.room?.send(Message.UPDATE_ROOM, {
+        floor: currentFloor,
+        ...roomDataOrId,
+      })
     } else {
       this.room?.send(Message.UPDATE_ROOM, {
         id: roomDataOrId,
@@ -524,6 +530,7 @@ export default class Network {
         height: height!,
         doorX,
         doorY,
+        floor: currentFloor,
       })
     }
   }
@@ -542,19 +549,23 @@ export default class Network {
           orientation?: number
           itemDirection?: string
           tint?: number
+          floor?: number
         }
       | string,
     gridX?: number,
     gridY?: number,
     orientation = 0,
     itemDirection?: string,
-    tint?: number
+    tint?: number,
+    floor?: number
   ) {
+    const currentFloor = floor || store.getState().workspace.currentFloor || 1
     if (typeof furnitureDataOrType === 'object') {
       const id =
         furnitureDataOrType.id ||
         `${furnitureDataOrType.itemType}_${Date.now()}_${Math.floor(Math.random() * 1000)}`
       this.room?.send(Message.PLACE_FURNITURE, {
+        floor: currentFloor,
         ...furnitureDataOrType,
         id,
       })
@@ -569,12 +580,29 @@ export default class Network {
         orientation,
         itemDirection,
         tint,
+        floor: currentFloor,
       })
     }
   }
 
   removeFurniture(id: string) {
     this.room?.send(Message.REMOVE_FURNITURE, { id })
+  }
+
+  createFloor(gridX: number, gridY: number) {
+    this.room?.send(Message.CREATE_FLOOR, { gridX, gridY })
+  }
+
+  deleteFloor(floorNumber: number) {
+    this.room?.send(Message.DELETE_FLOOR, { floorNumber })
+  }
+
+  updateFloorDoor(doorId: string, gridX: number, gridY: number) {
+    this.room?.send(Message.UPDATE_FLOOR_DOOR, { doorId, gridX, gridY })
+  }
+
+  switchPlayerFloor(floor: number, x?: number, y?: number) {
+    this.room?.send(Message.SWITCH_PLAYER_FLOOR, { floor, x, y })
   }
 
   deleteCurrentWorkspace() {
