@@ -857,44 +857,26 @@ export function createRugCanvas(colorHex: string = '#2563eb'): HTMLCanvasElement
   canvas.height = 32
   const ctx = canvas.getContext('2d')!
 
-  // Bóng đổ viền thảm
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+  // Nền màu thảm chính trải kín toàn bộ ô 32x32 không để viền hở
+  ctx.fillStyle = colorHex
   ctx.fillRect(0, 0, 32, 32)
 
-  // Tua rua viền thảm (Fringe tassels) ở hai đầu trên và dưới
-  ctx.fillStyle = '#fef3c7'
-  for (let x = 2; x < 30; x += 2) {
-    ctx.fillRect(x, 1, 1, 2)
-    ctx.fillRect(x, 29, 1, 2)
+  // Họa tiết sợi dệt đan xen liền mạch (Seamless Micro-Woven Textile)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
+  for (let y = 0; y < 32; y += 4) {
+    for (let x = 0; x < 32; x += 4) {
+      ctx.fillRect(x, y, 2, 2)
+      ctx.fillRect(x + 2, y + 2, 2, 2)
+    }
   }
 
-  // Khung dệt viền vàng kim
-  ctx.fillStyle = '#d97706'
-  ctx.fillRect(2, 2, 28, 28)
-
-  // Vùng màu chính của thảm do người dùng chọn
-  ctx.fillStyle = colorHex
-  ctx.fillRect(4, 4, 24, 24)
-
-  // Đường hoa văn chìm bên trong
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
-  ctx.lineWidth = 1
-  ctx.strokeRect(6.5, 6.5, 19, 19)
-
-  // Họa tiết hoa văn hình thoi ở giữa
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
-  ctx.beginPath()
-  ctx.moveTo(16, 10)
-  ctx.lineTo(21, 16)
-  ctx.lineTo(16, 22)
-  ctx.lineTo(11, 16)
-  ctx.closePath()
-  ctx.fill()
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
-  ctx.beginPath()
-  ctx.arc(16, 16, 2.5, 0, Math.PI * 2)
-  ctx.fill()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)'
+  for (let y = 0; y < 32; y += 4) {
+    for (let x = 0; x < 32; x += 4) {
+      ctx.fillRect(x + 2, y, 2, 2)
+      ctx.fillRect(x, y + 2, 2, 2)
+    }
+  }
 
   return canvas
 }
@@ -964,6 +946,55 @@ export function registerFurnitureTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('floor_door_down')) {
     scene.textures.addCanvas('floor_door_down', createFloorDoorCanvas(false))
   }
+
+  // 7. Tường (Wall - 4 hướng)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_wall_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createWallCanvas(dir))
+    }
+  }
+  if (!scene.textures.exists('custom_wall')) {
+    scene.textures.addCanvas('custom_wall', createWallCanvas(0))
+  }
+
+  // 8. Thảm cỏ (Grass carpet)
+  if (!scene.textures.exists('custom_grass')) {
+    scene.textures.addCanvas('custom_grass', createGrassCanvas())
+  }
+
+  // 9. Cây lớn (Large Tree - 4 loại quả: Táo, Cam, Chanh, Đào)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_tree_large_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createLargeTreeCanvas(dir))
+    }
+  }
+  if (!scene.textures.exists('custom_tree_large')) {
+    scene.textures.addCanvas('custom_tree_large', createLargeTreeCanvas(0))
+  }
+
+  // 10. Cây nhỏ (Small Tree / Potted plant - 4 phong cách)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_tree_small_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createSmallTreeCanvas(dir))
+    }
+  }
+  if (!scene.textures.exists('custom_tree_small')) {
+    scene.textures.addCanvas('custom_tree_small', createSmallTreeCanvas(0))
+  }
+
+  // 11. Bụi cỏ / Cây bụi (Bush - 4 loại hoa)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `custom_bush_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createBushCanvas(dir))
+    }
+  }
+  if (!scene.textures.exists('custom_bush')) {
+    scene.textures.addCanvas('custom_bush', createBushCanvas(0))
+  }
 }
 
 export function createFloorDoorCanvas(isUp: boolean = true): HTMLCanvasElement {
@@ -1017,3 +1048,463 @@ export function ensureCustomRugTexture(scene: Phaser.Scene, colorHex: string): s
   }
   return key
 }
+
+/**
+ * 7. Tường Ngăn / Vách Ngăn Trơn (Wall / Partition Panel) - 4 kiểu dáng liền mạch tuyệt đối
+ * Thiết kế phẳng (seamless): toàn bộ các đường ngang kéo dài trọn vẹn từ x=0 đến 32, không viền dọc
+ * Khi đặt nhiều ô tường cạnh nhau theo hàng sẽ nối liền mạch tuyệt đối, không có vết đứt gãy.
+ */
+export function createWallCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  if (dir === 0) {
+    // 0: Vách ngăn văn phòng xám bạc tối giản (Modern Silver Slate Partition)
+    // Nẹp nhôm trên đỉnh
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(0, 0, 32, 2)
+    ctx.fillStyle = '#cbd5e1'
+    ctx.fillRect(0, 2, 32, 1)
+
+    // Thân vách trơn màu xám ghi thanh lịch
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(0, 3, 32, 24)
+
+    // Dải chỉ kim loại tinh tế ở giữa (nối liền mạch từ 0 đến 32)
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(0, 15, 32, 1)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(0, 16, 32, 1)
+
+    // Chân nẹp sàn (Baseboard)
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(0, 27, 32, 5)
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(0, 27, 32, 1)
+  } else if (dir === 1) {
+    // 1: Vách ngăn gỗ sồi ấm áp (Warm Oak Acoustic Wood Partition)
+    // Gờ nẹp gỗ trên cùng
+    ctx.fillStyle = '#b45309'
+    ctx.fillRect(0, 0, 32, 2)
+    ctx.fillStyle = '#fde68a'
+    ctx.fillRect(0, 2, 32, 1)
+
+    // Thân gỗ sồi trơn mượt
+    ctx.fillStyle = '#92400e'
+    ctx.fillRect(0, 3, 32, 24)
+
+    // Các đường vân gỗ ngang tinh tế chạy suốt bề mặt (liền mạch 0-32)
+    ctx.fillStyle = '#78350f'
+    ctx.fillRect(0, 9, 32, 1)
+    ctx.fillRect(0, 17, 32, 1)
+    ctx.fillStyle = '#b45309'
+    ctx.fillRect(0, 10, 32, 1)
+    ctx.fillRect(0, 18, 32, 1)
+
+    // Chân tường gỗ sẫm
+    ctx.fillStyle = '#451a03'
+    ctx.fillRect(0, 27, 32, 5)
+    ctx.fillStyle = '#78350f'
+    ctx.fillRect(0, 27, 32, 1)
+  } else if (dir === 2) {
+    // 2: Vách ngăn xanh hải quân cao cấp (Executive Deep Navy Partition)
+    // Nẹp vàng đồng sang trọng trên đỉnh
+    ctx.fillStyle = '#eab308'
+    ctx.fillRect(0, 0, 32, 2)
+    ctx.fillStyle = '#fef08a'
+    ctx.fillRect(0, 2, 32, 1)
+
+    // Thân vách màu xanh navy sang trọng
+    ctx.fillStyle = '#1e3a5f'
+    ctx.fillRect(0, 3, 32, 24)
+
+    // Đường viền chỉ vàng đồng ở giữa
+    ctx.fillStyle = '#ca8a04'
+    ctx.fillRect(0, 15, 32, 1)
+    ctx.fillStyle = '#fde047'
+    ctx.fillRect(0, 16, 32, 1)
+
+    // Chân tường đen tuyền
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(0, 27, 32, 5)
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(0, 27, 32, 1)
+  } else {
+    // 3: Vách ngăn kính mờ văn phòng (Frosted Office Glass Partition)
+    // Nẹp nhôm anod mờ trên đỉnh
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(0, 0, 32, 2)
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(0, 2, 32, 1)
+
+    // Kính mờ màu xanh băng (Ice Blue Translucent)
+    ctx.fillStyle = '#38bdf8'
+    ctx.fillRect(0, 3, 32, 24)
+
+    // Vệt phản chiếu ánh sáng kính chạy ngang
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'
+    ctx.fillRect(0, 8, 32, 3)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)'
+    ctx.fillRect(0, 11, 32, 2)
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.35)'
+    ctx.fillRect(0, 20, 32, 2)
+
+    // Chân đế kim loại đỡ kính
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(0, 27, 32, 5)
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(0, 27, 32, 1)
+  }
+
+  return canvas
+}
+
+/**
+ * 8. Thảm Cỏ Tự Nhiên (Grass Carpet) - Liền mạch tuyệt đối không vết nứt
+ */
+export function createGrassCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+
+  // Nền cỏ xanh mướt trải kín 32x32 không để viền hở
+  ctx.fillStyle = '#16a34a'
+  ctx.fillRect(0, 0, 32, 32)
+
+  // Kết cấu hạt sợi cỏ tự nhiên liền mạch (chu kỳ 4x4 lặp tuần hoàn trên lưới 32)
+  ctx.fillStyle = '#15803d'
+  for (let y = 0; y < 32; y += 4) {
+    for (let x = 0; x < 32; x += 4) {
+      ctx.fillRect(x + 1, y, 1, 2)
+      ctx.fillRect(x + 3, y + 2, 1, 2)
+    }
+  }
+
+  ctx.fillStyle = '#22c55e'
+  for (let y = 0; y < 32; y += 4) {
+    for (let x = 0; x < 32; x += 4) {
+      ctx.fillRect(x, y + 1, 1, 1)
+      ctx.fillRect(x + 2, y + 3, 1, 1)
+    }
+  }
+
+  // Cọng cỏ điểm xuyết sáng màu (chu kỳ 8x8)
+  ctx.fillStyle = '#4ade80'
+  for (let y = 0; y < 32; y += 8) {
+    for (let x = 0; x < 32; x += 8) {
+      ctx.fillRect(x + 2, y + 3, 1, 2)
+      ctx.fillRect(x + 6, y + 5, 1, 2)
+    }
+  }
+
+  // Đóa hoa cúc li ti đối xứng tuần hoàn 16px (16 chia hết 32)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(8, 8, 2, 2)
+  ctx.fillRect(24, 24, 2, 2)
+  ctx.fillStyle = '#facc15'
+  ctx.fillRect(8, 8, 1, 1)
+  ctx.fillRect(24, 24, 1, 1)
+
+  return canvas
+}
+
+/**
+ * 9. Cây Lớn Ăn Quả (Large Tree) - 4 loại quả ngẫu nhiên (Táo, Cam, Chanh, Đào)
+ */
+export function createLargeTreeCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  // Đổ bóng tròn dưới gốc cây
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)'
+  ctx.beginPath()
+  ctx.ellipse(16, 29, 12, 3, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Rễ cây bám đất
+  ctx.fillStyle = '#451a03'
+  ctx.fillRect(11, 27, 10, 2)
+  ctx.fillRect(9, 28, 4, 2)
+  ctx.fillRect(19, 28, 4, 2)
+
+  // Thân cây gỗ to khỏe
+  ctx.fillStyle = '#78350f'
+  ctx.fillRect(13, 16, 6, 12)
+
+  ctx.fillStyle = '#92400e'
+  ctx.fillRect(13, 16, 2, 12)
+  ctx.fillStyle = '#451a03'
+  ctx.fillRect(17, 18, 2, 10)
+  ctx.fillRect(14, 22, 1, 3)
+
+  ctx.fillStyle = '#78350f'
+  ctx.fillRect(10, 16, 4, 2)
+  ctx.fillRect(18, 16, 4, 2)
+
+  // Tán lá xanh nhiều tầng
+  ctx.fillStyle = '#14532d'
+  ctx.beginPath()
+  ctx.arc(10, 13, 8, 0, Math.PI * 2)
+  ctx.arc(22, 13, 8, 0, Math.PI * 2)
+  ctx.arc(16, 8, 8, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#16a34a'
+  ctx.beginPath()
+  ctx.arc(9, 12, 7, 0, Math.PI * 2)
+  ctx.arc(23, 12, 7, 0, Math.PI * 2)
+  ctx.arc(16, 7, 7, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#15803d'
+  ctx.beginPath()
+  ctx.arc(16, 12, 6, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#22c55e'
+  ctx.beginPath()
+  ctx.arc(15, 6, 5, 0, Math.PI * 2)
+  ctx.arc(8, 10, 5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#4ade80'
+  ctx.beginPath()
+  ctx.arc(14, 5, 3, 0, Math.PI * 2)
+  ctx.arc(7, 9, 3, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#86efac'
+  ctx.fillRect(13, 4, 2, 1)
+  ctx.fillRect(6, 8, 2, 1)
+
+  // Trái cây chín mọng đính trên tán lá
+  interface FruitConfig {
+    main: string
+    dark: string
+    light: string
+  }
+  const fruitConfigs: FruitConfig[] = [
+    { main: '#ef4444', dark: '#b91c1c', light: '#fca5a5' }, // 0: Táo Đỏ
+    { main: '#f97316', dark: '#c2410c', light: '#fed7aa' }, // 1: Cam Mọng
+    { main: '#eab308', dark: '#a16207', light: '#fef08a' }, // 2: Chanh Vàng
+    { main: '#f43f5e', dark: '#be123c', light: '#fecdd3' }, // 3: Đào Hồng
+  ]
+  const fruit = fruitConfigs[dir]
+
+  const fruitPositions = [
+    { x: 7, y: 11 },
+    { x: 13, y: 7 },
+    { x: 19, y: 8 },
+    { x: 23, y: 13 },
+    { x: 14, y: 14 },
+    { x: 10, y: 16 },
+    { x: 20, y: 16 },
+  ]
+
+  fruitPositions.forEach((pos) => {
+    ctx.fillStyle = fruit.dark
+    ctx.beginPath()
+    ctx.arc(pos.x, pos.y + 0.5, 2, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = fruit.main
+    ctx.beginPath()
+    ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = fruit.light
+    ctx.fillRect(pos.x - 1, pos.y - 1, 1, 1)
+
+    ctx.fillStyle = '#15803d'
+    ctx.fillRect(pos.x, pos.y - 2, 1, 1)
+  })
+
+  return canvas
+}
+
+/**
+ * 10. Cây Nhỏ / Cây Cảnh Trong Chậu (Small Tree) - 4 phong cách chậu cây
+ */
+export function createSmallTreeCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  // Đổ bóng sàn
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+  ctx.beginPath()
+  ctx.ellipse(16, 29, 9, 3, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Chậu cây (Planter pot)
+  if (dir === 0) {
+    // 0: Chậu đất nung Terracotta cổ điển
+    ctx.fillStyle = '#9a3412'
+    ctx.fillRect(10, 20, 12, 9)
+    ctx.fillStyle = '#c2410c'
+    ctx.fillRect(11, 20, 10, 9)
+    ctx.fillStyle = '#ea580c'
+    ctx.fillRect(12, 21, 3, 7)
+    ctx.fillStyle = '#ea580c'
+    ctx.fillRect(9, 18, 14, 3)
+    ctx.fillStyle = '#fdba74'
+    ctx.fillRect(9, 18, 14, 1)
+  } else if (dir === 1) {
+    // 1: Chậu sứ trắng hiện đại viền kim loại xanh
+    ctx.fillStyle = '#cbd5e1'
+    ctx.fillRect(10, 20, 12, 9)
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(11, 20, 10, 9)
+    ctx.fillStyle = '#0284c7'
+    ctx.fillRect(9, 18, 14, 3)
+    ctx.fillStyle = '#38bdf8'
+    ctx.fillRect(9, 18, 14, 1)
+  } else if (dir === 2) {
+    // 2: Chậu gỗ Bonsai nằm ngang
+    ctx.fillStyle = '#451a03'
+    ctx.fillRect(8, 22, 16, 7)
+    ctx.fillStyle = '#78350f'
+    ctx.fillRect(9, 22, 14, 6)
+    ctx.fillStyle = '#92400e'
+    ctx.fillRect(9, 22, 14, 1)
+    ctx.fillStyle = '#65a30d'
+    ctx.fillRect(10, 20, 12, 2)
+  } else {
+    // 3: Chậu gốm màu xám đá phong cách Bắc Âu
+    ctx.fillStyle = '#334155'
+    ctx.fillRect(10, 20, 12, 9)
+    ctx.fillStyle = '#475569'
+    ctx.fillRect(11, 20, 10, 9)
+    ctx.fillStyle = '#64748b'
+    ctx.fillRect(9, 18, 14, 3)
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillRect(9, 18, 14, 1)
+  }
+
+  // Đất trong chậu
+  ctx.fillStyle = '#451a03'
+  ctx.fillRect(11, 18, 10, 2)
+
+  // Thân cây bonsai uốn lượn
+  ctx.fillStyle = '#78350f'
+  ctx.fillRect(15, 12, 2, 7)
+  ctx.fillRect(14, 10, 3, 3)
+
+  // Tán lá xanh tròn được cắt tỉa tỉ mỉ
+  ctx.fillStyle = '#14532d'
+  ctx.beginPath()
+  ctx.arc(16, 9, 8, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#16a34a'
+  ctx.beginPath()
+  ctx.arc(16, 8, 7, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#22c55e'
+  ctx.beginPath()
+  ctx.arc(15, 7, 5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#4ade80'
+  ctx.beginPath()
+  ctx.arc(14, 6, 3, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#86efac'
+  ctx.fillRect(13, 5, 2, 1)
+
+  ctx.fillStyle = '#a7f3d0'
+  ctx.fillRect(10, 8, 1, 1)
+  ctx.fillRect(20, 8, 1, 1)
+
+  return canvas
+}
+
+/**
+ * 11. Bụi Cỏ / Cây Bụi (Bush) - 4 loại hoa đính kèm
+ */
+export function createBushCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  // Đổ bóng dưới bụi cây
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
+  ctx.beginPath()
+  ctx.ellipse(16, 27, 13, 4, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Khối lá tối màu phía sau
+  ctx.fillStyle = '#14532d'
+  ctx.beginPath()
+  ctx.arc(9, 20, 7, 0, Math.PI * 2)
+  ctx.arc(23, 20, 7, 0, Math.PI * 2)
+  ctx.arc(16, 16, 8, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Khối lá chính
+  ctx.fillStyle = '#16a34a'
+  ctx.beginPath()
+  ctx.arc(9, 19, 6, 0, Math.PI * 2)
+  ctx.arc(23, 19, 6, 0, Math.PI * 2)
+  ctx.arc(16, 15, 7, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Điểm sáng mặt trời
+  ctx.fillStyle = '#22c55e'
+  ctx.beginPath()
+  ctx.arc(8, 17, 5, 0, Math.PI * 2)
+  ctx.arc(22, 17, 5, 0, Math.PI * 2)
+  ctx.arc(16, 13, 5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#4ade80'
+  ctx.beginPath()
+  ctx.arc(15, 12, 3, 0, Math.PI * 2)
+  ctx.arc(7, 16, 3, 0, Math.PI * 2)
+  ctx.arc(21, 16, 3, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Hoa nhỏ điểm xuyết trên bụi cây
+  const flowerStyles = [
+    { main: '#ef4444', center: '#fef08a' }, // 0: Hoa hồng đỏ
+    { main: '#facc15', center: '#ea580c' }, // 1: Hoa vàng rực
+    { main: '#ffffff', center: '#facc15' }, // 2: Cúc trắng tự nhiên
+    { main: '#c084fc', center: '#fdf4ff' }, // 3: Hoa tím oải hương
+  ]
+  const flower = flowerStyles[dir]
+
+  const flowerDots = [
+    { x: 9, y: 15 },
+    { x: 15, y: 11 },
+    { x: 21, y: 14 },
+    { x: 12, y: 19 },
+    { x: 18, y: 18 },
+    { x: 24, y: 20 },
+  ]
+
+  flowerDots.forEach((f) => {
+    ctx.fillStyle = flower.main
+    ctx.beginPath()
+    ctx.arc(f.x, f.y, 1.8, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = flower.center
+    ctx.fillRect(f.x - 0.5, f.y - 0.5, 1, 1)
+  })
+
+  return canvas
+}
+

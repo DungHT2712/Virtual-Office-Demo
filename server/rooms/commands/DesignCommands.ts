@@ -161,7 +161,19 @@ export class PlaceFurnitureCommand extends Command<
       return
     }
 
-    const validItems = ['table', 'chair', 'computer', 'vase', 'whiteboard', 'rug']
+    const validItems = [
+      'table',
+      'chair',
+      'computer',
+      'vase',
+      'whiteboard',
+      'rug',
+      'wall',
+      'grass',
+      'tree_large',
+      'tree_small',
+      'bush',
+    ]
     const baseType = itemType.split(':')[0]
     if (!validItems.includes(baseType)) {
       client.send(Message.DESIGN_ERROR, {
@@ -171,16 +183,23 @@ export class PlaceFurnitureCommand extends Command<
     }
 
     // Kiểm tra trùng lắp (Overlapping Rules) trên cùng một tầng:
-    if (baseType === 'rug') {
-      let hasRug = false
+    const isGround = baseType === 'rug' || baseType === 'grass'
+    if (isGround) {
+      let hasGround = false
       this.room.state.furniture.forEach((f) => {
-        if (f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === floor && f.id !== id && f.itemType.startsWith('rug')) {
-          hasRug = true
+        if (
+          f.gridX === gridX &&
+          f.gridY === gridY &&
+          (f.floor || 1) === floor &&
+          f.id !== id &&
+          (f.itemType.startsWith('rug') || f.itemType.startsWith('grass'))
+        ) {
+          hasGround = true
         }
       })
-      if (hasRug) {
+      if (hasGround) {
         client.send(Message.DESIGN_ERROR, {
-          message: 'Tại ô này đã có sẵn một tấm thảm khác!',
+          message: 'Tại ô này đã có sẵn một tấm thảm hoặc thảm cỏ!',
         })
         return
       }
@@ -215,7 +234,7 @@ export class PlaceFurnitureCommand extends Command<
       this.room.state.furniture.forEach((f) => {
         if (f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === floor && f.id !== id) {
           const fBase = f.itemType.split(':')[0]
-          if (fBase !== 'rug' && fBase !== 'computer') {
+          if (fBase !== 'rug' && fBase !== 'grass' && fBase !== 'computer') {
             isOccupied = true
           }
         }

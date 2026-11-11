@@ -644,6 +644,21 @@ export default class Game extends Phaser.Scene {
             const numColor = parseInt(colorHex.replace('#', ''), 16) || 0x2563eb
             this.ghostMarker.setFillStyle(numColor, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
+          } else if (selectedTool === 'grass') {
+            this.ghostMarker.setFillStyle(0x22c55e, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x86efac, 1)
+          } else if (selectedTool === 'wall') {
+            this.ghostMarker.setFillStyle(0x64748b, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x94a3b8, 1)
+          } else if (selectedTool === 'tree_large') {
+            this.ghostMarker.setFillStyle(0x16a34a, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
+          } else if (selectedTool === 'tree_small') {
+            this.ghostMarker.setFillStyle(0x10b981, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0x34d399, 1)
+          } else if (selectedTool === 'bush') {
+            this.ghostMarker.setFillStyle(0x84cc16, 0.5)
+            this.ghostMarker.setStrokeStyle(2, 0xa3e635, 1)
           } else if (selectedTool === 'eraser') {
             this.ghostMarker.setFillStyle(0xf97316, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0xfb923c, 1)
@@ -853,6 +868,7 @@ export default class Game extends Phaser.Scene {
                 f.gridY === gridY &&
                 (f.floor || 1) === this.currentFloor &&
                 !f.itemType.startsWith('rug') &&
+                !f.itemType.startsWith('grass') &&
                 f.itemType !== 'computer'
             )
             if (existingSolid) {
@@ -863,14 +879,18 @@ export default class Game extends Phaser.Scene {
             }
           }
 
-          // 3. Kiểm tra Thảm:
+          // 3. Kiểm tra Thảm / Thảm cỏ:
           if (rugTemplate) {
             const existingRug = Object.values(state.workspace.furnitures).some(
-              (f) => f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor && f.itemType.startsWith('rug')
+              (f) =>
+                f.gridX === gridX &&
+                f.gridY === gridY &&
+                (f.floor || 1) === this.currentFloor &&
+                (f.itemType.startsWith('rug') || f.itemType.startsWith('grass'))
             )
             if (existingRug) {
               store.dispatch(
-                setErrorNotice('Tại ô này đã có sẵn một tấm thảm khác!')
+                setErrorNotice('Tại ô này đã có sẵn một tấm thảm hoặc thảm cỏ khác!')
               )
               return
             }
@@ -952,6 +972,11 @@ export default class Game extends Phaser.Scene {
               if (base === 'chair') return 'Ghế ngồi'
               if (base === 'vase') return 'Bình hoa'
               if (base === 'whiteboard') return 'Bảng trắng'
+              if (base === 'wall') return 'Tường'
+              if (base === 'grass') return 'Thảm cỏ'
+              if (base === 'tree_large') return 'Cây lớn'
+              if (base === 'tree_small') return 'Cây nhỏ'
+              if (base === 'bush') return 'Bụi cỏ'
               return base
             })
             .join(' + ')
@@ -999,17 +1024,27 @@ export default class Game extends Phaser.Scene {
         const tableAtTile = Object.values(state.workspace.furnitures).find(
           (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
         )
-        const orientation = selectedTool === 'computer' ? tableAtTile?.orientation || 0 : 0
+        let orientation = selectedTool === 'computer' ? tableAtTile?.orientation || 0 : 0
+        if (selectedTool === 'tree_large') {
+          // Ngẫu nhiên các loại cây ăn quả (Cam, Táo, Chanh, Đào) khi đặt mới
+          orientation = Math.floor(Math.random() * 4)
+        }
         this.network.placeFurniture(selectedTool, gridX, gridY, orientation, undefined, undefined, this.currentFloor)
+        const toolLabels: Record<string, string> = {
+          table: 'bàn làm việc',
+          chair: 'ghế ngồi',
+          computer: 'máy tính lên bàn',
+          vase: 'bình hoa tươi',
+          whiteboard: 'bảng trắng',
+          wall: 'tường ngăn',
+          grass: 'thảm cỏ',
+          tree_large: 'cây lớn ăn quả',
+          tree_small: 'cây cảnh nhỏ',
+          bush: 'bụi cỏ',
+        }
         const toolLabel = selectedTool.startsWith('rug')
           ? 'thảm trải sàn'
-          : selectedTool === 'computer'
-          ? 'máy tính lên bàn'
-          : selectedTool === 'table'
-          ? 'bàn làm việc'
-          : selectedTool === 'vase'
-          ? 'bình hoa'
-          : selectedTool
+          : toolLabels[selectedTool] || selectedTool
         store.dispatch(
           setSuccessNotice(`Đã đặt ${toolLabel} tại ô (${gridX}, ${gridY}) thành công!`)
         )
@@ -1536,6 +1571,50 @@ export default class Game extends Phaser.Scene {
         rug.setTint(item.tint)
       }
       obj = rug
+    } else if (item.itemType === 'wall') {
+      const wallTexture = `custom_wall_${orientation % 4}`
+      const wall = this.obstaclesGroup.create(worldX, worldY, wallTexture)
+      wall.setDepth(worldY)
+      wall.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        wall.setTint(item.tint)
+      }
+      obj = wall
+    } else if (item.itemType === 'grass' || item.itemType.startsWith('grass')) {
+      const grass = this.add.sprite(worldX, worldY, 'custom_grass')
+      grass.setDepth(2) // Lớp thảm cỏ: nằm dưới nhân vật và vật thể
+      grass.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        grass.setTint(item.tint)
+      }
+      obj = grass
+    } else if (item.itemType === 'tree_large') {
+      const treeTexture = `custom_tree_large_${orientation % 4}`
+      const tree = this.obstaclesGroup.create(worldX, worldY, treeTexture)
+      tree.setDepth(worldY)
+      tree.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        tree.setTint(item.tint)
+      }
+      obj = tree
+    } else if (item.itemType === 'tree_small') {
+      const treeTexture = `custom_tree_small_${orientation % 4}`
+      const tree = this.obstaclesGroup.create(worldX, worldY, treeTexture)
+      tree.setDepth(worldY)
+      tree.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        tree.setTint(item.tint)
+      }
+      obj = tree
+    } else if (item.itemType === 'bush') {
+      const bushTexture = `custom_bush_${orientation % 4}`
+      const bush = this.obstaclesGroup.create(worldX, worldY, bushTexture)
+      bush.setDepth(worldY)
+      bush.setAngle(0)
+      if (item.tint && item.tint !== 0xffffff) {
+        bush.setTint(item.tint)
+      }
+      obj = bush
     }
 
     if (obj) {

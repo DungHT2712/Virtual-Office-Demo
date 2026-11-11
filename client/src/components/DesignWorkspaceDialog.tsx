@@ -787,7 +787,7 @@ export default function DesignWorkspaceDialog() {
     }
   }, [])
 
-  // Danh sách Nội thất (Đã xóa Máy bán nước)
+  // Danh sách Nội thất & Ngoại thất cảnh quan
   const furnitureTools = [
     { type: 'table', label: 'Bàn Làm Việc', emoji: '🪵' },
     { type: 'chair', label: 'Ghế Ngồi', emoji: '💺' },
@@ -795,6 +795,11 @@ export default function DesignWorkspaceDialog() {
     { type: 'vase', label: 'Bình Hoa Tươi', emoji: '🏺' },
     { type: 'rug', label: 'Thảm Trải Sàn', emoji: '🧶', hasColorPicker: true },
     { type: 'whiteboard', label: 'Bảng Trắng', emoji: '📋' },
+    { type: 'wall', label: 'Tường / Vách Trơn', emoji: '🧱' },
+    { type: 'grass', label: 'Thảm Cỏ', emoji: '🌱' },
+    { type: 'tree_large', label: 'Cây Lớn Quả', emoji: '🌳' },
+    { type: 'tree_small', label: 'Cây Cảnh Nhỏ', emoji: '🪴' },
+    { type: 'bush', label: 'Bụi Cỏ / Hoa', emoji: '🌿' },
     { type: 'eraser', label: 'Tẩy Xóa Đồ', emoji: '🧹', isEraser: true },
   ]
 
@@ -836,8 +841,8 @@ export default function DesignWorkspaceDialog() {
   // --- NỘI THẤT: Đổi hướng xoay 90° & Xóa ---
   const handleRotateFurniture = () => {
     if (!editingFurniture) return
-    // Trừ thảm trải sàn (không áp dụng đổi hướng)
-    if (editingFurniture.itemType.startsWith('rug')) return
+    // Trừ thảm trải sàn & thảm cỏ (không áp dụng đổi hướng)
+    if (editingFurniture.itemType.startsWith('rug') || editingFurniture.itemType === 'grass') return
 
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     const nextOrientation = ((editingFurniture.orientation || 0) + 1) % 4
@@ -1076,7 +1081,11 @@ export default function DesignWorkspaceDialog() {
           setEditingRoom(null)
         }
       } else if (e.key === 'r' || e.key === 'R') {
-        if (editingFurniture && !editingFurniture.itemType.startsWith('rug')) {
+        if (
+          editingFurniture &&
+          !editingFurniture.itemType.startsWith('rug') &&
+          editingFurniture.itemType !== 'grass'
+        ) {
           e.preventDefault()
           handleRotateFurniture()
         }
@@ -1233,14 +1242,25 @@ export default function DesignWorkspaceDialog() {
     vase: 'Bình Hoa Tươi',
     rug: 'Thảm Trải Sàn',
     whiteboard: 'Bảng Trắng',
+    wall: 'Tường / Vách Trơn',
+    grass: 'Thảm Cỏ',
+    tree_large: 'Cây Lớn Ăn Quả',
+    tree_small: 'Cây Cảnh Nhỏ',
+    bush: 'Bụi Cỏ / Hoa',
   }
 
-  const getFurnitureName = (type: string) => {
+  const getFurnitureName = (type: string, itemOrientation?: number) => {
     if (!type) return ''
     if (type.startsWith('rug')) {
       const color = type.split(':')[1]
       const colorObj = RUG_COLORS.find((c) => c.hex.toLowerCase() === color?.toLowerCase())
       return colorObj ? `Thảm Trải Sàn (${colorObj.name})` : 'Thảm Trải Sàn'
+    }
+    if (type === 'tree_large') {
+      const fruitNames = ['Táo Đỏ', 'Cam Mọng', 'Chanh Vàng', 'Đào Hồng']
+      const fruit =
+        itemOrientation !== undefined ? ` (${fruitNames[itemOrientation % 4]})` : ''
+      return `Cây Lớn Ăn Quả${fruit}`
     }
     return furnitureLabels[type] || type
   }
@@ -1417,13 +1437,19 @@ export default function DesignWorkspaceDialog() {
               </button>
             </div>
             <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
-              <strong>Vật phẩm đang sửa:</strong> {getFurnitureName(editingFurniture.itemType)}
+              <strong>Vật phẩm đang sửa:</strong> {getFurnitureName(editingFurniture.itemType, editingFurniture.orientation)}
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-              Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | Hướng: {
-                ['Mặt trước (Trước)', 'Mặt trái (Trái)', 'Mặt sau (Sau)', 'Mặt phải (Phải)'][
-                  (editingFurniture.orientation || 0) % 4
-                ]
+              Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | {
+                editingFurniture.itemType === 'tree_large'
+                  ? 'Loại cây: ' + ['Táo Đỏ', 'Cam Mọng', 'Chanh Vàng', 'Đào Hồng'][(editingFurniture.orientation || 0) % 4]
+                  : editingFurniture.itemType === 'wall'
+                  ? 'Kiểu vách: ' + ['Vách xám đá hiện đại', 'Vách xanh navy', 'Vách gỗ ấm cúng', 'Vách kính mờ'][(editingFurniture.orientation || 0) % 4]
+                  : editingFurniture.itemType === 'tree_small'
+                  ? 'Chậu cây: ' + ['Đất nung', 'Sứ trắng', 'Khay gỗ bonsai', 'Gốm xám đá'][(editingFurniture.orientation || 0) % 4]
+                  : editingFurniture.itemType === 'bush'
+                  ? 'Loại hoa: ' + ['Hoa hồng đỏ', 'Hoa vàng rực', 'Cúc trắng', 'Hoa tím oải hương'][(editingFurniture.orientation || 0) % 4]
+                  : 'Hướng: ' + ['Mặt trước (Trước)', 'Mặt trái (Trái)', 'Mặt sau (Sau)', 'Mặt phải (Phải)'][(editingFurniture.orientation || 0) % 4]
               }
             </div>
 
@@ -1626,11 +1652,12 @@ export default function DesignWorkspaceDialog() {
               )}
 
             <div className="action-buttons">
-              {!editingFurniture.itemType.startsWith('rug') && (
-                <button className="rotate-btn" onClick={handleRotateFurniture}>
-                  🔄 Đổi Hướng (R)
-                </button>
-              )}
+              {!editingFurniture.itemType.startsWith('rug') &&
+                editingFurniture.itemType !== 'grass' && (
+                  <button className="rotate-btn" onClick={handleRotateFurniture}>
+                    🔄 Đổi Hướng / Đổi Kiểu (R)
+                  </button>
+                )}
               <button className="clone-btn" onClick={() => handleStartClone(false)}>
                 📑 Nhân Bản ({tileFurnitures.length > 1 ? `${selectedCloneIds.length} Đã Chọn (1 Lần)` : '1 Lần'})
               </button>
@@ -1722,7 +1749,9 @@ export default function DesignWorkspaceDialog() {
         {activeTab === 'furniture' && (
           <>
             <InstructionBox>
-              👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (<strong>Máy tính bắt buộc phải đặt trên Bàn</strong>). Khi chọn <strong>Thảm Trải Sàn</strong>, bạn có thể <strong>chọn màu sắc yêu thích</strong> bên dưới trước khi đặt! Click trực tiếp vào món đồ trên map để <strong>Đổi Hướng (Phím R)</strong>, Đổi màu hoặc Nhân bản (trừ thảm trải sàn không xoay).
+              👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (<strong>Máy tính bắt buộc phải đặt trên Bàn</strong>).
+              <br /><br />
+              🌳 <strong>CÂY & CẢNH QUAN MỚI:</strong> Thêm <strong>Tường / Vách liền mạch</strong>, <strong>Thảm cỏ liền mạch</strong> (đi lại tự do), <strong>Cây lớn ăn quả</strong> (Ngẫu nhiên Táo, Cam, Chanh, Đào - Bấm <strong>R</strong> để đổi loại quả), <strong>Cây cảnh nhỏ</strong> và <strong>Bụi cỏ hoa</strong>!
               <br /><br />
               ⚡ <strong>XÓA NHANH HÀNG LOẠT:</strong> Giữ phím <strong>Shift + Kéo chuột trái</strong> trên bản đồ để quét chọn nhiều nội thất cùng lúc và bấm nút <strong>Xóa Nhanh</strong> hoặc phím <strong>Delete</strong>!
             </InstructionBox>

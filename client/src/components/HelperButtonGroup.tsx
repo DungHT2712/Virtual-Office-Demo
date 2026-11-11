@@ -25,6 +25,7 @@ import NearMeIcon from '@mui/icons-material/NearMe'
 import SquareFootIcon from '@mui/icons-material/SquareFoot'
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import HomeIcon from '@mui/icons-material/Home'
+import CameraAltIcon from '@mui/icons-material/CameraAlt'
 
 import { BackgroundMode } from '../../../types/BackgroundMode'
 import { MovementMode, setMovementMode, toggleBackgroundMode, setLoggedIn } from '../stores/UserStore'
@@ -34,6 +35,7 @@ import { useAppSelector, useAppDispatch } from '../hooks'
 import { getAvatarString, getColorByString } from '../util'
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
+import Game from '../scenes/Game'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -175,7 +177,15 @@ export default function HelperButtonGroup() {
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const movementMode = useAppSelector((state) => state.user.movementMode)
   const designMode = useAppSelector((state) => state.workspace.designMode)
+  const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const dispatch = useAppDispatch()
+
+  const handleToggleWebcam = () => {
+    const game = phaserGame.scene.keys.game as Game
+    if (game && game.network && game.network.webRTC) {
+      game.network.webRTC.getUserMedia()
+    }
+  }
 
   const handleLeaveWorkspace = () => {
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
@@ -354,6 +364,31 @@ export default function HelperButtonGroup() {
                 }}
               >
                 <SquareFootIcon />
+              </StyledFab>
+            </Tooltip>
+
+            {/* Nút Kết nối Webcam / Camera với icon Máy ảnh */}
+            <Tooltip
+              title={
+                videoConnected
+                  ? 'Webcam đang kết nối (Bấm để kết nối lại)'
+                  : 'Kết nối Webcam / Camera'
+              }
+            >
+              <StyledFab
+                size="small"
+                onClick={handleToggleWebcam}
+                sx={{
+                  background: videoConnected ? '#10b981' : '#334155',
+                  color: '#ffffff',
+                  boxShadow: videoConnected ? '0 0 12px rgba(16, 185, 129, 0.8)' : undefined,
+                  border: videoConnected ? '1.5px solid #6ee7b7' : undefined,
+                  '&:hover': {
+                    background: videoConnected ? '#059669' : '#475569',
+                  },
+                }}
+              >
+                <CameraAltIcon />
               </StyledFab>
             </Tooltip>
 
