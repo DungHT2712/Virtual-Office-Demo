@@ -449,9 +449,9 @@ export default class Network {
   }
 
   // method to send ready-to-connect signal to Colyseus server
-  videoConnected() {
-    this.room?.send(Message.VIDEO_CONNECTED)
-    phaserEvents.emit(Event.MY_PLAYER_VIDEO_CONNECTED)
+  videoConnected(connected = true) {
+    this.room?.send(Message.VIDEO_CONNECTED, { videoConnected: connected })
+    phaserEvents.emit(Event.MY_PLAYER_VIDEO_CONNECTED, connected)
   }
 
   // method to send stream-disconnection signal to Colyseus server

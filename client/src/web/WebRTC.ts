@@ -5,10 +5,13 @@ import { setVideoConnected } from '../stores/UserStore'
 
 export default class WebRTC {
   private myPeer: Peer
-  private peers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement }>()
+  private peers = new Map<
+    string,
+    { call: Peer.MediaConnection; video: HTMLVideoElement; userId?: string }
+  >()
   private onCalledPeers = new Map<string, { call: Peer.MediaConnection; video: HTMLVideoElement }>()
-  private videoGrid = document.querySelector('.video-grid')
-  private buttonGrid = document.querySelector('.button-grid')
+  private videoGrid: HTMLElement | null = null
+  private buttonGrid: HTMLElement | null = null
   private myVideo = document.createElement('video')
   private myStream?: MediaStream
   private network: Network
@@ -31,6 +34,20 @@ export default class WebRTC {
     this.initialize()
   }
 
+  private getVideoGrid() {
+    if (!this.videoGrid || !document.body.contains(this.videoGrid)) {
+      this.videoGrid = document.querySelector('.video-grid')
+    }
+    return this.videoGrid
+  }
+
+  private getButtonGrid() {
+    if (!this.buttonGrid || !document.body.contains(this.buttonGrid)) {
+      this.buttonGrid = document.querySelector('.button-grid')
+    }
+    return this.buttonGrid
+  }
+
   // PeerJS throws invalid_id error if it contains some characters such as that colyseus generates.
   // https://peerjs.com/docs.html#peer-id
   private replaceInvalidId(userId: string) {
@@ -47,8 +64,12 @@ export default class WebRTC {
         call.on('stream', (userVideoStream) => {
           this.addVideoStream(video, userVideoStream)
         })
+
+        call.on('close', () => {
+          video.remove()
+          this.onCalledPeers.delete(call.peer)
+        })
       }
-      // on close is triggered manually with deleteOnCalledVideoStream()
     })
   }
 
@@ -61,6 +82,10 @@ export default class WebRTC {
   }
 
   getUserMedia(alertOnError = true) {
+    if (this.myStream) {
+      return
+    }
+
     // ask the browser to get user media
     navigator.mediaDevices
       ?.getUserMedia({
@@ -69,14 +94,69 @@ export default class WebRTC {
       })
       .then((stream) => {
         this.myStream = stream
+
+        stream.getVideoTracks().forEach((track) => {
+          track.onended = () => {
+            this.stopUserMedia()
+          }
+        })
+
+        this.myVideo.muted = true
         this.addVideoStream(this.myVideo, this.myStream)
         this.setUpButtons()
         store.dispatch(setVideoConnected(true))
-        this.network.videoConnected()
+        this.network.videoConnected(true)
       })
       .catch((error) => {
+        console.warn('getUserMedia error:', error)
         if (alertOnError) window.alert('No webcam or microphone found, or permission is blocked')
       })
+  }
+
+  stopUserMedia() {
+    // 1. Dừng toàn bộ tracks của stream cục bộ
+    if (this.myStream) {
+      this.myStream.getTracks().forEach((track) => track.stop())
+      this.myStream = undefined
+    }
+
+    // 2. Gỡ bỏ video element cá nhân khỏi DOM
+    this.myVideo.srcObject = null
+    this.myVideo.remove()
+
+    // 3. Đóng và gỡ bỏ cuộc gọi/stream tới các peer khác
+    this.peers.forEach((peer) => {
+      try {
+        peer.call.close()
+      } catch (e) {
+        console.warn(e)
+      }
+      peer.video.remove()
+      if (peer.userId) {
+        this.network.playerStreamDisconnect(peer.userId)
+      }
+    })
+    this.peers.clear()
+
+    this.onCalledPeers.forEach((onCalledPeer) => {
+      try {
+        onCalledPeer.call.close()
+      } catch (e) {
+        console.warn(e)
+      }
+      onCalledPeer.video.remove()
+    })
+    this.onCalledPeers.clear()
+
+    // 4. Xóa các nút Mute / Video off khỏi button-grid
+    const buttonGrid = this.getButtonGrid()
+    if (buttonGrid) {
+      buttonGrid.innerHTML = ''
+    }
+
+    // 5. Cập nhật Redux store và Network
+    store.dispatch(setVideoConnected(false))
+    this.network.videoConnected(false)
   }
 
   // method to call a peer
@@ -87,13 +167,16 @@ export default class WebRTC {
         console.log('calling', sanitizedId)
         const call = this.myPeer.call(sanitizedId, this.myStream)
         const video = document.createElement('video')
-        this.peers.set(sanitizedId, { call, video })
+        this.peers.set(sanitizedId, { call, video, userId })
 
         call.on('stream', (userVideoStream) => {
           this.addVideoStream(video, userVideoStream)
         })
 
-        // on close is triggered manually with deleteVideoStream()
+        call.on('close', () => {
+          video.remove()
+          this.peers.delete(sanitizedId)
+        })
       }
     }
   }
@@ -102,10 +185,13 @@ export default class WebRTC {
   addVideoStream(video: HTMLVideoElement, stream: MediaStream) {
     video.srcObject = stream
     video.playsInline = true
-    video.addEventListener('loadedmetadata', () => {
-      video.play()
-    })
-    if (this.videoGrid) this.videoGrid.append(video)
+    video.onloadedmetadata = () => {
+      video.play().catch((err) => console.warn('Video play error:', err))
+    }
+    const videoGrid = this.getVideoGrid()
+    if (videoGrid && !videoGrid.contains(video)) {
+      videoGrid.append(video)
+    }
   }
 
   // method to remove video stream (when we are the host of the call)
@@ -132,59 +218,52 @@ export default class WebRTC {
 
   // method to set up mute/unmute and video on/off buttons
   setUpButtons() {
+    const buttonGrid = this.getButtonGrid()
+    if (buttonGrid) {
+      buttonGrid.innerHTML = ''
+    }
+
     const audioButton = document.createElement('button')
     audioButton.innerText = 'Mute'
     audioButton.addEventListener('click', () => {
       if (this.myStream) {
         const audioTrack = this.myStream.getAudioTracks()[0]
-        if (audioTrack.enabled) {
-          audioTrack.enabled = false
-          audioButton.innerText = 'Unmute'
-        } else {
-          audioTrack.enabled = true
-          audioButton.innerText = 'Mute'
+        if (audioTrack) {
+          if (audioTrack.enabled) {
+            audioTrack.enabled = false
+            audioButton.innerText = 'Unmute'
+          } else {
+            audioTrack.enabled = true
+            audioButton.innerText = 'Mute'
+          }
         }
       }
     })
+
     const videoButton = document.createElement('button')
     videoButton.innerText = 'Video off'
     videoButton.addEventListener('click', () => {
       if (this.myStream) {
-        const audioTrack = this.myStream.getVideoTracks()[0]
-        if (audioTrack.enabled) {
-          audioTrack.enabled = false
-          videoButton.innerText = 'Video on'
-        } else {
-          audioTrack.enabled = true
-          videoButton.innerText = 'Video off'
+        const videoTrack = this.myStream.getVideoTracks()[0]
+        if (videoTrack) {
+          if (videoTrack.enabled) {
+            videoTrack.enabled = false
+            videoButton.innerText = 'Video on'
+          } else {
+            videoTrack.enabled = true
+            videoButton.innerText = 'Video off'
+          }
         }
       }
     })
-    this.buttonGrid?.append(audioButton)
-    this.buttonGrid?.append(videoButton)
+
+    buttonGrid?.append(audioButton)
+    buttonGrid?.append(videoButton)
   }
 
   // Dọn dẹp toàn bộ streams, connections và peer khi rời phòng
   destroy() {
-    this.peers.forEach((peer) => {
-      peer.call.close()
-      peer.video.remove()
-    })
-    this.peers.clear()
-
-    this.onCalledPeers.forEach((onCalledPeer) => {
-      onCalledPeer.call.close()
-      onCalledPeer.video.remove()
-    })
-    this.onCalledPeers.clear()
-
-    if (this.myStream) {
-      this.myStream.getTracks().forEach((track) => track.stop())
-      this.myStream = undefined
-    }
-
-    this.myVideo.remove()
+    this.stopUserMedia()
     this.myPeer.destroy()
-    store.dispatch(setVideoConnected(false))
   }
 }

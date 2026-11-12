@@ -1904,8 +1904,13 @@ export default class Game extends Phaser.Scene {
     this.myPlayer.readyToConnect = true
   }
 
-  private handleMyVideoConnected() {
-    this.myPlayer.videoConnected = true
+  private handleMyVideoConnected(connected = true) {
+    this.myPlayer.videoConnected = connected
+    if (!connected) {
+      this.otherPlayerMap.forEach((otherPlayer) => {
+        otherPlayer.connected = false
+      })
+    }
   }
 
   private handlePlayerUpdated(field: string, value: number | string, id: string) {

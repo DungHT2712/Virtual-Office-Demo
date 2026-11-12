@@ -131,6 +131,10 @@ export default class OtherPlayer extends Player {
       case 'videoConnected':
         if (typeof value === 'boolean') {
           this.videoConnected = value
+          if (!value && this.connected) {
+            phaserEvents.emit(Event.PLAYER_DISCONNECTED, this.playerId)
+            this.connected = false
+          }
         }
         break
 

@@ -183,7 +183,11 @@ export default function HelperButtonGroup() {
   const handleToggleWebcam = () => {
     const game = phaserGame.scene.keys.game as Game
     if (game && game.network && game.network.webRTC) {
-      game.network.webRTC.getUserMedia()
+      if (videoConnected) {
+        game.network.webRTC.stopUserMedia()
+      } else {
+        game.network.webRTC.getUserMedia()
+      }
     }
   }
 
@@ -371,8 +375,8 @@ export default function HelperButtonGroup() {
             <Tooltip
               title={
                 videoConnected
-                  ? 'Webcam đang kết nối (Bấm để kết nối lại)'
-                  : 'Kết nối Webcam / Camera'
+                  ? 'Tắt Webcam / Camera'
+                  : 'Bật Webcam / Camera'
               }
             >
               <StyledFab
