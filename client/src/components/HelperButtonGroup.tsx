@@ -10,15 +10,12 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
 import Button from '@mui/material/Button'
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ShareIcon from '@mui/icons-material/Share'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import CloseIcon from '@mui/icons-material/Close'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
-import GitHubIcon from '@mui/icons-material/GitHub'
-import TwitterIcon from '@mui/icons-material/Twitter'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import KeyboardIcon from '@mui/icons-material/Keyboard'
 import NearMeIcon from '@mui/icons-material/NearMe'
@@ -132,43 +129,8 @@ const StyledFab = styled(Fab)`
   }
 `
 
-const ModeSelector = styled.div`
-  display: flex;
-  gap: 4px;
-  background: #111422;
-  border-radius: 20px;
-  padding: 4px;
-  margin-top: 8px;
-  margin-bottom: 8px;
-`
-
-const ModeButton = styled.button<{ $active: boolean }>`
-  background: ${(props) => (props.$active ? '#0284c7' : 'transparent')};
-  color: ${(props) => (props.$active ? '#ffffff' : '#94a3b8')};
-  border: none;
-  border-radius: 16px;
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-
-  &:hover {
-    color: #ffffff;
-    background: ${(props) => (props.$active ? '#0284c7' : 'rgba(255, 255, 255, 0.1)')};
-  }
-
-  svg {
-    font-size: 16px;
-  }
-`
-
 export default function HelperButtonGroup() {
   const [showRoomInfo, setShowRoomInfo] = useState(false)
-  const [showControlGuide, setShowControlGuide] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
@@ -222,60 +184,6 @@ export default function HelperButtonGroup() {
             <p className="tip">
               <LightbulbIcon />
               Chia sẻ link này để mời đồng nghiệp vào cùng Workspace!
-            </p>
-          </Wrapper>
-        )}
-        {showControlGuide && (
-          <Wrapper>
-            <IconButton className="close" onClick={() => setShowControlGuide(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-            <Title>Điều Khiển & Thao Tác</Title>
-
-            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>
-              Chế độ di chuyển:
-            </div>
-            <ModeSelector>
-              <ModeButton
-                $active={movementMode === 'wasd'}
-                onClick={() => dispatch(setMovementMode('wasd'))}
-              >
-                <KeyboardIcon /> Phím WASD
-              </ModeButton>
-              <ModeButton
-                $active={movementMode === 'mouse'}
-                onClick={() => dispatch(setMovementMode('mouse'))}
-              >
-                <NearMeIcon /> Click Chuột
-              </ModeButton>
-              <ModeButton
-                $active={movementMode === 'joystick'}
-                onClick={() => dispatch(setMovementMode('joystick'))}
-              >
-                <VideogameAssetIcon /> Joystick
-              </ModeButton>
-            </ModeSelector>
-
-            <ul>
-              <li>
-                <strong>W, A, S, D</strong> hoặc <strong>Click Chuột</strong> để di chuyển
-              </li>
-              <li>
-                <strong>E</strong> để ngồi vào ghế (cả chế độ chuột và bàn phím)
-              </li>
-              <li>
-                <strong>R</strong> để mở máy tính / bảng trắng
-              </li>
-              <li>
-                <strong>Enter</strong> để mở khung chat
-              </li>
-              <li>
-                <strong>ESC</strong> để đóng chat
-              </li>
-            </ul>
-            <p className="tip">
-              <LightbulbIcon />
-              Video & Audio kết nối tự động khi bạn đứng gần người khác
             </p>
           </Wrapper>
         )}
@@ -401,41 +309,14 @@ export default function HelperButtonGroup() {
                 size="small"
                 onClick={() => {
                   setShowRoomInfo(!showRoomInfo)
-                  setShowControlGuide(false)
                 }}
               >
                 <ShareIcon />
               </StyledFab>
             </Tooltip>
-
-            <Tooltip title="Control Guide">
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  setShowControlGuide(!showControlGuide)
-                  setShowRoomInfo(false)
-                }}
-              >
-                <HelpOutlineIcon />
-              </StyledFab>
-            </Tooltip>
           </>
         )}
 
-        <Tooltip title="Visit Our GitHub">
-          <StyledFab
-            size="small"
-            href="https://github.com/kevinshen56714/SkyOffice"
-            target="_blank"
-          >
-            <GitHubIcon />
-          </StyledFab>
-        </Tooltip>
-        <Tooltip title="Follow Us on Twitter">
-          <StyledFab size="small" href="https://twitter.com/SkyOfficeApp" target="_blank">
-            <TwitterIcon />
-          </StyledFab>
-        </Tooltip>
         <Tooltip title="Switch Background Theme">
           <StyledFab size="small" onClick={() => dispatch(toggleBackgroundMode())}>
             {backgroundMode === BackgroundMode.DAY ? <DarkModeIcon /> : <LightModeIcon />}
