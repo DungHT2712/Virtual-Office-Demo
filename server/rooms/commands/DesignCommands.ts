@@ -14,14 +14,16 @@ export class ResizeWorkspaceCommand extends Command<
     const { client, width, height, sizeType } = data
     const allowedAreas: Record<string, number> = {
       SMALL: 400,
-      MEDIUM: 900,
-      LARGE: 1600,
+      MEDIUM: 2500,
+      LARGE: 4900,
+      XLARGE: 10000,
     }
     const expectedArea = allowedAreas[sizeType]
 
     if (!expectedArea) {
       client.send(Message.DESIGN_ERROR, {
-        message: 'Kích cỡ không hợp lệ! Chỉ chấp nhận SMALL (400), MEDIUM (900), hoặc LARGE (1600).',
+        message:
+          'Kích cỡ không hợp lệ! Chỉ chấp nhận SMALL (400), MEDIUM (2500), LARGE (4900), hoặc XLARGE (10000).',
       })
       return
     }

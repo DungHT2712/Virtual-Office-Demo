@@ -346,10 +346,12 @@ const MessageItem = ({
   chatMessage,
   messageType,
   isMe,
+  myStatusColor,
 }: {
   chatMessage: any
   messageType: MessageType
   isMe: boolean
+  myStatusColor?: string
 }) => {
   if (messageType !== MessageType.REGULAR_MESSAGE) {
     return (
@@ -368,8 +370,26 @@ const MessageItem = ({
         <div className="author-row">
           <span
             className="author-name"
-            style={{ color: isMe ? '#475569' : getColorByString(chatMessage.author) }}
+            style={{
+              color: isMe ? '#475569' : getColorByString(chatMessage.author),
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
           >
+            {isMe && myStatusColor && (
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: myStatusColor,
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                }}
+              />
+            )}
             {isMe ? 'Bạn' : chatMessage.author}
           </span>
           <span className="message-time">
@@ -394,6 +414,7 @@ export default function Chat() {
   const showChat = useAppSelector((state) => state.chat.showChat)
   const designMode = useAppSelector((state) => state.workspace.designMode)
   const playerName = useAppSelector((state) => state.user.playerName)
+  const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const dispatch = useAppDispatch()
   const game = phaserGame.scene.keys.game as Game
 
@@ -568,6 +589,7 @@ export default function Chat() {
                 chatMessage={chatMessage}
                 messageType={messageType}
                 isMe={isMe}
+                myStatusColor={currentStatus?.color}
                 key={index}
               />
             )

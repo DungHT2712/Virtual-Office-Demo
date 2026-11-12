@@ -18,14 +18,44 @@ app.use(express.json())
 // app.use(express.static('dist'))
 
 // API xóa Workspace lưu trữ
-app.delete('/api/workspaces/:id', async (req, res) => {
+const deleteWorkspaceHandler = async (req: express.Request, res: express.Response) => {
   const { id } = req.params
+  const name = (req.query.name as string) || (req.body && req.body.name)
   removeWorkspace(id)
+  if (name) removeWorkspace(name)
+
   try {
-    await matchMaker.remoteRoomCall(id, 'disconnect')
-  } catch (err) {}
+    let room = matchMaker.getRoomById(id) as any
+    if (!room && name) {
+      const allRooms = (matchMaker as any).rooms || {}
+      for (const rId in allRooms) {
+        const r = allRooms[rId]
+        if (r && (r.name === name || (r.metadata && r.metadata.name === name))) {
+          room = r
+          break
+        }
+      }
+    }
+    if (room) {
+      if (typeof room.deleteRoom === 'function') {
+        await room.deleteRoom()
+      } else {
+        room.autoDispose = true
+        await room.disconnect()
+      }
+    } else {
+      await matchMaker.remoteRoomCall(id, 'deleteRoom').catch(async () => {
+        await matchMaker.remoteRoomCall(id, 'disconnect')
+      })
+    }
+  } catch (err) {
+    console.error('Error deleting workspace room:', err)
+  }
   res.json({ success: true, message: 'Workspace deleted' })
-})
+}
+
+app.delete('/api/workspaces/:id', deleteWorkspaceHandler)
+app.post('/api/workspaces/:id/delete', deleteWorkspaceHandler)
 
 const server = http.createServer(app)
 const gameServer = new Server({
@@ -66,6 +96,9 @@ if (savedWorkspaces.length > 0) {
         name: ws.name,
         description: ws.description,
         password: ws.password,
+        sizeType: ws.sizeType,
+        width: ws.width,
+        height: ws.height,
         autoDispose: false,
       })
       console.log(`Restored persistent workspace: ${ws.name}`)

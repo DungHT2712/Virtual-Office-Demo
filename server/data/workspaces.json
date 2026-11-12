@@ -1,30 +1,22 @@
 [
   {
-    "id": "l92u6ucZQ",
-    "name": "jin",
-    "description": "hg",
+    "id": "NnIEJcCdJ",
+    "name": "sdfsdf",
+    "description": "ewftds",
     "hasPassword": false,
-    "createdAt": 1794466508934
+    "sizeType": "LARGE",
+    "width": 70,
+    "height": 70,
+    "createdAt": 1794495997346
   },
   {
-    "id": "LFcWhwg_p",
-    "name": "123",
-    "description": "123",
+    "id": "E-LhCq6bS",
+    "name": "small",
+    "description": "small",
     "hasPassword": false,
-    "createdAt": 1794466508938
-  },
-  {
-    "id": "FWqjanMH6",
-    "name": "gb",
-    "description": "gvb",
-    "hasPassword": false,
-    "createdAt": 1794466508940
-  },
-  {
-    "id": "0Oe85D4HP",
-    "name": "Public Lobby",
-    "description": "For making friends and familiarizing yourself with the controls",
-    "hasPassword": false,
-    "createdAt": 1794466508941
+    "sizeType": "SMALL",
+    "width": 20,
+    "height": 20,
+    "createdAt": 1794496030756
   }
 ]

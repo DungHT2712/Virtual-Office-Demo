@@ -10,6 +10,8 @@ import SquareFootIcon from '@mui/icons-material/SquareFoot'
 
 import { IRoomData } from '../../../types/Rooms'
 import { useAppSelector } from '../hooks'
+import store from '../stores'
+import { setWorkspaceData } from '../stores/WorkspaceStore'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -35,7 +37,7 @@ const SizeSelectorContainer = styled.div`
 
 const SizeGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 `
 
@@ -61,6 +63,8 @@ const SizeCard = styled.div<{ $selected: boolean }>`
   }
 `
 
+export type WorkspaceSizeType = 'SMALL' | 'MEDIUM' | 'LARGE' | 'XLARGE'
+
 export const CreateRoomForm = () => {
   const [values, setValues] = useState<IRoomData>({
     name: '',
@@ -68,7 +72,7 @@ export const CreateRoomForm = () => {
     password: null,
     autoDispose: false, // Luôn giữ Workspace được lưu trong Manage Workspace
   })
-  const [selectedSize, setSelectedSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('MEDIUM')
+  const [selectedSize, setSelectedSize] = useState<WorkspaceSizeType>('MEDIUM')
   const [showPassword, setShowPassword] = useState(false)
   const [nameFieldEmpty, setNameFieldEmpty] = useState(false)
   const [descriptionFieldEmpty, setDescriptionFieldEmpty] = useState(false)
@@ -89,14 +93,17 @@ export const CreateRoomForm = () => {
 
     // create custom room if name and description are not empty
     if (isValidName && isValidDescription && lobbyJoined) {
-      let width = 30
-      let height = 30
+      let width = 50
+      let height = 50
       if (selectedSize === 'SMALL') {
         width = 20
         height = 20
       } else if (selectedSize === 'LARGE') {
-        width = 40
-        height = 40
+        width = 70
+        height = 70
+      } else if (selectedSize === 'XLARGE') {
+        width = 100
+        height = 100
       }
 
       const roomPayload = {
@@ -127,7 +134,13 @@ export const CreateRoomForm = () => {
             console.error('Failed to cache workspace:', e)
           }
 
-          bootstrap.network.resizeWorkspace(selectedSize, width, height)
+          store.dispatch(
+            setWorkspaceData({
+              sizeType: selectedSize,
+              width,
+              height,
+            })
+          )
           bootstrap.launchGame()
         })
         .catch((error) => console.error(error))
@@ -161,14 +174,21 @@ export const CreateRoomForm = () => {
             onClick={() => setSelectedSize('MEDIUM')}
           >
             <div className="name">Vừa (Medium)</div>
-            <div className="tiles">900 ô (30x30)</div>
+            <div className="tiles">2.500 ô (50x50)</div>
           </SizeCard>
           <SizeCard
             $selected={selectedSize === 'LARGE'}
             onClick={() => setSelectedSize('LARGE')}
           >
             <div className="name">Lớn (Large)</div>
-            <div className="tiles">1600 ô (40x40)</div>
+            <div className="tiles">4.900 ô (70x70)</div>
+          </SizeCard>
+          <SizeCard
+            $selected={selectedSize === 'XLARGE'}
+            onClick={() => setSelectedSize('XLARGE')}
+          >
+            <div className="name">Siêu lớn (XL)</div>
+            <div className="tiles">10.000 ô (100x100)</div>
           </SizeCard>
         </SizeGrid>
       </SizeSelectorContainer>

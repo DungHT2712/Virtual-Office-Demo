@@ -34,7 +34,14 @@ import { setLoggedIn } from '../stores/UserStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { Pathfinder } from '../utils/Pathfinder'
 import { phaserEvents, Event } from '../events/EventCenter'
-import { registerFurnitureTextures, ensureCustomRugTexture } from '../utils/FurnitureTextures'
+import {
+  registerFurnitureTextures,
+  ensureCustomRugTexture,
+  ensureVaseTexture,
+  ensureGrassTexture,
+  isAutumnGrass,
+  getFlowerTypeFromItem,
+} from '../utils/FurnitureTextures'
 
 export default class Game extends Phaser.Scene {
   network!: Network
@@ -184,10 +191,10 @@ export default class Game extends Phaser.Scene {
     this.whiteboardsGroup = this.physics.add.staticGroup({ classType: Whiteboard })
     this.obstaclesGroup = this.physics.add.staticGroup()
 
-    // Khởi tạo kích thước sàn gạch theo Workspace đã chọn (Small: 20x20, Medium: 30x30, Large: 40x40)
+    // Khởi tạo kích thước sàn gạch theo Workspace đã chọn (Nhỏ: 20x20, Vừa: 50x50, Lớn: 70x70, Siêu lớn: 100x100)
     const wsState = store.getState().workspace
-    const wsWidth = (this.network as any).room?.state?.workspace?.width || wsState.workspace?.width || 30
-    const wsHeight = (this.network as any).room?.state?.workspace?.height || wsState.workspace?.height || 30
+    const wsWidth = (this.network as any).room?.state?.workspace?.width || wsState.workspace?.width || 50
+    const wsHeight = (this.network as any).room?.state?.workspace?.height || wsState.workspace?.height || 50
     const mapWidthInPixels = wsWidth * 32
     const mapHeightInPixels = wsHeight * 32
 
@@ -223,8 +230,14 @@ export default class Game extends Phaser.Scene {
 
     // Tự động áp dụng tên, ngoại hình và kết nối ngay vào Workspace mà không cần qua LoginDialog
     this.myPlayer.setPlayerName(charName)
+    if (userState.currentStatus) {
+      this.myPlayer.setPlayerStatus(userState.currentStatus.color, userState.currentStatus.name)
+    }
     this.myPlayer.setCharacterCustomization(charAvatar, customization)
-    this.network.updatePlayerName(charName, customization)
+    this.network.updatePlayerName(charName, customization, {
+      statusColor: userState.currentStatus?.color || '#107c41',
+      statusName: userState.currentStatus?.name || 'Sẵn sàng',
+    })
     this.network.readyToConnect()
     store.dispatch(setLoggedIn(true))
 
@@ -233,8 +246,13 @@ export default class Game extends Phaser.Scene {
     // Camera follow & world bounds theo đúng kích thước sàn gạch được chọn
     this.physics.world.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
     this.cameras.main.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
-    this.cameras.main.zoom = 1.5
+    const initialMinZoom = this.getMinZoomNoSky()
+    this.cameras.main.zoom = Math.max(1.5, initialMinZoom)
     this.cameras.main.startFollow(this.myPlayer, true)
+
+    this.scale.on('resize', () => {
+      this.clampCameraZoom()
+    })
 
     this.physics.add.collider(this.myPlayer, this.obstaclesGroup)
 
@@ -371,8 +389,19 @@ export default class Game extends Phaser.Scene {
 
         const zoomFactor = deltaY > 0 ? 0.9 : 1.1
         const currentZoom = this.cameras.main.zoom
-        const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.25, 3.5)
-        this.cameras.main.setZoom(newZoom)
+
+        if (isDesign) {
+          // Trong chế độ Design: Cho phép zoom nhỏ (tối thiểu 0.2) để nhìn thấy sky và tổng quát toàn bộ bản đồ
+          const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.2, 3.5)
+          this.cameras.main.setZoom(newZoom)
+        } else {
+          // Trong chế độ chơi: Giới hạn nghiêm ngặt ở minZoom để không bao giờ thấy sky phía sau
+          const minZoom = this.getMinZoomNoSky()
+          const maxZoom = Math.max(3.5, minZoom + 1.5)
+          const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, minZoom, maxZoom)
+          this.cameras.main.setZoom(newZoom)
+          this.clampCameraBounds()
+        }
       }
     )
 
@@ -386,6 +415,9 @@ export default class Game extends Phaser.Scene {
         this.cameras.main.scrollY -= dy
         this.panLastPointerX = pointer.x
         this.panLastPointerY = pointer.y
+        if (!store.getState().workspace.designMode) {
+          this.clampCameraBounds()
+        }
         return
       }
 
@@ -557,9 +589,14 @@ export default class Game extends Phaser.Scene {
           if (templates.length > 0) {
             const tableTemplate = templates.find((t) => t.itemType === 'table')
             const computerTemplate = templates.find((t) => t.itemType === 'computer')
-            const rugTemplate = templates.find((t) => t.itemType.startsWith('rug'))
+            const groundTemplate = templates.find(
+              (t) => t.itemType.startsWith('rug') || t.itemType.startsWith('grass')
+            )
             const solidTemplates = templates.filter(
-              (t) => !t.itemType.startsWith('rug') && t.itemType !== 'computer'
+              (t) =>
+                !t.itemType.startsWith('rug') &&
+                !t.itemType.startsWith('grass') &&
+                t.itemType !== 'computer'
             )
 
             let canPlace = true
@@ -577,7 +614,9 @@ export default class Game extends Phaser.Scene {
               }
             }
 
-            // 2. Vật thể đặc (Bàn, ghế, bình hoa, bảng trắng): Không được đè lên vật thể đặc khác
+            // 2. Vật thể đặc (Bàn, ghế, bình hoa, bảng trắng, tường, cây lớn, bụi):
+            // Cho phép đặt lên thảm trải sàn hoặc thảm cỏ!
+            // Chỉ KHÔNG được đè lên các vật thể đặc khác:
             if (canPlace && solidTemplates.length > 0) {
               const existingSolid = Object.values(state.workspace.furnitures).some(
                 (f) =>
@@ -585,6 +624,7 @@ export default class Game extends Phaser.Scene {
                   f.gridY === gridY &&
                   (f.floor || 1) === this.currentFloor &&
                   !f.itemType.startsWith('rug') &&
+                  !f.itemType.startsWith('grass') &&
                   f.itemType !== 'computer'
               )
               if (existingSolid) {
@@ -592,12 +632,18 @@ export default class Game extends Phaser.Scene {
               }
             }
 
-            // 3. Thảm: Không được đè lên thảm khác
-            if (canPlace && rugTemplate) {
-              const existingRug = Object.values(state.workspace.furnitures).some(
-                (f) => f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor && f.itemType.startsWith('rug')
+            // 3. Thảm trải sàn hoặc thảm cỏ:
+            // ĐƯỢC PHÉP ĐẶT LÊN Ô ĐÃ CÓ BÀN, GHẾ, MÁY TÍNH HOẶC VẬT DỤNG KHÁC!
+            // Chỉ không đè lên thảm trải sàn/thảm cỏ khác cùng ô:
+            if (canPlace && groundTemplate) {
+              const existingGround = Object.values(state.workspace.furnitures).some(
+                (f) =>
+                  f.gridX === gridX &&
+                  f.gridY === gridY &&
+                  (f.floor || 1) === this.currentFloor &&
+                  (f.itemType.startsWith('rug') || f.itemType.startsWith('grass'))
               )
-              if (existingRug) {
+              if (existingGround) {
                 canPlace = false
               }
             }
@@ -644,18 +690,16 @@ export default class Game extends Phaser.Scene {
             const numColor = parseInt(colorHex.replace('#', ''), 16) || 0x2563eb
             this.ghostMarker.setFillStyle(numColor, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0xffffff, 1)
-          } else if (selectedTool === 'grass') {
-            this.ghostMarker.setFillStyle(0x22c55e, 0.5)
-            this.ghostMarker.setStrokeStyle(2, 0x86efac, 1)
+          } else if (selectedTool?.startsWith('grass')) {
+            const autumn = isAutumnGrass(selectedTool)
+            this.ghostMarker.setFillStyle(autumn ? 0xd97706 : 0x22c55e, 0.5)
+            this.ghostMarker.setStrokeStyle(2, autumn ? 0xfbbf24 : 0x86efac, 1)
           } else if (selectedTool === 'wall') {
             this.ghostMarker.setFillStyle(0x64748b, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0x94a3b8, 1)
           } else if (selectedTool === 'tree_large') {
             this.ghostMarker.setFillStyle(0x16a34a, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0x4ade80, 1)
-          } else if (selectedTool === 'tree_small') {
-            this.ghostMarker.setFillStyle(0x10b981, 0.5)
-            this.ghostMarker.setStrokeStyle(2, 0x34d399, 1)
           } else if (selectedTool === 'bush') {
             this.ghostMarker.setFillStyle(0x84cc16, 0.5)
             this.ghostMarker.setStrokeStyle(2, 0xa3e635, 1)
@@ -827,10 +871,13 @@ export default class Game extends Phaser.Scene {
 
           const tableTemplate = templates.find((t) => t.itemType === 'table')
           const computerTemplate = templates.find((t) => t.itemType === 'computer')
-          const rugTemplate = templates.find((t) => t.itemType.startsWith('rug'))
+          const groundTemplate = templates.find(
+            (t) => t.itemType.startsWith('rug') || t.itemType.startsWith('grass')
+          )
           const otherSolidTemplates = templates.filter(
             (t) =>
               !t.itemType.startsWith('rug') &&
+              !t.itemType.startsWith('grass') &&
               t.itemType !== 'computer' &&
               t.itemType !== 'table'
           )
@@ -861,6 +908,7 @@ export default class Game extends Phaser.Scene {
           }
 
           // 2. Kiểm tra vật thể đặc (Bàn hoặc vật thể khác):
+          // Cho phép đặt lên thảm trải sàn hoặc thảm cỏ có sẵn!
           if (tableTemplate || otherSolidTemplates.length > 0) {
             const existingSolid = Object.values(state.workspace.furnitures).find(
               (f) =>
@@ -880,15 +928,16 @@ export default class Game extends Phaser.Scene {
           }
 
           // 3. Kiểm tra Thảm / Thảm cỏ:
-          if (rugTemplate) {
-            const existingRug = Object.values(state.workspace.furnitures).some(
+          // Thảm/Thảm cỏ có thể đặt lên các ô đã có bàn, ghế hoặc vật phẩm khác; chỉ chặn nếu ô đó đã có thảm hoặc cỏ khác!
+          if (groundTemplate) {
+            const existingGround = Object.values(state.workspace.furnitures).some(
               (f) =>
                 f.gridX === gridX &&
                 f.gridY === gridY &&
                 (f.floor || 1) === this.currentFloor &&
                 (f.itemType.startsWith('rug') || f.itemType.startsWith('grass'))
             )
-            if (existingRug) {
+            if (existingGround) {
               store.dispatch(
                 setErrorNotice('Tại ô này đã có sẵn một tấm thảm hoặc thảm cỏ khác!')
               )
@@ -896,19 +945,20 @@ export default class Game extends Phaser.Scene {
             }
           }
 
-          // --- ĐẶT CÁC VẬT PHẨM THEO THỨ TỰ HỢP LÝ: Thảm -> Bàn / Vật thể đặc -> Máy tính ---
+          // --- ĐẶT CÁC VẬT PHẨM THEO THỨ TỰ HỢP LÝ: Thảm/Thảm cỏ -> Bàn -> Vật thể đặc -> Máy tính ---
           const timestamp = Date.now()
 
-          // A. Đặt thảm nếu có
-          if (rugTemplate) {
+          // A. Đặt thảm hoặc thảm cỏ nếu có (lớp dưới cùng)
+          if (groundTemplate) {
+            const base = groundTemplate.itemType.split(':')[0]
             this.network.placeFurniture({
-              id: `rug_${timestamp}_${Math.floor(Math.random() * 10000)}_0`,
-              itemType: rugTemplate.itemType,
+              id: `${base}_${timestamp}_${Math.floor(Math.random() * 10000)}_0`,
+              itemType: groundTemplate.itemType,
               gridX,
               gridY,
-              orientation: rugTemplate.orientation || 0,
-              itemDirection: rugTemplate.itemDirection,
-              tint: rugTemplate.tint || 0xffffff,
+              orientation: groundTemplate.orientation || 0,
+              itemDirection: groundTemplate.itemDirection,
+              tint: groundTemplate.tint || 0xffffff,
               floor: this.currentFloor,
             })
           }
@@ -927,12 +977,17 @@ export default class Game extends Phaser.Scene {
             })
           }
 
-          // C. Đặt các vật thể đặc khác nếu có
+          // C. Đặt các vật thể đặc khác nếu có (bình hoa ngẫu nhiên giữa hoa lan, đào, mai)
           otherSolidTemplates.forEach((other, idx) => {
             const base = other.itemType.split(':')[0]
+            let itemTypeToPlace = other.itemType
+            if (base === 'vase') {
+              const flower = ['dao', 'mai', 'lan'][Math.floor(Math.random() * 3)]
+              itemTypeToPlace = `vase:${flower}`
+            }
             this.network.placeFurniture({
               id: `${base}_${timestamp}_${Math.floor(Math.random() * 10000)}_${idx + 2}`,
-              itemType: other.itemType,
+              itemType: itemTypeToPlace,
               gridX,
               gridY,
               orientation: other.orientation || 0,
@@ -1025,11 +1080,12 @@ export default class Game extends Phaser.Scene {
           (f) => f.itemType === 'table' && f.gridX === gridX && f.gridY === gridY && (f.floor || 1) === this.currentFloor
         )
         let orientation = selectedTool === 'computer' ? tableAtTile?.orientation || 0 : 0
-        if (selectedTool === 'tree_large') {
-          // Ngẫu nhiên các loại cây ăn quả (Cam, Táo, Chanh, Đào) khi đặt mới
-          orientation = Math.floor(Math.random() * 4)
+        let toolToPlace = selectedTool
+        if (selectedTool === 'vase') {
+          const flower = ['dao', 'mai', 'lan'][Math.floor(Math.random() * 3)]
+          toolToPlace = `vase:${flower}`
         }
-        this.network.placeFurniture(selectedTool, gridX, gridY, orientation, undefined, undefined, this.currentFloor)
+        this.network.placeFurniture(toolToPlace, gridX, gridY, orientation, undefined, undefined, this.currentFloor)
         const toolLabels: Record<string, string> = {
           table: 'bàn làm việc',
           chair: 'ghế ngồi',
@@ -1039,11 +1095,16 @@ export default class Game extends Phaser.Scene {
           wall: 'tường ngăn',
           grass: 'thảm cỏ',
           tree_large: 'cây lớn ăn quả',
-          tree_small: 'cây cảnh nhỏ',
           bush: 'bụi cỏ',
         }
         const toolLabel = selectedTool.startsWith('rug')
           ? 'thảm trải sàn'
+          : selectedTool.startsWith('grass')
+          ? isAutumnGrass(selectedTool)
+            ? 'thảm cỏ vàng lá thu'
+            : 'thảm cỏ xanh tươi'
+          : selectedTool.startsWith('vase')
+          ? 'bình hoa tươi'
           : toolLabels[selectedTool] || selectedTool
         store.dispatch(
           setSuccessNotice(`Đã đặt ${toolLabel} tại ô (${gridX}, ${gridY}) thành công!`)
@@ -1353,8 +1414,11 @@ export default class Game extends Phaser.Scene {
     if (!this.map || !this.cameras?.main) return
 
     if (enable) {
+      // BẬT DESIGN MODE: Cho phép nhìn thấy sky và zoom nhỏ lại để nhìn tổng quát toàn bộ bản đồ
+      this.scene.wake('background')
       this.cameras.main.stopFollow()
       this.cameras.main.removeBounds()
+
       const centerX = this.map.widthInPixels / 2
       const centerY = this.map.heightInPixels / 2
       const padding = 80
@@ -1362,7 +1426,7 @@ export default class Game extends Phaser.Scene {
       const availableWidth = Math.max(300, this.cameras.main.width - 440)
       const zoomX = (availableWidth - padding) / this.map.widthInPixels
       const zoomY = (this.cameras.main.height - padding) / this.map.heightInPixels
-      const fitZoom = Math.max(0.35, Math.min(zoomX, zoomY, 1.2))
+      const fitZoom = Math.max(0.2, Math.min(zoomX, zoomY, 1.2))
 
       // Dịch tâm camera sang một chút để bản đồ 2D nằm ở trung tâm của phần hiển thị thoáng đãng
       const targetPanX = centerX + (420 / 2) / fitZoom
@@ -1383,6 +1447,8 @@ export default class Game extends Phaser.Scene {
       if (this.playerSelector) this.playerSelector.setVisible(false)
       this.gridOverlay?.setVisible(true)
     } else {
+      // THOÁT DESIGN MODE: Trở về chế độ chơi, khóa chặt camera và ẩn sky phía sau
+      this.scene.sleep('background')
       const mapWidthInPixels = this.map.widthInPixels
       const mapHeightInPixels = this.map.heightInPixels
       this.cameras.main.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
@@ -1399,7 +1465,8 @@ export default class Game extends Phaser.Scene {
         if (player.playerContainer) player.playerContainer.setVisible(true)
       })
       if (this.playerSelector) this.playerSelector.setVisible(true)
-      this.cameras.main.zoomTo(1.5, 500, 'Power2')
+      const minZoom = this.getMinZoomNoSky()
+      this.cameras.main.zoomTo(Math.max(1.5, minZoom), 500, 'Power2')
       if (this.myPlayer) {
         this.cameras.main.startFollow(this.myPlayer, true, 0.08, 0.08)
       }
@@ -1552,14 +1619,17 @@ export default class Game extends Phaser.Scene {
       wb.refreshBody()
       this.whiteboardMap.set(item.id, wb)
       obj = wb
-    } else if (item.itemType === 'vase') {
-      const vaseTexture = `custom_vase_${orientation % 4}`
+    } else if (item.itemType === 'vase' || item.itemType.startsWith('vase')) {
+      const flowerType = getFlowerTypeFromItem(item.itemType, item.id)
+      const vaseHex =
+        item.tint && item.tint !== 0xffffff
+          ? '#' + item.tint.toString(16).padStart(6, '0')
+          : '#2563eb'
+      const vaseTexture = ensureVaseTexture(this, orientation, vaseHex, flowerType)
       const vase = this.obstaclesGroup.create(worldX, worldY, vaseTexture)
       vase.setDepth(worldY)
       vase.setAngle(0)
-      if (item.tint && item.tint !== 0xffffff) {
-        vase.setTint(item.tint)
-      }
+      // KHÔNG gọi setTint: thân bình gốm đã vẽ chuẩn sắc màu chọn, cành luôn xanh, hoa giữ sắc đào/mai/lan
       obj = vase
     } else if (item.itemType.startsWith('rug')) {
       const colorHex = item.itemType.includes(':') ? item.itemType.split(':')[1] : '#2563eb'
@@ -1572,21 +1642,40 @@ export default class Game extends Phaser.Scene {
       }
       obj = rug
     } else if (item.itemType === 'wall') {
-      const wallTexture = `custom_wall_${orientation % 4}`
-      const wall = this.obstaclesGroup.create(worldX, worldY, wallTexture)
-      wall.setDepth(worldY)
+      const dir = ((orientation % 4) + 4) % 4
+      const wallTexture = `custom_wall_${dir}`
+      const wall = this.obstaclesGroup.create(worldX, worldY, wallTexture) as Phaser.Physics.Arcade.Sprite
+      if (wall.body) {
+        if (dir === 0) {
+          // Sát Cạnh Trên
+          wall.body.setSize(32, 10)
+          wall.body.setOffset(0, 0)
+        } else if (dir === 1) {
+          // Sát Cạnh Bên Phải
+          wall.body.setSize(10, 32)
+          wall.body.setOffset(22, 0)
+        } else if (dir === 2) {
+          // Sát Cạnh Dưới
+          wall.body.setSize(32, 10)
+          wall.body.setOffset(0, 22)
+        } else {
+          // Sát Cạnh Bên Trái
+          wall.body.setSize(10, 32)
+          wall.body.setOffset(0, 0)
+        }
+      }
+      wall.setDepth(dir === 2 ? worldY + 12 : worldY - 8)
       wall.setAngle(0)
       if (item.tint && item.tint !== 0xffffff) {
         wall.setTint(item.tint)
       }
       obj = wall
     } else if (item.itemType === 'grass' || item.itemType.startsWith('grass')) {
-      const grass = this.add.sprite(worldX, worldY, 'custom_grass')
+      const autumn = isAutumnGrass(item.itemType, item.tint)
+      const grassTexture = ensureGrassTexture(this, autumn)
+      const grass = this.add.sprite(worldX, worldY, grassTexture)
       grass.setDepth(2) // Lớp thảm cỏ: nằm dưới nhân vật và vật thể
       grass.setAngle(0)
-      if (item.tint && item.tint !== 0xffffff) {
-        grass.setTint(item.tint)
-      }
       obj = grass
     } else if (item.itemType === 'tree_large') {
       const treeTexture = `custom_tree_large_${orientation % 4}`
@@ -1884,6 +1973,10 @@ export default class Game extends Phaser.Scene {
       otherPlayer.updateOtherPlayer('anim', newPlayer.anim)
     }
 
+    if (newPlayer.statusColor) {
+      otherPlayer.updatePlayerNameAndStatus(newPlayer.name, newPlayer.statusColor)
+    }
+
     const isVisible = otherPlayer.floor === this.currentFloor && !store.getState().workspace.designMode
     otherPlayer.setVisible(isVisible)
     if (otherPlayer.playerContainer) {
@@ -1988,5 +2081,43 @@ export default class Game extends Phaser.Scene {
         }
       }
     }
+  }
+
+  getMinZoomNoSky(): number {
+    if (!this.map || !this.cameras?.main) return 1.0
+    const mapW = this.map.widthInPixels || 32 * 50
+    const mapH = this.map.heightInPixels || 32 * 50
+    const camW = this.cameras.main.width || window.innerWidth
+    const camH = this.cameras.main.height || window.innerHeight
+    return Math.max(camW / mapW, camH / mapH)
+  }
+
+  clampCameraBounds() {
+    if (!this.map || !this.cameras?.main) return
+    const mapW = this.map.widthInPixels
+    const mapH = this.map.heightInPixels
+    const viewW = this.cameras.main.width / this.cameras.main.zoom
+    const viewH = this.cameras.main.height / this.cameras.main.zoom
+
+    const maxScrollX = Math.max(0, mapW - viewW)
+    const maxScrollY = Math.max(0, mapH - viewH)
+
+    this.cameras.main.scrollX = Phaser.Math.Clamp(this.cameras.main.scrollX, 0, maxScrollX)
+    this.cameras.main.scrollY = Phaser.Math.Clamp(this.cameras.main.scrollY, 0, maxScrollY)
+  }
+
+  clampCameraZoom() {
+    if (!this.cameras?.main) return
+    const isDesign = store.getState().workspace.designMode
+    if (isDesign) return // Không ép clamp zoom trong Design mode để user tự do nhìn toàn cảnh sky
+
+    const minZoom = this.getMinZoomNoSky()
+    const maxZoom = Math.max(3.5, minZoom + 1.5)
+    if (this.cameras.main.zoom < minZoom) {
+      this.cameras.main.setZoom(minZoom)
+    } else if (this.cameras.main.zoom > maxZoom) {
+      this.cameras.main.setZoom(maxZoom)
+    }
+    this.clampCameraBounds()
   }
 }

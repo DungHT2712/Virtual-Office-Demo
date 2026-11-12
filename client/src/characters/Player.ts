@@ -30,6 +30,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   readyToConnect = false
   videoConnected = false
   playerName: Phaser.GameObjects.Text
+  playerStatusCircle?: Phaser.GameObjects.Arc
+  statusColor = '#107c41'
   playerContainer: Phaser.GameObjects.Container
   private playerDialogBubble: Phaser.GameObjects.Container
   private timeoutID?: number
@@ -66,13 +68,53 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // add playerName to playerContainer
     this.playerName = this.scene.add
       .text(0, 0, '')
-      .setFontFamily('Arial')
+      .setFontFamily('-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif')
       .setFontSize(12)
-      .setColor('#000000')
+      .setFontStyle('bold')
+      .setResolution(Math.max(3, (window.devicePixelRatio || 1) * 2))
+      .setColor('#ffffff')
+      .setStroke('#000000', 3)
       .setOrigin(0.5)
     this.playerContainer.add(this.playerName)
 
+    // add playerStatusCircle to playerContainer
+    this.playerStatusCircle = this.scene.add
+      .circle(0, 0, 4.5, 0x107c41)
+      .setStrokeStyle(1.5, 0x000000, 0.8)
+    this.playerContainer.add(this.playerStatusCircle)
+    this.playerStatusCircle.setVisible(false)
+
     // Sửa đổi 3: Loại bỏ Physics khỏi playerContainer để tránh trôi lệch khi nhân vật va chạm tường
+  }
+
+  updatePlayerNameAndStatus(name?: string, statusColor?: string) {
+    if (name !== undefined) {
+      this.playerName.setText(name)
+    }
+    if (statusColor !== undefined && statusColor !== '') {
+      this.statusColor = statusColor
+      const colorNum = parseInt(statusColor.replace('#', '0x'), 16)
+      if (this.playerStatusCircle) {
+        this.playerStatusCircle.setFillStyle(isNaN(colorNum) ? 0x107c41 : colorNum)
+      }
+    }
+    this.layoutNameAndStatus()
+  }
+
+  layoutNameAndStatus() {
+    if (!this.playerStatusCircle || !this.playerName) return
+    if (!this.playerName.text) {
+      this.playerStatusCircle.setVisible(false)
+      return
+    }
+    this.playerStatusCircle.setVisible(true)
+    const radius = 4.5
+    const gap = 5
+    const textWidth = this.playerName.width
+    const totalWidth = radius * 2 + gap + textWidth
+
+    this.playerStatusCircle.setPosition(Math.round(-totalWidth / 2 + radius), 0)
+    this.playerName.setPosition(Math.round(-totalWidth / 2 + radius * 2 + gap + textWidth / 2), 0)
   }
 
   updateDialogBubble(content: string) {
@@ -83,8 +125,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const innerText = this.scene.add
       .text(0, 0, dialogBubbleText, { wordWrap: { width: 165, useAdvancedWrap: true } })
-      .setFontFamily('Arial')
+      .setFontFamily('-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif')
       .setFontSize(12)
+      .setResolution(3)
       .setColor('#000000')
       .setOrigin(0.5)
 

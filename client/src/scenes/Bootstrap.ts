@@ -94,6 +94,7 @@ export default class Bootstrap extends Phaser.Scene {
   launchGame() {
     if (!this.preloadComplete) return
     this.network.webRTC?.checkPreviousPermission()
+    this.scene.sleep('background')
     this.scene.launch('game', {
       network: this.network,
     })
@@ -104,11 +105,15 @@ export default class Bootstrap extends Phaser.Scene {
 
   leaveGame() {
     this.scene.stop('game')
+    this.scene.wake('background')
     this.network.leaveRoom()
   }
 
   changeBackgroundMode(backgroundMode: BackgroundMode) {
     this.scene.stop('background')
     this.launchBackground(backgroundMode)
+    if (this.scene.isActive('game')) {
+      this.scene.sleep('background')
+    }
   }
 }

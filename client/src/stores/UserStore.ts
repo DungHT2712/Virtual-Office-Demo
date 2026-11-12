@@ -13,6 +13,34 @@ export interface UserCustomizationState {
   outfitColor: string
 }
 
+export interface UserStatus {
+  id: string
+  name: string
+  color: string
+}
+
+export const DEFAULT_STATUSES: UserStatus[] = [
+  { id: 'available', name: 'Sẵn sàng', color: '#107c41' },
+  { id: 'busy', name: 'Bận', color: '#c4314b' },
+  { id: 'dnd', name: 'Đừng làm phiền', color: '#a4262c' },
+  { id: 'brb', name: 'Quay lại ngay', color: '#d83b01' },
+  { id: 'away', name: 'Đi vắng', color: '#ffaa44' },
+  { id: 'offline', name: 'Ngoại tuyến', color: '#8a8886' },
+]
+
+export function getStoredStatuses(): UserStatus[] {
+  try {
+    const raw = localStorage.getItem('skyoffice_statuses')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch (e) {
+    console.error('Failed to parse stored statuses', e)
+  }
+  return DEFAULT_STATUSES
+}
+
 export function getInitialBackgroundMode() {
   const currentHour = new Date().getHours()
   return currentHour > 6 && currentHour <= 18 ? BackgroundMode.DAY : BackgroundMode.NIGHT
@@ -31,6 +59,11 @@ if (rawOutfit === 'dress') rawOutfit = 'casual'
 const storedOutfitType: OutfitType = rawOutfit === 'worker' ? 'worker' : 'casual'
 const storedOutfitColor = localStorage.getItem('skyoffice_outfit_color') || '#3b82f6'
 
+const initialStatuses = getStoredStatuses()
+const storedStatusId = localStorage.getItem('skyoffice_current_status_id')
+const initialCurrentStatus =
+  initialStatuses.find((s) => s.id === storedStatusId) || initialStatuses[0]
+
 export const userSlice = createSlice({
   name: 'user',
   initialState: {
@@ -47,6 +80,8 @@ export const userSlice = createSlice({
     hairColor: storedHair,
     outfitType: storedOutfitType,
     outfitColor: storedOutfitColor,
+    statuses: initialStatuses,
+    currentStatus: initialCurrentStatus,
   },
   reducers: {
     toggleBackgroundMode: (state) => {
@@ -113,6 +148,65 @@ export const userSlice = createSlice({
         localStorage.setItem('skyoffice_outfit_color', action.payload.outfitColor)
       }
     },
+    setCurrentStatus: (state, action: PayloadAction<string>) => {
+      const target = state.statuses.find((s) => s.id === action.payload)
+      if (target) {
+        state.currentStatus = target
+        localStorage.setItem('skyoffice_current_status_id', target.id)
+        const game = phaserGame.scene.keys.game as any
+        if (game?.myPlayer) {
+          game.myPlayer.setPlayerStatus(target.color, target.name)
+        }
+      }
+    },
+    addStatus: (state, action: PayloadAction<{ name: string; color: string }>) => {
+      const newStatus: UserStatus = {
+        id: `status_${Date.now()}`,
+        name: action.payload.name.trim(),
+        color: action.payload.color,
+      }
+      state.statuses.push(newStatus)
+      localStorage.setItem('skyoffice_statuses', JSON.stringify(state.statuses))
+    },
+    updateStatus: (state, action: PayloadAction<UserStatus>) => {
+      const idx = state.statuses.findIndex((s) => s.id === action.payload.id)
+      if (idx !== -1) {
+        state.statuses[idx] = action.payload
+        localStorage.setItem('skyoffice_statuses', JSON.stringify(state.statuses))
+        if (state.currentStatus.id === action.payload.id) {
+          state.currentStatus = action.payload
+          const game = phaserGame.scene.keys.game as any
+          if (game?.myPlayer) {
+            game.myPlayer.setPlayerStatus(action.payload.color, action.payload.name)
+          }
+        }
+      }
+    },
+    deleteStatus: (state, action: PayloadAction<string>) => {
+      if (state.statuses.length <= 1) return
+      state.statuses = state.statuses.filter((s) => s.id !== action.payload)
+      localStorage.setItem('skyoffice_statuses', JSON.stringify(state.statuses))
+      if (state.currentStatus.id === action.payload) {
+        const fallback = state.statuses[0]
+        state.currentStatus = fallback
+        localStorage.setItem('skyoffice_current_status_id', fallback.id)
+        const game = phaserGame.scene.keys.game as any
+        if (game?.myPlayer) {
+          game.myPlayer.setPlayerStatus(fallback.color, fallback.name)
+        }
+      }
+    },
+    resetToDefaultStatuses: (state) => {
+      state.statuses = [...DEFAULT_STATUSES]
+      localStorage.setItem('skyoffice_statuses', JSON.stringify(state.statuses))
+      const fallback = state.statuses[0]
+      state.currentStatus = fallback
+      localStorage.setItem('skyoffice_current_status_id', fallback.id)
+      const game = phaserGame.scene.keys.game as any
+      if (game?.myPlayer) {
+        game.myPlayer.setPlayerStatus(fallback.color, fallback.name)
+      }
+    },
   },
 })
 
@@ -128,6 +222,11 @@ export const {
   setPlayerName,
   setAvatar,
   setAvatarCustomization,
+  setCurrentStatus,
+  addStatus,
+  updateStatus,
+  deleteStatus,
+  resetToDefaultStatuses,
 } = userSlice.actions
 
 export default userSlice.reducer

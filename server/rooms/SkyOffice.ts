@@ -3,7 +3,7 @@ import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
-import { IRoomData } from '../../types/Rooms'
+import { IRoomData, RoomType } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
 import PlayerUpdateCommand from './commands/PlayerUpdateCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
@@ -44,31 +44,51 @@ export class SkyOffice extends Room<OfficeState> {
     // Luôn giữ phòng để lưu trong Manage Workspace kể cả khi người chơi tạm rời đi
     this.autoDispose = false
 
+    this.setState(new OfficeState())
+
+    // Thiết lập kích thước Workspace đúng theo kích thước được chọn khi tạo phòng
+    const sizeType = options.sizeType || 'MEDIUM'
+    let width = options.width
+    let height = options.height
+    if (!width || !height) {
+      if (sizeType === 'SMALL') {
+        width = 20
+        height = 20
+      } else if (sizeType === 'LARGE') {
+        width = 70
+        height = 70
+      } else if (sizeType === 'XLARGE') {
+        width = 100
+        height = 100
+      } else {
+        width = 50
+        height = 50
+      }
+    }
+    this.state.workspace.sizeType = sizeType
+    this.state.workspace.width = width
+    this.state.workspace.height = height
+
     let hasPassword = false
     if (password) {
       const salt = await bcrypt.genSalt(10)
       this.password = await bcrypt.hash(password, salt)
       hasPassword = true
     }
-    this.setMetadata({ name, description, hasPassword })
+    this.setMetadata({ name, description, hasPassword, sizeType, width, height })
 
-    saveWorkspace({
-      id: this.roomId,
-      name,
-      description,
-      hasPassword,
-      createdAt: Date.now(),
-    })
-
-    this.setState(new OfficeState())
-
-    // Thiết lập kích thước Workspace đúng theo kích thước được chọn khi tạo phòng
-    const sizeType = options.sizeType || 'MEDIUM'
-    let width = options.width || (sizeType === 'SMALL' ? 20 : sizeType === 'LARGE' ? 40 : 30)
-    let height = options.height || (sizeType === 'SMALL' ? 20 : sizeType === 'LARGE' ? 40 : 30)
-    this.state.workspace.sizeType = sizeType
-    this.state.workspace.width = width
-    this.state.workspace.height = height
+    if (this.roomName === RoomType.CUSTOM) {
+      saveWorkspace({
+        id: this.roomId,
+        name,
+        description,
+        hasPassword,
+        sizeType,
+        width,
+        height,
+        createdAt: Date.now(),
+      })
+    }
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
@@ -154,6 +174,8 @@ export class SkyOffice extends Room<OfficeState> {
           hairColor?: string
           outfitType?: string
           outfitColor?: string
+          statusColor?: string
+          statusName?: string
         }
       ) => {
         this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
@@ -163,7 +185,20 @@ export class SkyOffice extends Room<OfficeState> {
           hairColor: message.hairColor,
           outfitType: message.outfitType,
           outfitColor: message.outfitColor,
+          statusColor: message.statusColor,
+          statusName: message.statusName,
         })
+      }
+    )
+
+    // when receiving updatePlayerStatus message
+    this.onMessage(
+      Message.UPDATE_PLAYER_STATUS,
+      (client, message: { statusColor: string; statusName?: string }) => {
+        const player = this.state.players.get(client.sessionId)
+        if (!player) return
+        if (message.statusColor) player.statusColor = message.statusColor
+        if (message.statusName) player.statusName = message.statusName
       }
     )
 
@@ -355,11 +390,16 @@ export class SkyOffice extends Room<OfficeState> {
     )
 
     this.onMessage(Message.DELETE_WORKSPACE, async () => {
-      removeWorkspace(this.roomId)
-      this.broadcast(Message.WORKSPACE_DELETED)
-      this.autoDispose = true
-      await this.disconnect()
+      await this.deleteRoom()
     })
+  }
+
+  async deleteRoom() {
+    removeWorkspace(this.roomId)
+    removeWorkspace(this.name)
+    this.broadcast(Message.WORKSPACE_DELETED)
+    this.autoDispose = true
+    await this.disconnect()
   }
 
   async onAuth(client: Client, options: { password: string | null }) {

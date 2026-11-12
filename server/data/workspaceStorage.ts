@@ -7,6 +7,9 @@ export interface StoredWorkspace {
   description: string
   password?: string | null
   hasPassword?: boolean
+  sizeType?: string
+  width?: number
+  height?: number
   createdAt: number
 }
 
@@ -44,7 +47,7 @@ export function saveWorkspace(workspace: StoredWorkspace) {
 
 export function removeWorkspace(id: string) {
   try {
-    const list = getAllWorkspaces().filter((w) => w.id !== id)
+    const list = getAllWorkspaces().filter((w) => w.id !== id && w.name !== id)
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')
   } catch (err) {
     console.error('Error removing workspace from storage:', err)

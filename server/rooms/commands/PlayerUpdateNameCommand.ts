@@ -9,11 +9,13 @@ type Payload = {
   hairColor?: string
   outfitType?: string
   outfitColor?: string
+  statusColor?: string
+  statusName?: string
 }
 
 export default class PlayerUpdateNameCommand extends Command<IOfficeState, Payload> {
   execute(data: Payload) {
-    const { client, name, skinColor, hairColor, outfitType, outfitColor } = data
+    const { client, name, skinColor, hairColor, outfitType, outfitColor, statusColor, statusName } = data
 
     const player = this.room.state.players.get(client.sessionId)
 
@@ -23,5 +25,7 @@ export default class PlayerUpdateNameCommand extends Command<IOfficeState, Paylo
     if (hairColor) player.hairColor = hairColor
     if (outfitType) player.outfitType = outfitType
     if (outfitColor) player.outfitColor = outfitColor
+    if (statusColor) player.statusColor = statusColor
+    if (statusName) player.statusName = statusName
   }
 }

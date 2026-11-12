@@ -137,15 +137,34 @@ function VideoContainer({
   playerName,
   stream,
   isMyStream = false,
+  statusColor,
 }: {
   playerName?: string
   stream: any
   isMyStream?: boolean
+  statusColor?: string
 }) {
   return (
     <div className="video-container">
       <Video srcObject={stream} autoPlay playsInline muted={isMyStream}></Video>
-      {playerName && <div className="player-name">{playerName}</div>}
+      {playerName && (
+        <div className="player-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {statusColor && (
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: statusColor,
+                display: 'inline-block',
+                border: '1.5px solid #ffffff',
+                flexShrink: 0,
+              }}
+            />
+          )}
+          {playerName}
+        </div>
+      )}
     </div>
   )
 }
@@ -153,6 +172,7 @@ function VideoContainer({
 export default function ComputerDialog() {
   const dispatch = useAppDispatch()
   const playerNameMap = useAppSelector((state) => state.user.playerNameMap)
+  const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const shareScreenManager = useAppSelector((state) => state.computer.shareScreenManager)
   const myStream = useAppSelector((state) => state.computer.myStream)
   const peerStreams = useAppSelector((state) => state.computer.peerStreams)
@@ -214,7 +234,14 @@ export default function ComputerDialog() {
         </DialogHeader>
 
         <VideoGrid>
-          {myStream && <VideoContainer stream={myStream} playerName="Bạn (You)" isMyStream={true} />}
+          {myStream && (
+            <VideoContainer
+              stream={myStream}
+              playerName="Bạn (You)"
+              isMyStream={true}
+              statusColor={currentStatus?.color}
+            />
+          )}
 
           {[...peerStreams.entries()].map(([id, { stream }]) => {
             const playerName = playerNameMap.get(id) || `Đồng nghiệp (${id.slice(0, 5)})`

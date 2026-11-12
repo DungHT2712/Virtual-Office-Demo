@@ -40,9 +40,14 @@ export default class MyPlayer extends Player {
   }
 
   setPlayerName(name: string) {
-    this.playerName.setText(name)
+    this.updatePlayerNameAndStatus(name, this.statusColor)
     phaserEvents.emit(Event.MY_PLAYER_NAME_CHANGE, name)
     store.dispatch(pushPlayerJoinedMessage(name))
+  }
+
+  setPlayerStatus(statusColor: string, statusName?: string) {
+    this.updatePlayerNameAndStatus(undefined, statusColor)
+    phaserEvents.emit(Event.MY_PLAYER_STATUS_CHANGE, statusColor, statusName)
   }
 
   setPlayerTexture(texture: string) {

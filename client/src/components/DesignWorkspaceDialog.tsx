@@ -22,7 +22,12 @@ import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
 import Game from '../scenes/Game'
 import { phaserEvents, Event } from '../events/EventCenter'
-import { RUG_COLORS } from '../utils/FurnitureTextures'
+import {
+  RUG_COLORS,
+  GRASS_COLORS,
+  isAutumnGrass,
+  getFlowerTypeFromItem,
+} from '../utils/FurnitureTextures'
 
 export const FURNITURE_COLORS = [
   { name: 'Mặc định (Trắng)', hex: '#ffffff' },
@@ -733,6 +738,7 @@ export default function DesignWorkspaceDialog() {
 
   const [activeTab, setActiveTab] = useState<'furniture' | 'room' | 'floor'>('furniture')
   const [selectedRugColor, setSelectedRugColor] = useState('#2563eb')
+  const [selectedGrassColor, setSelectedGrassColor] = useState('#16a34a')
 
   // Tương tác trực tiếp: Nội thất và Phòng được chọn khi click trên map
   const [editingFurniture, setEditingFurniture] = useState<FurnitureLayoutItem | null>(null)
@@ -796,9 +802,8 @@ export default function DesignWorkspaceDialog() {
     { type: 'rug', label: 'Thảm Trải Sàn', emoji: '🧶', hasColorPicker: true },
     { type: 'whiteboard', label: 'Bảng Trắng', emoji: '📋' },
     { type: 'wall', label: 'Tường / Vách Trơn', emoji: '🧱' },
-    { type: 'grass', label: 'Thảm Cỏ', emoji: '🌱' },
+    { type: 'grass', label: 'Thảm Cỏ', emoji: '🌱', hasColorPicker: true },
     { type: 'tree_large', label: 'Cây Lớn Quả', emoji: '🌳' },
-    { type: 'tree_small', label: 'Cây Cảnh Nhỏ', emoji: '🪴' },
     { type: 'bush', label: 'Bụi Cỏ / Hoa', emoji: '🌿' },
     { type: 'eraser', label: 'Tẩy Xóa Đồ', emoji: '🧹', isEraser: true },
   ]
@@ -815,8 +820,14 @@ export default function DesignWorkspaceDialog() {
   const handleToolSelect = (toolType: string) => {
     const isRug = toolType === 'rug' || toolType.startsWith('rug')
     const activeIsRug = selectedTool === 'rug' || selectedTool?.startsWith('rug')
+    const isGrass = toolType === 'grass' || toolType.startsWith('grass')
+    const activeIsGrass = selectedTool === 'grass' || selectedTool?.startsWith('grass')
 
     if (isRug && activeIsRug) {
+      dispatch(setSelectedTool(null))
+      return
+    }
+    if (isGrass && activeIsGrass) {
       dispatch(setSelectedTool(null))
       return
     }
@@ -825,7 +836,11 @@ export default function DesignWorkspaceDialog() {
       return
     }
 
-    const finalType = isRug ? `rug:${selectedRugColor}` : toolType
+    const finalType = isRug
+      ? `rug:${selectedRugColor}`
+      : isGrass
+      ? `grass:${selectedGrassColor}`
+      : toolType
     dispatch(setSelectedTool(finalType))
     dispatch(clearNotices())
     phaserEvents.emit('select-furniture', finalType)
@@ -838,11 +853,18 @@ export default function DesignWorkspaceDialog() {
     phaserEvents.emit('select-furniture', `rug:${hex}`)
   }
 
+  const handleGrassColorChange = (hex: string) => {
+    setSelectedGrassColor(hex)
+    dispatch(setSelectedTool(`grass:${hex}`))
+    dispatch(clearNotices())
+    phaserEvents.emit('select-furniture', `grass:${hex}`)
+  }
+
   // --- NỘI THẤT: Đổi hướng xoay 90° & Xóa ---
   const handleRotateFurniture = () => {
     if (!editingFurniture) return
     // Trừ thảm trải sàn & thảm cỏ (không áp dụng đổi hướng)
-    if (editingFurniture.itemType.startsWith('rug') || editingFurniture.itemType === 'grass') return
+    if (editingFurniture.itemType.startsWith('rug') || editingFurniture.itemType.startsWith('grass')) return
 
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     const nextOrientation = ((editingFurniture.orientation || 0) + 1) % 4
@@ -894,8 +916,13 @@ export default function DesignWorkspaceDialog() {
       }
     }
 
-    const directionNames = ['Mặt Trước (Xuống)', 'Mặt Trái', 'Mặt Sau (Lên)', 'Mặt Phải']
-    dispatch(setSuccessNotice(`Đã đổi hướng sang: ${directionNames[nextOrientation]}!`))
+    if (editingFurniture.itemType === 'wall') {
+      const wallEdgeNames = ['Sát Cạnh Trên', 'Sát Cạnh Bên Phải', 'Sát Cạnh Dưới', 'Sát Cạnh Bên Trái']
+      dispatch(setSuccessNotice(`Đã đổi hướng tường sang: ${wallEdgeNames[nextOrientation]}!`))
+    } else {
+      const directionNames = ['Mặt Trước (Xuống)', 'Mặt Trái', 'Mặt Sau (Lên)', 'Mặt Phải']
+      dispatch(setSuccessNotice(`Đã đổi hướng sang: ${directionNames[nextOrientation]}!`))
+    }
   }
 
   const handleDeleteFurniture = () => {
@@ -929,10 +956,10 @@ export default function DesignWorkspaceDialog() {
 
     if (itemsToClone.length === 0) return
 
-    // Sắp xếp thứ tự: Thảm (1) -> Bàn / Vật thể khác (2) -> Máy tính (3)
+    // Sắp xếp thứ tự: Thảm / Thảm cỏ (1) -> Bàn / Vật thể khác (2) -> Máy tính (3)
     const sorted = [...itemsToClone].sort((a, b) => {
       const getWeight = (item: FurnitureLayoutItem) => {
-        if (item.itemType.startsWith('rug')) return 1
+        if (item.itemType.startsWith('rug') || item.itemType.startsWith('grass')) return 1
         if (item.itemType === 'computer') return 3
         return 2
       }
@@ -978,17 +1005,23 @@ export default function DesignWorkspaceDialog() {
       newY = Math.max(0, originalItem.gridY - 1)
     }
 
+    let finalItemType = originalItem.itemType
+    if (originalItem.itemType.startsWith('vase')) {
+      const flower = ['dao', 'mai', 'lan'][Math.floor(Math.random() * 3)]
+      finalItemType = `vase:${flower}`
+    }
+
     const clonedItemData = {
       name: (originalItem as any).name || originalItem.itemType,
       id: `${originalItem.itemType.split(':')[0]}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      itemType: originalItem.itemType,
+      itemType: finalItemType,
       gridX: newX,
       gridY: newY,
       x: newX,
       y: newY,
       orientation: originalItem.orientation || 0,
       itemDirection: originalItem.itemDirection,
-      tint: originalItem.tint || 0xffffff, // Lấy màu hiện tại
+      tint: originalItem.tint || 0xffffff, // Giữ màu sắc hiện tại
     }
 
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
@@ -1084,7 +1117,7 @@ export default function DesignWorkspaceDialog() {
         if (
           editingFurniture &&
           !editingFurniture.itemType.startsWith('rug') &&
-          editingFurniture.itemType !== 'grass'
+          !editingFurniture.itemType.startsWith('grass')
         ) {
           e.preventDefault()
           handleRotateFurniture()
@@ -1127,6 +1160,34 @@ export default function DesignWorkspaceDialog() {
         prev.map((f) => (f.id === updated.id ? updated : f))
       )
       dispatch(setSuccessNotice(`Đã đổi màu thảm sang ${hex}!`))
+    } else if (editingFurniture.itemType.startsWith('grass')) {
+      const isAutumn = hex === '#d97706'
+      const updated = {
+        ...editingFurniture,
+        itemType: isAutumn ? 'grass:#d97706' : 'grass:#16a34a',
+        tint: tintNum,
+      }
+      bootstrap.network.placeFurniture(updated)
+      setEditingFurniture(updated)
+      setTileFurnitures((prev) =>
+        prev.map((f) => (f.id === updated.id ? updated : f))
+      )
+      dispatch(
+        setSuccessNotice(
+          `Đã đổi sắc thái thảm cỏ sang ${isAutumn ? 'Vàng Lá Thu' : 'Xanh Tươi'}!`
+        )
+      )
+    } else if (editingFurniture.itemType.startsWith('vase')) {
+      const updated = {
+        ...editingFurniture,
+        tint: tintNum,
+      }
+      bootstrap.network.placeFurniture(updated)
+      setEditingFurniture(updated)
+      setTileFurnitures((prev) =>
+        prev.map((f) => (f.id === updated.id ? updated : f))
+      )
+      dispatch(setSuccessNotice(`Đã đổi màu bình hoa sang ${hex}!`))
     } else {
       const updated = {
         ...editingFurniture,
@@ -1245,22 +1306,24 @@ export default function DesignWorkspaceDialog() {
     wall: 'Tường / Vách Trơn',
     grass: 'Thảm Cỏ',
     tree_large: 'Cây Lớn Ăn Quả',
-    tree_small: 'Cây Cảnh Nhỏ',
     bush: 'Bụi Cỏ / Hoa',
   }
 
-  const getFurnitureName = (type: string, itemOrientation?: number) => {
+  const getFurnitureName = (type: string) => {
     if (!type) return ''
     if (type.startsWith('rug')) {
       const color = type.split(':')[1]
       const colorObj = RUG_COLORS.find((c) => c.hex.toLowerCase() === color?.toLowerCase())
       return colorObj ? `Thảm Trải Sàn (${colorObj.name})` : 'Thảm Trải Sàn'
     }
-    if (type === 'tree_large') {
-      const fruitNames = ['Táo Đỏ', 'Cam Mọng', 'Chanh Vàng', 'Đào Hồng']
-      const fruit =
-        itemOrientation !== undefined ? ` (${fruitNames[itemOrientation % 4]})` : ''
-      return `Cây Lớn Ăn Quả${fruit}`
+    if (type.startsWith('grass')) {
+      const autumn = isAutumnGrass(type)
+      return autumn ? 'Thảm Cỏ (Vàng Lá Thu)' : 'Thảm Cỏ (Xanh Tươi)'
+    }
+    if (type.startsWith('vase')) {
+      const flower = getFlowerTypeFromItem(type, '')
+      const flowerNames: Record<string, string> = { dao: 'Hoa Đào', mai: 'Hoa Mai', lan: 'Hoa Lan' }
+      return `Bình Hoa (${flowerNames[flower] || 'Tươi'})`
     }
     return furnitureLabels[type] || type
   }
@@ -1437,18 +1500,12 @@ export default function DesignWorkspaceDialog() {
               </button>
             </div>
             <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
-              <strong>Vật phẩm đang sửa:</strong> {getFurnitureName(editingFurniture.itemType, editingFurniture.orientation)}
+              <strong>Vật phẩm đang sửa:</strong> {getFurnitureName(editingFurniture.itemType)}
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>
               Tọa độ: ({editingFurniture.gridX}, {editingFurniture.gridY}) | {
-                editingFurniture.itemType === 'tree_large'
-                  ? 'Loại cây: ' + ['Táo Đỏ', 'Cam Mọng', 'Chanh Vàng', 'Đào Hồng'][(editingFurniture.orientation || 0) % 4]
-                  : editingFurniture.itemType === 'wall'
-                  ? 'Kiểu vách: ' + ['Vách xám đá hiện đại', 'Vách xanh navy', 'Vách gỗ ấm cúng', 'Vách kính mờ'][(editingFurniture.orientation || 0) % 4]
-                  : editingFurniture.itemType === 'tree_small'
-                  ? 'Chậu cây: ' + ['Đất nung', 'Sứ trắng', 'Khay gỗ bonsai', 'Gốm xám đá'][(editingFurniture.orientation || 0) % 4]
-                  : editingFurniture.itemType === 'bush'
-                  ? 'Loại hoa: ' + ['Hoa hồng đỏ', 'Hoa vàng rực', 'Cúc trắng', 'Hoa tím oải hương'][(editingFurniture.orientation || 0) % 4]
+                editingFurniture.itemType === 'wall'
+                  ? 'Vị trí: ' + ['Sát Cạnh Trên', 'Sát Cạnh Bên Phải', 'Sát Cạnh Dưới', 'Sát Cạnh Bên Trái'][(editingFurniture.orientation || 0) % 4]
                   : 'Hướng: ' + ['Mặt trước (Trước)', 'Mặt trái (Trái)', 'Mặt sau (Sau)', 'Mặt phải (Phải)'][(editingFurniture.orientation || 0) % 4]
               }
             </div>
@@ -1578,84 +1635,137 @@ export default function DesignWorkspaceDialog() {
             {editingFurniture.itemType !== 'computer' &&
               editingFurniture.itemType !== 'whiteboard' && (
                 <div style={{ marginTop: '4px' }}>
-                  <div
-                    style={{
-                      fontSize: '11px',
-                      color: '#38bdf8',
-                      fontWeight: 600,
-                      marginBottom: '6px',
-                    }}
-                  >
-                    🎨 Đổi màu sắc nội thất:
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                    {FURNITURE_COLORS.map((c) => {
-                      const isCurrent = editingFurniture.itemType.startsWith('rug')
-                        ? (editingFurniture.itemType.split(':')[1] || '#2563eb').toLowerCase() ===
-                          c.hex.toLowerCase()
-                        : (editingFurniture.tint || 0xffffff) === parseInt(c.hex.replace('#', ''), 16)
-                      return (
-                        <div
-                          key={c.hex}
-                          onClick={() => handleFurnitureColorChange(c.hex)}
+                  {editingFurniture.itemType.startsWith('grass') ? (
+                    <>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: '#38bdf8',
+                          fontWeight: 600,
+                          marginBottom: '6px',
+                        }}
+                      >
+                        🌱 Đổi sắc thái thảm cỏ:
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        {GRASS_COLORS.map((c) => {
+                          const isAutumn = c.hex === '#d97706'
+                          const isCurrent = isAutumn
+                            ? editingFurniture.itemType.includes('#d97706') ||
+                              editingFurniture.tint === 0xd97706
+                            : !editingFurniture.itemType.includes('#d97706') &&
+                              editingFurniture.tint !== 0xd97706
+                          return (
+                            <button
+                              key={c.hex}
+                              onClick={() => handleFurnitureColorChange(c.hex)}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: isCurrent
+                                  ? '2px solid #ffffff'
+                                  : '1px solid rgba(255,255,255,0.2)',
+                                background: c.hex,
+                                color: '#ffffff',
+                                fontWeight: 600,
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                boxShadow: isCurrent ? '0 0 8px rgba(255,255,255,0.7)' : 'none',
+                              }}
+                            >
+                              {isCurrent && '✓ '} {c.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: '#38bdf8',
+                          fontWeight: 600,
+                          marginBottom: '6px',
+                        }}
+                      >
+                        🎨 {editingFurniture.itemType.startsWith('vase') ? 'Đổi màu bình hoa (Cành & Hoa giữ nguyên):' : 'Đổi màu sắc nội thất:'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                        {FURNITURE_COLORS.map((c) => {
+                          const isCurrent = editingFurniture.itemType.startsWith('rug')
+                            ? (editingFurniture.itemType.split(':')[1] || '#2563eb').toLowerCase() ===
+                              c.hex.toLowerCase()
+                            : (editingFurniture.tint || 0xffffff) === parseInt(c.hex.replace('#', ''), 16)
+                          return (
+                            <div
+                              key={c.hex}
+                              onClick={() => handleFurnitureColorChange(c.hex)}
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '5px',
+                                background: c.hex,
+                                cursor: 'pointer',
+                                border: isCurrent
+                                  ? '2px solid #ffffff'
+                                  : '1px solid rgba(255,255,255,0.3)',
+                                boxShadow: isCurrent ? '0 0 8px rgba(255,255,255,0.8)' : 'none',
+                              }}
+                              title={c.name}
+                            />
+                          )
+                        })}
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <label style={{ color: '#94a3b8' }}>Màu tự chọn:</label>
+                        <input
+                          type="color"
+                          value={
+                            editingFurniture.itemType.startsWith('rug')
+                              ? editingFurniture.itemType.split(':')[1] || '#2563eb'
+                              : '#' + (editingFurniture.tint || 0xffffff).toString(16).padStart(6, '0')
+                          }
+                          onChange={(e) => handleFurnitureColorChange(e.target.value)}
                           style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '5px',
-                            background: c.hex,
+                            width: '26px',
+                            height: '26px',
+                            padding: 0,
+                            border: 'none',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            border: isCurrent
-                              ? '2px solid #ffffff'
-                              : '1px solid rgba(255,255,255,0.3)',
-                            boxShadow: isCurrent ? '0 0 8px rgba(255,255,255,0.8)' : 'none',
                           }}
-                          title={c.name}
                         />
-                      )
-                    })}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '11px',
-                    }}
-                  >
-                    <label style={{ color: '#94a3b8' }}>Màu tự chọn:</label>
-                    <input
-                      type="color"
-                      value={
-                        editingFurniture.itemType.startsWith('rug')
-                          ? editingFurniture.itemType.split(':')[1] || '#2563eb'
-                          : '#' + (editingFurniture.tint || 0xffffff).toString(16).padStart(6, '0')
-                      }
-                      onChange={(e) => handleFurnitureColorChange(e.target.value)}
-                      style={{
-                        width: '26px',
-                        height: '26px',
-                        padding: 0,
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                      }}
-                    />
-                    <span style={{ color: '#ffffff', fontFamily: 'monospace' }}>
-                      {(
-                        editingFurniture.itemType.startsWith('rug')
-                          ? editingFurniture.itemType.split(':')[1] || '#2563eb'
-                          : '#' + (editingFurniture.tint || 0xffffff).toString(16).padStart(6, '0')
-                      ).toUpperCase()}
-                    </span>
-                  </div>
+                        <span style={{ color: '#ffffff', fontFamily: 'monospace' }}>
+                          {(
+                            editingFurniture.itemType.startsWith('rug')
+                              ? editingFurniture.itemType.split(':')[1] || '#2563eb'
+                              : '#' + (editingFurniture.tint || 0xffffff).toString(16).padStart(6, '0')
+                          ).toUpperCase()}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
             <div className="action-buttons">
               {!editingFurniture.itemType.startsWith('rug') &&
-                editingFurniture.itemType !== 'grass' && (
+                !editingFurniture.itemType.startsWith('grass') && (
                   <button className="rotate-btn" onClick={handleRotateFurniture}>
-                    🔄 Đổi Hướng / Đổi Kiểu (R)
+                    {editingFurniture.itemType === 'wall' ? '🔄 Đổi Cạnh Tường (R)' : '🔄 Đổi Hướng (R)'}
                   </button>
                 )}
               <button className="clone-btn" onClick={() => handleStartClone(false)}>
@@ -1751,7 +1861,7 @@ export default function DesignWorkspaceDialog() {
             <InstructionBox>
               👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (<strong>Máy tính bắt buộc phải đặt trên Bàn</strong>).
               <br /><br />
-              🌳 <strong>CÂY & CẢNH QUAN MỚI:</strong> Thêm <strong>Tường / Vách liền mạch</strong>, <strong>Thảm cỏ liền mạch</strong> (đi lại tự do), <strong>Cây lớn ăn quả</strong> (Ngẫu nhiên Táo, Cam, Chanh, Đào - Bấm <strong>R</strong> để đổi loại quả), <strong>Cây cảnh nhỏ</strong> và <strong>Bụi cỏ hoa</strong>!
+              🌳 <strong>CÂY & CẢNH QUAN MỚI:</strong> Thêm <strong>Tường / Vách liền mạch</strong>, <strong>Thảm cỏ liền mạch</strong> (đi lại tự do), <strong>Cây lớn ăn quả</strong> (Ngẫu nhiên Táo, Cam, Chanh, Đào - Bấm <strong>R</strong> để đổi loại quả) và <strong>Bụi cỏ hoa</strong>!
               <br /><br />
               ⚡ <strong>XÓA NHANH HÀNG LOẠT:</strong> Giữ phím <strong>Shift + Kéo chuột trái</strong> trên bản đồ để quét chọn nhiều nội thất cùng lúc và bấm nút <strong>Xóa Nhanh</strong> hoặc phím <strong>Delete</strong>!
             </InstructionBox>
@@ -1762,6 +1872,8 @@ export default function DesignWorkspaceDialog() {
                   $active={
                     t.type === 'rug'
                       ? !!selectedTool?.startsWith('rug')
+                      : t.type === 'grass'
+                      ? !!selectedTool?.startsWith('grass')
                       : selectedTool === t.type
                   }
                   $isEraser={t.isEraser}
@@ -1806,6 +1918,48 @@ export default function DesignWorkspaceDialog() {
                     onChange={(e) => handleColorChange(e.target.value)}
                   />
                   <span>{selectedRugColor.toUpperCase()}</span>
+                </div>
+              </ColorPaletteBox>
+            )}
+
+            {/* BẢNG CHỌN SẮC THÁI THẢM CỎ (Xanh Tươi & Vàng Lá Thu) */}
+            {selectedTool?.startsWith('grass') && (
+              <ColorPaletteBox>
+                <div className="palette-header">
+                  <span>🌱 Chọn Sắc Thái Cỏ Trước Khi Đặt:</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                  {GRASS_COLORS.map((c) => {
+                    const isAutumn = c.hex === '#d97706'
+                    const isSelected = isAutumn
+                      ? selectedTool.includes('#d97706') || selectedTool.includes('autumn')
+                      : !selectedTool.includes('#d97706') && !selectedTool.includes('autumn')
+                    return (
+                      <button
+                        key={c.hex}
+                        onClick={() => handleGrassColorChange(c.hex)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.2)',
+                          background: c.hex,
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: isSelected ? '0 0 10px rgba(255,255,255,0.7)' : 'none',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {isSelected && '✓ '} {c.name}
+                      </button>
+                    )
+                  })}
                 </div>
               </ColorPaletteBox>
             )}

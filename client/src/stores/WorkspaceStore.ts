@@ -71,8 +71,8 @@ interface WorkspaceStoreState {
 const initialState: WorkspaceStoreState = {
   workspace: {
     sizeType: 'MEDIUM',
-    width: 30,
-    height: 30,
+    width: 50,
+    height: 50,
   },
   rooms: {},
   furnitures: {},

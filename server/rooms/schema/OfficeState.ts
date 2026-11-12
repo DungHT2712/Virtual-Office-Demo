@@ -26,6 +26,8 @@ export class Player extends Schema implements IPlayer {
   @type('string') outfitType = 'casual'
   @type('string') outfitColor = '#3b82f6'
   @type('number') floor = 1
+  @type('string') statusColor = '#107c41'
+  @type('string') statusName = 'Sẵn sàng'
 }
 
 export class Computer extends Schema implements IComputer {

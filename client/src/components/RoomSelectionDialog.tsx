@@ -292,7 +292,21 @@ export default function RoomSelectionDialog() {
                     <FaceIcon fontSize="inherit" />
                   </div>
                   <div className="details">
-                    <div className="name">{currentUser.playerName || 'Guest'}</div>
+                    <div className="name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        style={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: '50%',
+                          backgroundColor: currentUser.currentStatus?.color || '#107c41',
+                          display: 'inline-block',
+                          border: '1.5px solid #ffffff',
+                          flexShrink: 0,
+                          boxShadow: `0 0 5px ${currentUser.currentStatus?.color || '#107c41'}`,
+                        }}
+                      />
+                      {currentUser.playerName || 'Guest'}
+                    </div>
                     <div className="model">
                       Nhân vật: <strong>{currentUser.avatar?.toUpperCase() || 'ADAM'}</strong> ({currentUser.outfitType || 'casual'})
                     </div>
@@ -325,7 +339,7 @@ export default function RoomSelectionDialog() {
                   </div>
                   <h3>New Workspace</h3>
                   <p>
-                    Khởi tạo văn phòng mới với diện tích tùy chỉnh (Small 400, Medium 900, Large 1600 ô).
+                    Khởi tạo văn phòng mới với diện tích tùy chỉnh (Nhỏ 20x20, Vừa 50x50, Lớn 70x70, Siêu lớn 100x100).
                   </p>
                 </ActionCard>
 

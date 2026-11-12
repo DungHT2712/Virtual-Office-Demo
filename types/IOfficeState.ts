@@ -23,6 +23,8 @@ export interface IPlayer extends Schema {
   outfitType: string
   outfitColor: string
   floor?: number
+  statusColor?: string
+  statusName?: string
   onChange?: (changes: any[]) => void
 }
 

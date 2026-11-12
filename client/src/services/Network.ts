@@ -67,6 +67,7 @@ export default class Network {
       })
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
+    phaserEvents.on(Event.MY_PLAYER_STATUS_CHANGE, this.updatePlayerStatus, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayer, this)
     phaserEvents.on(Event.PLAYER_DISCONNECTED, this.playerStreamDisconnect, this)
   }
@@ -105,12 +106,15 @@ export default class Network {
 
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
-    const { name, description, password } = roomData
+    const { name, description, password, sizeType, width, height } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
       password,
       autoDispose: false, // Luôn lưu giữ phòng cho Manage Workspace
+      sizeType,
+      width,
+      height,
     })
     this.initialize()
   }
@@ -425,11 +429,24 @@ export default class Network {
       hairColor: string
       outfitType: string
       outfitColor: string
+    },
+    status?: {
+      statusColor: string
+      statusName?: string
     }
   ) {
     this.room?.send(Message.UPDATE_PLAYER_NAME, {
       name: currentName,
       ...(customization || {}),
+      ...(status || {}),
+    })
+  }
+
+  // method to send player status to Colyseus server
+  updatePlayerStatus(statusColor: string, statusName?: string) {
+    this.room?.send(Message.UPDATE_PLAYER_STATUS, {
+      statusColor,
+      statusName,
     })
   }
 

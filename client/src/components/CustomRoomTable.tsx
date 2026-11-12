@@ -14,14 +14,12 @@ import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
-import IconButton from '@mui/material/IconButton'
 import DialogTitle from '@mui/material/DialogTitle'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import LockIcon from '@mui/icons-material/Lock'
-import { useAppSelector } from '../hooks'
-import { getAvatarString, getColorByString } from '../util'
+import { useAppSelector, useAppDispatch } from '../hooks'
+import { removeAvailableRooms } from '../stores/RoomStore'
+import { setWorkspaceData } from '../stores/WorkspaceStore'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -49,12 +47,6 @@ const TableRowWrapper = styled(TableRow)`
     border: 0;
   }
 
-  .avatar {
-    height: 30px;
-    width: 30px;
-    font-size: 15px;
-  }
-
   .name {
     min-width: 100px;
     overflow-wrap: anywhere;
@@ -77,6 +69,12 @@ const TableRowWrapper = styled(TableRow)`
 `
 
 const PasswordDialog = styled(Dialog)`
+  z-index: 99999999 !important;
+
+  .MuiBackdrop-root {
+    z-index: 99999998 !important;
+  }
+
   .dialog-content {
     display: flex;
     flex-direction: column;
@@ -85,10 +83,12 @@ const PasswordDialog = styled(Dialog)`
 
   .MuiDialog-paper {
     background: #222639;
+    z-index: 99999999 !important;
   }
 `
 
 export const CustomRoomTable = () => {
+  const dispatch = useAppDispatch()
   const [password, setPassword] = useState('')
   const [selectedRoom, setSelectedRoom] = useState('')
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
@@ -106,21 +106,53 @@ export const CustomRoomTable = () => {
 
   const handleConfirmDelete = async () => {
     if (!targetDeleteRoom) return
+    const idToDelete = targetDeleteRoom.id
+    const nameToDelete = targetDeleteRoom.name
+
+    // 1. Cập nhật UI ngay lập tức
+    dispatch(removeAvailableRooms(idToDelete))
+
+    // 2. Cập nhật localStorage
     try {
-      const port = 2567
-      const host = window.location.hostname
-      const url = `${window.location.protocol}//${host}:${port}/api/workspaces/${targetDeleteRoom.id}`
-      await fetch(url, { method: 'DELETE' })
+      const stored = JSON.parse(localStorage.getItem('saved_workspaces') || '[]')
+      const updated = stored.filter((w: any) => w.id !== idToDelete && w.name !== nameToDelete)
+      localStorage.setItem('saved_workspaces', JSON.stringify(updated))
     } catch (e) {
-      console.error('Error deleting workspace:', e)
+      console.error(e)
     }
+
     setDeleteDialogOpen(false)
     setTargetDeleteRoom(null)
+
+    // 3. Gửi lệnh xóa lên server (thử qua proxy /api và fallback server port 2567)
+    try {
+      const query = nameToDelete ? `?name=${encodeURIComponent(nameToDelete)}` : ''
+      const res = await fetch(`/api/workspaces/${idToDelete}${query}`, { method: 'DELETE' }).catch(() => null)
+      if (!res || !res.ok) {
+        const serverUrl =
+          process.env.NODE_ENV === 'production' && import.meta.env.VITE_SERVER_URL
+            ? import.meta.env.VITE_SERVER_URL
+            : `${window.location.protocol}//${window.location.hostname}:2567`
+        await fetch(`${serverUrl}/api/workspaces/${idToDelete}${query}`, { method: 'DELETE' }).catch(() => null)
+      }
+    } catch (e) {
+      console.error('Error deleting workspace on server:', e)
+    }
   }
 
   const handleJoinClick = (roomId: string, password: string | null) => {
     if (!lobbyJoined) return
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    const targetRoom = availableRooms.find((r) => r.roomId === roomId)
+    if (targetRoom?.metadata?.width && targetRoom?.metadata?.height) {
+      dispatch(
+        setWorkspaceData({
+          sizeType: targetRoom.metadata.sizeType || 'MEDIUM',
+          width: targetRoom.metadata.width,
+          height: targetRoom.metadata.height,
+        })
+      )
+    }
     bootstrap.network
       .joinCustomById(roomId, password)
       .then(() => bootstrap.launchGame())
@@ -153,41 +185,57 @@ export const CustomRoomTable = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell></TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>ID</TableCell>
-              <TableCell align="center">
-                <PeopleAltIcon />
+              <TableCell style={{ fontWeight: 700, color: '#f8fafc' }}>Name</TableCell>
+              <TableCell style={{ fontWeight: 700, color: '#f8fafc' }}>Description</TableCell>
+              <TableCell style={{ fontWeight: 700, color: '#f8fafc' }}>ID</TableCell>
+              <TableCell align="center" style={{ fontWeight: 700, color: '#f8fafc' }}>
+                Số người
               </TableCell>
-              <TableCell align="right"></TableCell>
+              <TableCell align="center" style={{ fontWeight: 700, color: '#f8fafc' }}>
+                Action
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {availableRooms.map((room) => {
               const { roomId, metadata, clients } = room
-              const { name, description, hasPassword } = metadata
+              const { name = '', description = '', hasPassword = false } = metadata || {}
               return (
                 <TableRowWrapper key={roomId}>
                   <TableCell>
-                    <Avatar className="avatar" style={{ background: getColorByString(name) }}>
-                      {getAvatarString(name)}
-                    </Avatar>
+                    <div className="name" style={{ fontWeight: 600, color: '#ffffff' }}>
+                      {name}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <div className="name">{name}</div>
+                    <div className="description" style={{ color: '#cbd5e1' }}>
+                      {description}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <div className="description">{description}</div>
+                    <span style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: '13px' }}>
+                      {roomId}
+                    </span>
                   </TableCell>
-                  <TableCell>{roomId}</TableCell>
-                  <TableCell align="center">{clients}</TableCell>
                   <TableCell align="center">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                      <Tooltip title={hasPassword ? 'Password required' : ''}>
+                    <span style={{ fontWeight: 700, color: '#38bdf8', fontSize: '15px' }}>
+                      {clients}
+                    </span>
+                  </TableCell>
+                  <TableCell align="center">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <Tooltip title={hasPassword ? 'Cần mật khẩu' : ''}>
                         <Button
-                          variant="outlined"
-                          color="secondary"
+                          variant="contained"
+                          size="small"
+                          style={{
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            textTransform: 'none',
+                            padding: '4px 14px',
+                            borderRadius: '6px',
+                          }}
                           onClick={() => {
                             if (hasPassword) {
                               setShowPasswordDialog(true)
@@ -197,22 +245,29 @@ export const CustomRoomTable = () => {
                             }
                           }}
                         >
-                          <div className="join-wrapper">
-                            {hasPassword && <LockIcon className="lock-icon" />}
+                          <div className="join-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {hasPassword && <LockIcon style={{ fontSize: 15 }} />}
                             Join
                           </div>
                         </Button>
                       </Tooltip>
-                      <Tooltip title="Xóa Workspace này">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteRoomClick(roomId, name)}
-                          sx={{ '&:hover': { background: 'rgba(239, 68, 68, 0.15)' } }}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        style={{
+                          borderColor: '#ef4444',
+                          color: '#f87171',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          padding: '4px 12px',
+                          borderRadius: '6px',
+                          background: 'rgba(239, 68, 68, 0.08)',
+                        }}
+                        onClick={() => handleDeleteRoomClick(roomId, name)}
+                      >
+                        Xóa
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRowWrapper>
@@ -260,26 +315,51 @@ export const CustomRoomTable = () => {
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
+        style={{ zIndex: 99999999 }}
+        sx={{
+          zIndex: 99999999,
+          '& .MuiBackdrop-root': {
+            zIndex: 99999998,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          },
+        }}
         PaperProps={{
           style: {
             background: '#1e2235',
             color: '#f8fafc',
             borderRadius: '16px',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            padding: '8px',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            padding: '12px',
+            zIndex: 99999999,
+            minWidth: '400px',
+            maxWidth: '500px',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.8)',
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <DeleteOutlineIcon /> Xóa Workspace?
+        <DialogTitle sx={{ fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 1.5, fontSize: '18px' }}>
+          <DeleteOutlineIcon fontSize="medium" /> Xác Nhận Xóa Workspace?
         </DialogTitle>
-        <DialogContent>
-          <p style={{ color: '#cbd5e1', fontSize: '14px', margin: 0 }}>
-            Bạn có chắc chắn muốn xóa vĩnh viễn Workspace "{targetDeleteRoom?.name}" không? Thao tác này sẽ xóa toàn bộ dữ liệu phòng đã lưu và không thể hoàn tác.
+        <DialogContent sx={{ py: 1.5 }}>
+          <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: 1.6, margin: 0 }}>
+            Bạn có chắc chắn muốn xóa vĩnh viễn Workspace <b style={{ color: '#f87171' }}>"{targetDeleteRoom?.name}"</b> (ID: <code style={{ color: '#38bdf8' }}>{targetDeleteRoom?.id}</code>) không?
+          </p>
+          <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: 8, marginBottom: 0 }}>
+            Thao tác này sẽ xóa vĩnh viễn dữ liệu phòng và không thể hoàn tác.
           </p>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ color: '#94a3b8', textTransform: 'none' }}>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1 }}>
+          <Button
+            onClick={() => setDeleteDialogOpen(false)}
+            variant="outlined"
+            sx={{
+              color: '#94a3b8',
+              borderColor: 'rgba(255, 255, 255, 0.2)',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': { borderColor: '#ffffff', color: '#ffffff' },
+            }}
+          >
             Hủy Bỏ
           </Button>
           <Button
@@ -290,6 +370,7 @@ export const CustomRoomTable = () => {
               color: '#ffffff',
               fontWeight: 700,
               textTransform: 'none',
+              px: 2.5,
               '&:hover': { background: '#b91c1c' },
             }}
           >

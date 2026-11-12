@@ -33,6 +33,7 @@ import { getAvatarString, getColorByString } from '../util'
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
 import Game from '../scenes/Game'
+import StatusDialog from './StatusDialog'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -131,8 +132,10 @@ const StyledFab = styled(Fab)`
 
 export default function HelperButtonGroup() {
   const [showRoomInfo, setShowRoomInfo] = useState(false)
+  const [showStatusDialog, setShowStatusDialog] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
+  const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
   const roomId = useAppSelector((state) => state.room.roomId)
   const roomName = useAppSelector((state) => state.room.roomName)
@@ -167,6 +170,7 @@ export default function HelperButtonGroup() {
   return (
     <Backdrop>
       <div className="wrapper-group">
+        {showStatusDialog && <StatusDialog onClose={() => setShowStatusDialog(false)} />}
         {showRoomInfo && (
           <Wrapper>
             <IconButton className="close" onClick={() => setShowRoomInfo(false)} size="small">
@@ -309,6 +313,7 @@ export default function HelperButtonGroup() {
                 size="small"
                 onClick={() => {
                   setShowRoomInfo(!showRoomInfo)
+                  setShowStatusDialog(false)
                 }}
               >
                 <ShareIcon />
@@ -316,6 +321,37 @@ export default function HelperButtonGroup() {
             </Tooltip>
           </>
         )}
+
+        {/* NÚT CHUYỂN ĐỔI TRẠNG THÁI HOẠT ĐỘNG (MICROSOFT TEAMS) */}
+        <Tooltip title={`Trạng thái: ${currentStatus?.name || 'Sẵn sàng'} (Bấm để thay đổi)`}>
+          <StyledFab
+            size="small"
+            onClick={() => {
+              setShowStatusDialog(!showStatusDialog)
+              setShowRoomInfo(false)
+            }}
+            sx={{
+              background: '#1e293b',
+              border: `2px solid ${currentStatus?.color || '#107c41'}`,
+              boxShadow: `0 0 10px ${currentStatus?.color || '#107c41'}88`,
+              '&:hover': {
+                background: '#334155',
+              },
+            }}
+          >
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                backgroundColor: currentStatus?.color || '#107c41',
+                border: '1.5px solid #ffffff',
+                display: 'inline-block',
+                boxShadow: '0 0 4px rgba(0, 0, 0, 0.5)',
+              }}
+            />
+          </StyledFab>
+        </Tooltip>
 
         <Tooltip title="Switch Background Theme">
           <StyledFab size="small" onClick={() => dispatch(toggleBackgroundMode())}>
@@ -328,6 +364,8 @@ export default function HelperButtonGroup() {
       <Dialog
         open={showLeaveConfirm}
         onClose={() => setShowLeaveConfirm(false)}
+        style={{ zIndex: 99999999 }}
+        sx={{ zIndex: 99999999 }}
         PaperProps={{
           style: {
             background: '#1e2235',

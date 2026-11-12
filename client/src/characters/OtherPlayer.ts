@@ -30,7 +30,7 @@ export default class OtherPlayer extends Player {
     super(scene, x, y, texture, id, frame)
     this.targetPosition = [x, y]
 
-    this.playerName.setText(name)
+    this.updatePlayerNameAndStatus(name, '#107c41')
     // Đã gỡ bỏ playContainerBody
   }
 
@@ -55,7 +55,13 @@ export default class OtherPlayer extends Player {
     switch (field) {
       case 'name':
         if (typeof value === 'string') {
-          this.playerName.setText(value)
+          this.updatePlayerNameAndStatus(value, undefined)
+        }
+        break
+
+      case 'statusColor':
+        if (typeof value === 'string') {
+          this.updatePlayerNameAndStatus(undefined, value)
         }
         break
 
