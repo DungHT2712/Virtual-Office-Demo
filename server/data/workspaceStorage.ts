@@ -1,6 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 
+export interface PendingRequest {
+  userId: string
+  userName: string
+  requestedAt: number
+}
+
 export interface StoredWorkspace {
   id?: string
   name: string
@@ -11,6 +17,11 @@ export interface StoredWorkspace {
   width?: number
   height?: number
   createdAt: number
+  ownerId?: string
+  ownerName?: string
+  shareMode?: 'free' | 'ask'
+  sharedUsers?: string[]
+  pendingRequests?: PendingRequest[]
 }
 
 const STORAGE_FILE = path.join(__dirname, 'workspaces.json')
@@ -28,6 +39,11 @@ export function getAllWorkspaces(): StoredWorkspace[] {
   }
 }
 
+export function getWorkspaceById(id: string): StoredWorkspace | undefined {
+  const list = getAllWorkspaces()
+  return list.find((w) => w.id === id || w.name === id)
+}
+
 export function saveWorkspace(workspace: StoredWorkspace) {
   try {
     const list = getAllWorkspaces()
@@ -42,6 +58,22 @@ export function saveWorkspace(workspace: StoredWorkspace) {
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')
   } catch (err) {
     console.error('Error saving workspace to storage:', err)
+  }
+}
+
+export function updateWorkspace(id: string, updates: Partial<StoredWorkspace>): StoredWorkspace | null {
+  try {
+    const list = getAllWorkspaces()
+    const index = list.findIndex((w) => w.id === id || w.name === id)
+    if (index >= 0) {
+      list[index] = { ...list[index], ...updates }
+      fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')
+      return list[index]
+    }
+    return null
+  } catch (err) {
+    console.error('Error updating workspace:', err)
+    return null
   }
 }
 

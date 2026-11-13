@@ -13,10 +13,13 @@ import AddBusinessIcon from '@mui/icons-material/AddBusiness'
 import CorporateFareIcon from '@mui/icons-material/CorporateFare'
 import FaceIcon from '@mui/icons-material/Face'
 import EditIcon from '@mui/icons-material/Edit'
+import NotificationsIcon from '@mui/icons-material/Notifications'
+import Badge from '@mui/material/Badge'
 
 import { CustomRoomTable } from './CustomRoomTable'
 import { CreateRoomForm } from './CreateRoomForm'
 import ManageCharacterDialog from './ManageCharacterDialog'
+import NotificationDialog from './NotificationDialog'
 import { useAppSelector } from '../hooks'
 
 const Backdrop = styled.div`
@@ -26,30 +29,52 @@ const Backdrop = styled.div`
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   align-items: center;
   pointer-events: auto;
+  max-height: 96vh;
 `
 
 const Wrapper = styled.div`
   background: #1b1e2e;
   border-radius: 20px;
-  padding: 32px 44px;
+  padding: 24px 32px;
   box-shadow: 0px 16px 36px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  min-width: 640px;
+  min-width: 560px;
   max-width: 860px;
+  width: 90vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: #f1f5f9;
   pointer-events: auto;
+
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #38bdf8;
+  }
 `
 
 const CustomRoomWrapper = styled.div`
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   align-items: center;
   justify-content: center;
+  width: 100%;
 
   .tip {
     font-size: 18px;
@@ -208,10 +233,44 @@ export default function RoomSelectionDialog() {
   const [showCustomRoom, setShowCustomRoom] = useState(false)
   const [showCreateRoomForm, setShowCreateRoomForm] = useState(false)
   const [showCharacterDialog, setShowCharacterDialog] = useState(false)
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [showSnackbar, setShowSnackbar] = useState(false)
 
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
   const currentUser = useAppSelector((state) => state.user)
+
+  // Cập nhật số lượng thông báo / yêu cầu chưa duyệt theo thời gian thực (1.5s)
+  React.useEffect(() => {
+    if (!currentUser.userId) return
+    const updateCount = async () => {
+      try {
+        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUser.userId)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && Array.isArray(data.notifications)) {
+            const count = data.notifications.filter(
+              (n: any) => n.status === 'pending' || n.status === 'unread' || !n.status
+            ).length
+            setUnreadCount(count)
+          }
+        }
+      } catch (e) {}
+    }
+    updateCount()
+
+    const onUnreadUpdate = (e: any) => {
+      if (typeof e.detail?.count === 'number') {
+        setUnreadCount(e.detail.count)
+      }
+    }
+    window.addEventListener('skyoffice_unread_count_updated', onUnreadUpdate)
+    const timer = setInterval(updateCount, 2500)
+    return () => {
+      window.removeEventListener('skyoffice_unread_count_updated', onUnreadUpdate)
+      clearInterval(timer)
+    }
+  }, [currentUser.userId])
 
   return (
     <>
@@ -264,7 +323,13 @@ export default function RoomSelectionDialog() {
                     </IconButton>
                   </Tooltip>
                 </h1>
-                <div style={{ width: 40 }} />
+                <Tooltip title="Xem Thông Báo & Yêu Cầu">
+                  <IconButton onClick={() => setShowNotificationDialog(true)} sx={{ color: '#38bdf8' }}>
+                    <Badge badgeContent={unreadCount} color="error">
+                      <NotificationsIcon />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
               </TitleWrapper>
               <CustomRoomTable />
               <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
@@ -312,21 +377,49 @@ export default function RoomSelectionDialog() {
                     </div>
                   </div>
                 </div>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<EditIcon />}
-                  onClick={() => setShowCharacterDialog(true)}
-                  sx={{
-                    color: '#38bdf8',
-                    borderColor: 'rgba(56, 189, 248, 0.4)',
-                    textTransform: 'none',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Chỉnh Sửa Ngoại Hình
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tooltip title="Xem Thông Báo & Yêu Cầu">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={
+                        <Badge badgeContent={unreadCount} color="error">
+                          <NotificationsIcon style={{ fontSize: 18 }} />
+                        </Badge>
+                      }
+                      onClick={() => setShowNotificationDialog(true)}
+                      sx={{
+                        color: unreadCount > 0 ? '#38bdf8' : '#cbd5e1',
+                        borderColor: unreadCount > 0 ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)',
+                        textTransform: 'none',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        background: unreadCount > 0 ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                        '&:hover': {
+                          background: 'rgba(56, 189, 248, 0.25)',
+                          borderColor: '#38bdf8',
+                        },
+                      }}
+                    >
+                      Thông Báo {unreadCount > 0 && `(${unreadCount})`}
+                    </Button>
+                  </Tooltip>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditIcon />}
+                    onClick={() => setShowCharacterDialog(true)}
+                    sx={{
+                      color: '#38bdf8',
+                      borderColor: 'rgba(56, 189, 248, 0.4)',
+                      textTransform: 'none',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Chỉnh Sửa Ngoại Hình
+                  </Button>
+                </div>
               </ProfileBanner>
 
               {/* 2 LỰA CHỌN CHÍNH Ở TRANG CHỦ */}
@@ -366,6 +459,12 @@ export default function RoomSelectionDialog() {
           </ProgressBarWrapper>
         )}
       </Backdrop>
+
+      <NotificationDialog
+        open={showNotificationDialog}
+        onClose={() => setShowNotificationDialog(false)}
+        onUnreadCountChange={setUnreadCount}
+      />
     </>
   )
 }

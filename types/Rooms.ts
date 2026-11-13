@@ -12,4 +12,8 @@ export interface IRoomData {
   sizeType?: string
   width?: number
   height?: number
+  ownerId?: string
+  ownerName?: string
+  shareMode?: 'free' | 'ask'
+  sharedUsers?: string[]
 }

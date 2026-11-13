@@ -75,7 +75,23 @@ export class SkyOffice extends Room<OfficeState> {
       this.password = await bcrypt.hash(password, salt)
       hasPassword = true
     }
-    this.setMetadata({ name, description, hasPassword, sizeType, width, height })
+    const ownerId = options.ownerId || ''
+    const ownerName = options.ownerName || ''
+    const shareMode = options.shareMode || 'free'
+    const sharedUsers = options.sharedUsers || []
+
+    this.setMetadata({
+      name,
+      description,
+      hasPassword,
+      sizeType,
+      width,
+      height,
+      ownerId,
+      ownerName,
+      shareMode,
+      sharedUsers,
+    })
 
     if (this.roomName === RoomType.CUSTOM) {
       saveWorkspace({
@@ -86,6 +102,10 @@ export class SkyOffice extends Room<OfficeState> {
         sizeType,
         width,
         height,
+        ownerId,
+        ownerName,
+        shareMode,
+        sharedUsers,
         createdAt: Date.now(),
       })
     }
@@ -444,5 +464,15 @@ export class SkyOffice extends Room<OfficeState> {
 
     console.log('room', this.roomId, 'disposing...')
     this.dispatcher.stop()
+  }
+
+  updateShareMode(shareMode: 'free' | 'ask') {
+    const currentMeta = (this as any).metadata || {}
+    this.setMetadata({ ...currentMeta, shareMode })
+  }
+
+  updateSharedUsers(sharedUsers: string[]) {
+    const currentMeta = (this as any).metadata || {}
+    this.setMetadata({ ...currentMeta, sharedUsers })
   }
 }

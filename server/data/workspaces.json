@@ -1,22 +1,36 @@
 [
   {
-    "id": "NnIEJcCdJ",
+    "id": "JLuGMBCbB",
     "name": "sdfsdf",
     "description": "ewftds",
     "hasPassword": false,
     "sizeType": "LARGE",
     "width": 70,
     "height": 70,
-    "createdAt": 1794495997346
+    "createdAt": 1794541292738,
+    "ownerId": "usr_OXMJ26",
+    "ownerName": "abc",
+    "shareMode": "ask",
+    "sharedUsers": [
+      "usr_OGIZJN"
+    ],
+    "pendingRequests": []
   },
   {
-    "id": "E-LhCq6bS",
+    "id": "wZFzfyX8-",
     "name": "small",
     "description": "small",
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
-    "createdAt": 1794496030756
+    "createdAt": 1794541292744,
+    "ownerId": "usr_OXMJ26",
+    "ownerName": "abc",
+    "shareMode": "ask",
+    "sharedUsers": [
+      "usr_OGIZJN"
+    ],
+    "pendingRequests": []
   }
 ]

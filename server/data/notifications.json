@@ -1,0 +1,23 @@
+[
+  {
+    "id": "req_1XpwDQLU2_usr_OGIZJN",
+    "targetUserId": "usr_OXMJ26",
+    "type": "join_request",
+    "workspaceId": "1XpwDQLU2",
+    "workspaceName": "sdfsdf",
+    "requesterId": "usr_OGIZJN",
+    "requesterName": "Guest",
+    "status": "accepted",
+    "createdAt": 1794540894134
+  },
+  {
+    "id": "acc_1794540894508_jfw6z",
+    "targetUserId": "usr_OGIZJN",
+    "type": "join_accepted",
+    "workspaceId": "1XpwDQLU2",
+    "workspaceName": "sdfsdf",
+    "message": "Yêu cầu gia nhập của bạn vào workspace [sdfsdf] đã được chấp nhận!",
+    "status": "read",
+    "createdAt": 1794540894508
+  }
+]

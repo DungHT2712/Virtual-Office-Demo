@@ -77,6 +77,7 @@ export const CreateRoomForm = () => {
   const [nameFieldEmpty, setNameFieldEmpty] = useState(false)
   const [descriptionFieldEmpty, setDescriptionFieldEmpty] = useState(false)
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
+  const currentUser = useAppSelector((state) => state.user)
 
   const handleChange = (prop: keyof IRoomData) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setValues({ ...values, [prop]: event.target.value })
@@ -112,6 +113,10 @@ export const CreateRoomForm = () => {
         sizeType: selectedSize,
         width,
         height,
+        ownerId: currentUser.userId,
+        ownerName: currentUser.playerName || 'Guest',
+        shareMode: 'free' as const,
+        sharedUsers: [currentUser.userId],
       }
       const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
       bootstrap.network
@@ -128,6 +133,10 @@ export const CreateRoomForm = () => {
               sizeType: selectedSize,
               width,
               height,
+              ownerId: currentUser.userId,
+              ownerName: currentUser.playerName || 'Guest',
+              shareMode: 'free',
+              sharedUsers: [currentUser.userId],
             })
             localStorage.setItem('saved_workspaces', JSON.stringify(stored))
           } catch (e) {

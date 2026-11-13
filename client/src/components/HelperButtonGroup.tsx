@@ -23,6 +23,8 @@ import SquareFootIcon from '@mui/icons-material/SquareFoot'
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import HomeIcon from '@mui/icons-material/Home'
 import CameraAltIcon from '@mui/icons-material/CameraAlt'
+import NotificationsIcon from '@mui/icons-material/Notifications'
+import Badge from '@mui/material/Badge'
 
 import { BackgroundMode } from '../../../types/BackgroundMode'
 import { MovementMode, setMovementMode, toggleBackgroundMode, setLoggedIn } from '../stores/UserStore'
@@ -34,6 +36,7 @@ import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
 import Game from '../scenes/Game'
 import StatusDialog from './StatusDialog'
+import NotificationDialog from './NotificationDialog'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -134,6 +137,8 @@ export default function HelperButtonGroup() {
   const [showRoomInfo, setShowRoomInfo] = useState(false)
   const [showStatusDialog, setShowStatusDialog] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
   const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
@@ -143,7 +148,40 @@ export default function HelperButtonGroup() {
   const movementMode = useAppSelector((state) => state.user.movementMode)
   const designMode = useAppSelector((state) => state.workspace.designMode)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
+  const currentUser = useAppSelector((state) => state.user)
   const dispatch = useAppDispatch()
+
+  // Cập nhật số lượng thông báo / yêu cầu theo thời gian thực (1.5s)
+  React.useEffect(() => {
+    if (!currentUser.userId) return
+    const updateCount = async () => {
+      try {
+        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUser.userId)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && Array.isArray(data.notifications)) {
+            const count = data.notifications.filter(
+              (n: any) => n.status === 'pending' || n.status === 'unread' || !n.status
+            ).length
+            setUnreadCount(count)
+          }
+        }
+      } catch (e) {}
+    }
+    updateCount()
+
+    const onUnreadUpdate = (e: any) => {
+      if (typeof e.detail?.count === 'number') {
+        setUnreadCount(e.detail.count)
+      }
+    }
+    window.addEventListener('skyoffice_unread_count_updated', onUnreadUpdate)
+    const timer = setInterval(updateCount, 2500)
+    return () => {
+      window.removeEventListener('skyoffice_unread_count_updated', onUnreadUpdate)
+      clearInterval(timer)
+    }
+  }, [currentUser.userId])
 
   const handleToggleWebcam = () => {
     const game = phaserGame.scene.keys.game as Game
@@ -308,6 +346,24 @@ export default function HelperButtonGroup() {
               </StyledFab>
             </Tooltip>
 
+            {/* NÚT THÔNG BÁO VÀ YÊU CẦU GIA NHẬP */}
+            <Tooltip title="Thông Báo & Yêu Cầu">
+              <StyledFab
+                size="small"
+                onClick={() => setShowNotificationDialog(true)}
+                sx={{
+                  background: '#1e293b',
+                  color: unreadCount > 0 ? '#38bdf8' : '#ffffff',
+                  border: unreadCount > 0 ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.15)',
+                  '&:hover': { background: '#334155' },
+                }}
+              >
+                <Badge badgeContent={unreadCount} color="error">
+                  <NotificationsIcon style={{ fontSize: 20 }} />
+                </Badge>
+              </StyledFab>
+            </Tooltip>
+
             <Tooltip title="Room Info">
               <StyledFab
                 size="small"
@@ -407,6 +463,12 @@ export default function HelperButtonGroup() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <NotificationDialog
+        open={showNotificationDialog}
+        onClose={() => setShowNotificationDialog(false)}
+        onUnreadCountChange={setUnreadCount}
+      />
     </Backdrop>
   )
 }

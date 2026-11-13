@@ -106,7 +106,7 @@ export default class Network {
 
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
-    const { name, description, password, sizeType, width, height } = roomData
+    const { name, description, password, sizeType, width, height, ownerId, ownerName, shareMode, sharedUsers } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
@@ -115,6 +115,10 @@ export default class Network {
       sizeType,
       width,
       height,
+      ownerId,
+      ownerName,
+      shareMode: shareMode || 'free',
+      sharedUsers: sharedUsers || [],
     })
     this.initialize()
   }

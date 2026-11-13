@@ -48,6 +48,17 @@ export function getInitialBackgroundMode() {
 
 export type MovementMode = 'mouse' | 'wasd' | 'joystick'
 
+export function getOrGenerateUserId(): string {
+  let uid = localStorage.getItem('skyoffice_user_id')
+  if (!uid) {
+    uid = 'usr_' + Math.random().toString(36).substring(2, 8).toUpperCase()
+    localStorage.setItem('skyoffice_user_id', uid)
+  }
+  return uid
+}
+
+const storedUserId = getOrGenerateUserId()
+
 // Đọc thông tin đã lưu trữ trước đó từ localStorage (Persistent Character Profile)
 const storedName = localStorage.getItem('skyoffice_player_name') || 'Guest'
 const storedAvatar = localStorage.getItem('skyoffice_avatar') || 'adam'
@@ -68,6 +79,7 @@ export const userSlice = createSlice({
   name: 'user',
   initialState: {
     backgroundMode: getInitialBackgroundMode(),
+    userId: storedUserId,
     sessionId: '',
     videoConnected: false,
     loggedIn: false,
@@ -94,6 +106,10 @@ export const userSlice = createSlice({
     },
     setSessionId: (state, action: PayloadAction<string>) => {
       state.sessionId = action.payload
+    },
+    setUserId: (state, action: PayloadAction<string>) => {
+      state.userId = action.payload
+      localStorage.setItem('skyoffice_user_id', action.payload)
     },
     setVideoConnected: (state, action: PayloadAction<boolean>) => {
       state.videoConnected = action.payload
@@ -213,6 +229,7 @@ export const userSlice = createSlice({
 export const {
   toggleBackgroundMode,
   setSessionId,
+  setUserId,
   setVideoConnected,
   setLoggedIn,
   setPlayerNameMap,
