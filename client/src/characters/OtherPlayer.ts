@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import Player, { extractBaseCharacterName } from './Player'
 import MyPlayer from './MyPlayer'
+import Chair from '../items/Chair'
 import { sittingShiftData } from './Player'
 import WebRTC from '../web/WebRTC'
 import { Event, phaserEvents } from '../events/EventCenter'
@@ -12,6 +13,7 @@ export default class OtherPlayer extends Player {
   private connectionBufferTime = 0
   private connected = false
   private myPlayer?: MyPlayer
+  private chairOnSit?: Chair
   skinColor = '#f5cfa0'
   hairColor = '#4a3728'
   outfitType: OutfitType = 'casual'
@@ -93,6 +95,7 @@ export default class OtherPlayer extends Player {
           } else if (this.anims.animationManager.exists(value)) {
             this.anims.play(value, true)
           }
+          this.syncChairOccupancy(animState === 'sit')
         }
         break
 
@@ -152,7 +155,45 @@ export default class OtherPlayer extends Player {
     }
   }
 
+  private syncChairOccupancy(isSitting: boolean) {
+    const gameScene = this.scene as any
+    if (!gameScene?.chairsGroup) return
+
+    if (isSitting) {
+      let closestChair: Chair | null = null
+      let minDist = 48
+      gameScene.chairsGroup.getChildren().forEach((c: any) => {
+        const ch = c as Chair
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, ch.x, ch.y)
+        if (dist < minDist) {
+          minDist = dist
+          closestChair = ch
+        }
+      })
+      if (closestChair) {
+        if (this.chairOnSit && this.chairOnSit !== closestChair) {
+          if (this.chairOnSit.occupiedBy === this.playerId) {
+            this.chairOnSit.occupiedBy = null
+            this.chairOnSit.clearDialogBox()
+          }
+        }
+        this.chairOnSit = closestChair
+        closestChair.occupiedBy = this.playerId
+        closestChair.clearDialogBox()
+      }
+    } else {
+      if (this.chairOnSit) {
+        if (this.chairOnSit.occupiedBy === this.playerId) {
+          this.chairOnSit.occupiedBy = null
+          this.chairOnSit.clearDialogBox()
+        }
+        this.chairOnSit = undefined
+      }
+    }
+  }
+
   destroy(fromScene?: boolean) {
+    this.syncChairOccupancy(false)
     this.playerContainer.destroy()
 
     super.destroy(fromScene)
@@ -175,15 +216,24 @@ export default class OtherPlayer extends Player {
 
     this.lastUpdateTimestamp = t
     this.setDepth(this.y) // change player.depth based on player.y
-    const animParts = this.anims.currentAnim.key.split('_')
-    const animState = animParts[animParts.length - 2]
-    if (animState === 'sit') {
+
+    const animKey = this.anims.currentAnim ? this.anims.currentAnim.key : ''
+    const animParts = animKey ? animKey.split('_') : []
+    const animState = animParts.length >= 2 ? animParts[animParts.length - 2] : ''
+    const isSitting = animState === 'sit'
+
+    if (isSitting) {
       const animDir = animParts[animParts.length - 1]
-      const sittingShift = sittingShiftData[animDir]
+      const sittingShift = (sittingShiftData as any)[animDir]
       if (sittingShift) {
         // set hardcoded depth (differs between directions) if player sits down
-        this.setDepth(this.depth + sittingShiftData[animDir][2])
+        this.setDepth(this.depth + sittingShift[2])
       }
+      if (!this.chairOnSit) {
+        this.syncChairOccupancy(true)
+      }
+    } else if (this.chairOnSit) {
+      this.syncChairOccupancy(false)
     }
 
     const speed = 200 // speed is in unit of pixels per second

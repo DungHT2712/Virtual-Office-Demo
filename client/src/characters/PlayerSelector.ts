@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import MyPlayer from './MyPlayer'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import Item from '../items/Item'
+import { ItemType } from '../../../types/Items'
 import { NavKeys } from '../../../types/KeyboardState'
 
 export default class PlayerSelector extends Phaser.GameObjects.Zone {
@@ -36,9 +37,12 @@ export default class PlayerSelector extends Phaser.GameObjects.Zone {
     }
 
     // while currently selecting an item,
-    // if the selector and selection item stop overlapping, clear the dialog box and selected item
+    // if the selector and selection item stop overlapping or if the chair became occupied,
+    // clear the dialog box and selected item
     if (this.selectedItem) {
-      if (!this.scene.physics.overlap(this, this.selectedItem)) {
+      const isChairOccupied =
+        this.selectedItem.itemType === ItemType.CHAIR && (this.selectedItem as any).occupiedBy
+      if (isChairOccupied || !this.scene.physics.overlap(this, this.selectedItem)) {
         this.selectedItem.clearDialogBox()
         this.selectedItem = undefined
       }

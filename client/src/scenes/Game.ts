@@ -106,12 +106,16 @@ export default class Game extends Phaser.Scene {
     // Bắt sự kiện phím R và E ngay lập tức khi vừa nhấn xuống (KeyDown event-driven)
     // Loại bỏ hoàn toàn độ trễ của cơ chế polling và triệt tiêu lỗi phải bấm 2 lần (double R)
     this.keyR.on('down', () => {
+      const state = store.getState()
+      if (state.chat.focused) return
       if (this.myPlayer && this.network) {
         this.myPlayer.interactR(this.network)
       }
     })
 
     this.keyE.on('down', () => {
+      const state = store.getState()
+      if (state.chat.focused) return
       if (this.myPlayer && this.network) {
         this.myPlayer.interactE(this.network)
       }
@@ -1888,6 +1892,18 @@ export default class Game extends Phaser.Scene {
 
   private handleItemSelectorOverlap(playerSelector: any, selectionItem: any) {
     let currentItem = playerSelector.selectedItem as Item
+
+    // Ghế đã có người ngồi (bản thân hoặc người khác) tuyệt đối không thể được chọn
+    if (selectionItem.itemType === ItemType.CHAIR) {
+      const chair = selectionItem as Chair
+      if (chair.occupiedBy) {
+        if (currentItem === chair) {
+          playerSelector.selectedItem = undefined
+        }
+        chair.clearDialogBox()
+        return
+      }
+    }
 
     // Khi người chơi đang ngồi trên ghế (SITTING):
     // 1. Tuyệt đối không chọn lại ghế (bao gồm ghế đang ngồi hoặc các ghế xung quanh)

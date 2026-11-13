@@ -89,7 +89,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 48,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -99,7 +99,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 49,
       end: 49,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -109,7 +109,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 50,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -119,7 +119,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 51,
       end: 51,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -209,7 +209,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 48,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -219,7 +219,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 49,
       end: 49,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -229,7 +229,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 50,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -239,7 +239,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 51,
       end: 51,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -329,7 +329,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 48,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -339,7 +339,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 49,
       end: 49,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -349,7 +349,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 50,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -359,7 +359,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 51,
       end: 51,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -449,7 +449,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 48,
       end: 48,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -459,7 +459,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 49,
       end: 49,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -469,7 +469,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 50,
       end: 50,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 
@@ -479,7 +479,7 @@ export const createCharacterAnims = (anims: Phaser.Animations.AnimationManager) 
       start: 51,
       end: 51,
     }),
-    repeat: 0,
+    repeat: -1,
     frameRate: animsFrameRate,
   })
 }

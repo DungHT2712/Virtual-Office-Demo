@@ -7,6 +7,7 @@ import Network from '../services/Network'
 import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
+import Item from '../items/Item'
 
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
@@ -76,53 +77,70 @@ export default class MyPlayer extends Player {
   }
 
   public sitOnChair(chairItem: Chair, network: Network) {
-    this.clearMovePath()
-    this.scene.time.addEvent({
-      delay: 10,
-      callback: () => {
-        this.setVelocity(0, 0)
-        if (chairItem.itemDirection) {
-          this.setPosition(
-            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-            chairItem.y + sittingShiftData[chairItem.itemDirection][1]
-          ).setDepth(chairItem.depth + sittingShiftData[chairItem.itemDirection][2])
-          this.playerContainer.setPosition(
-            chairItem.x + sittingShiftData[chairItem.itemDirection][0],
-            chairItem.y + sittingShiftData[chairItem.itemDirection][1] - 30
-          )
-        }
+    if (chairItem.occupiedBy && chairItem.occupiedBy !== this.playerId) return
 
-        this.play(`${this.playerTexture}_sit_${chairItem.itemDirection}`, true)
-        if (this.playerSelector) {
-          this.playerSelector.setPosition(this.x, this.y)
-          const body = this.playerSelector.body as Phaser.Physics.Arcade.Body
-          if (body) {
-            body.setSize(96, 96)
-            body.center.set(this.x, this.y)
-          }
-        }
-        network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
-      },
-      loop: false,
-    })
+    this.clearMovePath()
+    this.setVelocity(0, 0)
+
+    const dir = (chairItem.itemDirection as 'down' | 'left' | 'up' | 'right') || 'down'
+    const shift = (sittingShiftData as any)[dir] || [0, 3, 1]
+
+    this.setPosition(
+      chairItem.x + shift[0],
+      chairItem.y + shift[1]
+    ).setDepth(chairItem.depth + shift[2])
+
+    this.playerContainer.setPosition(
+      chairItem.x + shift[0],
+      chairItem.y + shift[1] - 30
+    )
+
+    const sitAnimKey = `${this.playerTexture}_sit_${dir}`
+    this.play(sitAnimKey, true)
+
     chairItem.clearDialogBox()
-    chairItem.setDialogBox('Press E to leave')
+    chairItem.occupiedBy = this.playerId
     this.chairOnSit = chairItem
     this.playerBehavior = PlayerBehavior.SITTING
-    if (this.playerSelector) this.playerSelector.selectedItem = undefined
+
+    if (this.playerSelector) {
+      this.playerSelector.setPosition(this.x, this.y)
+      const body = this.playerSelector.body as Phaser.Physics.Arcade.Body
+      if (body) {
+        body.setSize(96, 96)
+        body.center.set(this.x, this.y)
+      }
+      this.playerSelector.selectedItem = undefined
+    }
+
+    const currentAnimKey = this.anims.currentAnim ? this.anims.currentAnim.key : sitAnimKey
+    network.updatePlayer(this.x, this.y, currentAnimKey)
   }
 
   public standUpFromChair(network: Network) {
-    const parts = this.anims.currentAnim.key.split('_')
+    if (this.chairOnSit) {
+      if (this.chairOnSit.occupiedBy === this.playerId) {
+        this.chairOnSit.occupiedBy = null
+      }
+      this.chairOnSit.clearDialogBox()
+      this.chairOnSit = undefined
+    }
+
+    const currentKey = this.anims.currentAnim ? this.anims.currentAnim.key : `${this.playerTexture}_sit_down`
+    const parts = currentKey.split('_')
     parts[parts.length - 2] = 'idle'
-    this.play(parts.join('_'), true)
+    const idleAnimKey = parts.join('_')
+    this.play(idleAnimKey, true)
+
     this.playerBehavior = PlayerBehavior.IDLE
-    this.chairOnSit?.clearDialogBox()
-    this.chairOnSit = undefined
+    this.setDepth(this.y)
+
     if (this.playerSelector) {
       this.playerSelector.setPosition(this.x, this.y)
     }
-    network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+
+    const currentAnimKey = this.anims.currentAnim ? this.anims.currentAnim.key : idleAnimKey
+    network.updatePlayer(this.x, this.y, currentAnimKey)
   }
 
   public interactE(network: Network) {
@@ -132,13 +150,14 @@ export default class MyPlayer extends Player {
     }
 
     let chairItem = this.playerSelector?.selectedItem
-    if (!chairItem || chairItem.itemType !== ItemType.CHAIR) {
+    if (!chairItem || chairItem.itemType !== ItemType.CHAIR || (chairItem as Chair).occupiedBy) {
       const gameScene = this.scene as any
       if (gameScene?.chairsGroup) {
         let closestChair: Chair | null = null
         let minDist = 80
         gameScene.chairsGroup.getChildren().forEach((c: any) => {
           const ch = c as Chair
+          if (ch.occupiedBy) return
           const dist = Phaser.Math.Distance.Between(this.x, this.y, ch.x, ch.y)
           if (dist < minDist) {
             minDist = dist
@@ -150,7 +169,9 @@ export default class MyPlayer extends Player {
     }
 
     if (chairItem && chairItem.itemType === ItemType.CHAIR) {
-      this.sitOnChair(chairItem as Chair, network)
+      const chair = chairItem as Chair
+      if (chair.occupiedBy) return
+      this.sitOnChair(chair, network)
     }
   }
 
@@ -213,26 +234,18 @@ export default class MyPlayer extends Player {
     this.playerSelector = playerSelector
     if (!cursors) return
 
-    const item = playerSelector.selectedItem
-
-    const isEJustDown = Phaser.Input.Keyboard.JustDown(keyE) || this.virtualButtonE
-    const isRJustDown = Phaser.Input.Keyboard.JustDown(keyR) || this.virtualButtonR
-
-    this.virtualButtonE = false
-    this.virtualButtonR = false
-
-    if (isRJustDown) {
+    // Xử lý nút ảo E và R từ joystick cảm ứng trên thiết bị di động
+    if (this.virtualButtonE) {
+      this.virtualButtonE = false
+      this.interactE(network)
+    }
+    if (this.virtualButtonR) {
+      this.virtualButtonR = false
       this.interactR(network)
     }
 
     switch (this.playerBehavior) {
       case PlayerBehavior.IDLE:
-        // if press E in front of selected chair
-        if (isEJustDown) {
-          this.interactE(network)
-          return
-        }
-
         const movementMode = store.getState().user.movementMode
 
         let isManualMoving = false
@@ -335,9 +348,21 @@ export default class MyPlayer extends Player {
         break
 
       case PlayerBehavior.SITTING:
-        // back to idle if player press E while sitting
-        if (isEJustDown) {
-          this.standUpFromChair(network)
+        // Khóa hoàn toàn di chuyển khi đang ngồi
+        this.setVelocity(0, 0)
+        this.clearMovePath()
+
+        if (this.chairOnSit) {
+          const dir = (this.chairOnSit.itemDirection as 'down' | 'left' | 'up' | 'right') || 'down'
+          const shift = (sittingShiftData as any)[dir] || [0, 3, 1]
+          this.setPosition(this.chairOnSit.x + shift[0], this.chairOnSit.y + shift[1])
+          this.setDepth(this.chairOnSit.depth + shift[2])
+          this.playerContainer.setPosition(this.x, this.y - 30)
+
+          const sitAnimKey = `${this.playerTexture}_sit_${dir}`
+          if (!this.anims.currentAnim || this.anims.currentAnim.key !== sitAnimKey) {
+            this.play(sitAnimKey, true)
+          }
         }
         break
     }
