@@ -17,10 +17,10 @@ export default class PlayerUpdateCommand extends Command<IOfficeState, Payload> 
     const player = this.room.state.players.get(client.sessionId)
 
     if (!player) return
-    player.x = x
-    player.y = y
-    player.anim = anim
-    if (floor !== undefined) {
+    if (player.x !== x) player.x = x
+    if (player.y !== y) player.y = y
+    if (player.anim !== anim) player.anim = anim
+    if (floor !== undefined && player.floor !== floor) {
       player.floor = floor
     }
   }

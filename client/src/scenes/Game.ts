@@ -238,6 +238,7 @@ export default class Game extends Phaser.Scene {
       this.myPlayer.setPlayerStatus(userState.currentStatus.color, userState.currentStatus.name)
     }
     this.myPlayer.setCharacterCustomization(charAvatar, customization)
+    this.network.updatePlayer(spawnX, spawnY, this.myPlayer.anims.currentAnim.key)
     this.network.updatePlayerName(charName, customization, {
       statusColor: userState.currentStatus?.color || '#107c41',
       statusName: userState.currentStatus?.name || 'Sẵn sàng',
@@ -339,6 +340,31 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.ROOM_LAYOUT_ADDED, this.handleRoomLayoutAdded, this)
     phaserEvents.on(Event.ROOM_LAYOUT_REMOVED, this.handleRoomLayoutRemoved, this)
     phaserEvents.on(Event.DESIGN_MODE_TOGGLED, this.setDesignModeView, this)
+
+    // Dọn dẹp toàn bộ event listeners và entity khi Scene dừng lại (tránh leak và duplicate listeners)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.network.offPlayerJoined(this.handlePlayerJoined, this)
+      this.network.offPlayerLeft(this.handlePlayerLeft, this)
+      this.network.offMyPlayerReady(this.handleMyPlayerReady, this)
+      this.network.offMyPlayerVideoConnected(this.handleMyVideoConnected, this)
+      this.network.offPlayerUpdated(this.handlePlayerUpdated, this)
+      this.network.offItemUserAdded(this.handleItemUserAdded, this)
+      this.network.offItemUserRemoved(this.handleItemUserRemoved, this)
+      this.network.offChatMessageAdded(this.handleChatMessageAdded, this)
+
+      phaserEvents.off(Event.WORKSPACE_UPDATED)
+      phaserEvents.off(Event.FURNITURE_PLACED, this.handleFurniturePlaced, this)
+      phaserEvents.off(Event.FURNITURE_REMOVED, this.handleFurnitureRemoved, this)
+      phaserEvents.off(Event.ROOM_LAYOUT_ADDED, this.handleRoomLayoutAdded, this)
+      phaserEvents.off(Event.ROOM_LAYOUT_REMOVED, this.handleRoomLayoutRemoved, this)
+      phaserEvents.off(Event.DESIGN_MODE_TOGGLED, this.setDesignModeView, this)
+
+      this.otherPlayerMap.forEach((player) => {
+        this.otherPlayers.remove(player, true, true)
+        player.destroy()
+      })
+      this.otherPlayerMap.clear()
+    })
 
     // Hiệu ứng vòng tròn đánh dấu vị trí click chuột
     this.targetMarker = this.add.circle(0, 0, 8, 0x42eacb, 0.65)
@@ -1123,7 +1149,7 @@ export default class Game extends Phaser.Scene {
       if (state.user.movementMode !== 'mouse') return
       if (state.computer.computerDialogOpen || state.whiteboard.whiteboardDialogOpen) return
 
-      const footY = this.myPlayer.y + this.myPlayer.height * 0.25
+      const footY = this.myPlayer.y + this.myPlayer.height * 0.35
       const path = this.pathfinder.findPath(this.myPlayer.x, footY, worldPoint.x, worldPoint.y)
 
       if (path.length > 0) {
@@ -1282,9 +1308,10 @@ export default class Game extends Phaser.Scene {
    */
   rebuildPathfinder() {
     if (!this.map || !this.groundLayer) return
+    // Chỉ tính obstaclesGroup (bàn, tường, bình hoa, cây...) là vật cản thực sự có collider
+    // chairsGroup không có collider với người chơi nên để người chơi đi qua mượt mà giống như khi dùng WASD
     this.pathfinder = new Pathfinder(this.map, this.groundLayer, [
       this.obstaclesGroup,
-      this.chairsGroup,
     ])
   }
 
@@ -1960,6 +1987,16 @@ export default class Game extends Phaser.Scene {
   }
 
   private handlePlayerJoined(newPlayer: IPlayer, id: string) {
+    // Tránh duplicate player: nếu player đã tồn tại trong group/map thì xóa triệt để thực thể cũ
+    if (this.otherPlayerMap.has(id)) {
+      const existingPlayer = this.otherPlayerMap.get(id)
+      if (existingPlayer) {
+        this.otherPlayers.remove(existingPlayer, true, true)
+        existingPlayer.destroy()
+      }
+      this.otherPlayerMap.delete(id)
+    }
+
     const baseCharacter = extractBaseCharacterName(newPlayer.anim)
     const otherPlayer = this.add.otherPlayer(
       newPlayer.x,
@@ -2003,8 +2040,10 @@ export default class Game extends Phaser.Scene {
   private handlePlayerLeft(id: string) {
     if (this.otherPlayerMap.has(id)) {
       const otherPlayer = this.otherPlayerMap.get(id)
-      if (!otherPlayer) return
-      this.otherPlayers.remove(otherPlayer, true, true)
+      if (otherPlayer) {
+        this.otherPlayers.remove(otherPlayer, true, true)
+        otherPlayer.destroy()
+      }
       this.otherPlayerMap.delete(id)
     }
   }

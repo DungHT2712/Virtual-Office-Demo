@@ -209,8 +209,8 @@ export default class OtherPlayer extends Player {
       this.lastUpdateTimestamp = t
       this.x = this.targetPosition[0]
       this.y = this.targetPosition[1]
-      this.playerContainer.x = this.targetPosition[0]
-      this.playerContainer.y = this.targetPosition[1] - 30
+      this.body.reset(this.targetPosition[0], this.targetPosition[1])
+      this.playerContainer.setPosition(this.targetPosition[0], this.targetPosition[1] - 30)
       return
     }
 
@@ -263,7 +263,11 @@ export default class OtherPlayer extends Player {
 
     // update character velocity
     this.setVelocity(vx, vy)
-    this.body.velocity.setLength(speed)
+    if (vx !== 0 || vy !== 0) {
+      this.body.velocity.setLength(speed)
+    } else {
+      this.body.reset(this.x, this.y)
+    }
 
     // Neo cứng container theo OtherPlayer
     this.playerContainer.setPosition(this.x, this.y - 30)

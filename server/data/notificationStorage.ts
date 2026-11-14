@@ -101,6 +101,23 @@ export function removeNotificationsForWorkspace(workspaceId: string) {
   saveAllNotifications(all)
 }
 
+export function removeNotificationsForWorkspaceAndUser(
+  workspaceId: string,
+  workspaceName: string,
+  userId: string
+) {
+  const all = getAllNotifications().filter((n) => {
+    const isTargetWs =
+      n.workspaceId === workspaceId ||
+      n.workspaceName === workspaceName ||
+      (workspaceName && n.workspaceId === workspaceName) ||
+      (workspaceId && n.workspaceName === workspaceId)
+    const isTargetUser = n.targetUserId === userId || n.requesterId === userId
+    return !(isTargetWs && isTargetUser)
+  })
+  saveAllNotifications(all)
+}
+
 export function updateNotification(id: string, updates: Partial<NotificationItem>) {
   const all = getAllNotifications()
   const idx = all.findIndex((n) => n.id === id)

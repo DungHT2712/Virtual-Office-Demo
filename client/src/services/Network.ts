@@ -42,6 +42,7 @@ export default class Network {
   private client: Client
   private room?: Room<IOfficeState>
   private lobby!: Room
+  private joinedPlayers = new Set<string>()
   webRTC?: WebRTC
 
   mySessionId!: string
@@ -49,10 +50,9 @@ export default class Network {
   constructor() {
     const protocol = window.location.protocol.replace('http', 'ws')
     const endpoint =
-      process.env.NODE_ENV === 'production'
-        ? import.meta.env.VITE_SERVER_URL
-        : `${protocol}//${window.location.hostname}:2567`
-    this.client = new Client(endpoint || `${protocol}//${window.location.hostname}:2567`)
+      import.meta.env.VITE_SERVER_URL ||
+      `${protocol}//${window.location.hostname}:2567`
+    this.client = new Client(endpoint)
     this.joinLobbyRoom()
       .then(() => {
         store.dispatch(setLobbyJoined(true))
@@ -125,6 +125,7 @@ export default class Network {
 
   // Rời khỏi phòng hiện tại và quay về sảnh chính (Lobby)
   async leaveRoom() {
+    this.joinedPlayers.clear()
     if (this.webRTC) {
       this.webRTC.destroy()
       this.webRTC = undefined
@@ -150,14 +151,30 @@ export default class Network {
   initialize() {
     if (!this.room) return
 
+    this.joinedPlayers.clear()
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))
     this.webRTC = new WebRTC(this.mySessionId, this)
 
+    const handlePlayerJoin = (player: IPlayer, key: string) => {
+      if (this.joinedPlayers.has(key)) return
+      this.joinedPlayers.add(key)
+      phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+      store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+      if (player.name) {
+        store.dispatch(pushPlayerJoinedMessage(player.name))
+      }
+    }
+
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
       if (key === this.mySessionId) return
+
+      // Nếu người chơi này đã có tên hợp lệ (đã tham gia phòng trước đó)
+      if (player.name && player.name !== '') {
+        handlePlayerJoin(player, key)
+      }
 
       // track changes on every child object inside the players MapSchema
       player.onChange = (changes) => {
@@ -167,16 +184,27 @@ export default class Network {
 
           // when a new player finished setting up player name
           if (field === 'name' && value !== '') {
-            phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
+            if (!this.joinedPlayers.has(key)) {
+              handlePlayerJoin(player, key)
+            } else {
+              store.dispatch(setPlayerNameMap({ id: key, name: value }))
+            }
           }
         })
       }
     }
 
+    // Kiểm tra đồng bộ các người chơi đã có sẵn trong MapSchema khi join vào phòng
+    this.room.state.players.forEach((player: IPlayer, key: string) => {
+      if (key === this.mySessionId) return
+      if (player.name && player.name !== '') {
+        handlePlayerJoin(player, key)
+      }
+    })
+
     // an instance removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+      this.joinedPlayers.delete(key)
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
@@ -392,9 +420,20 @@ export default class Network {
     phaserEvents.on(Event.ITEM_USER_REMOVED, callback, context)
   }
 
+  offItemUserRemoved(
+    callback: (playerId: string, key: string, itemType: ItemType) => void,
+    context?: any
+  ) {
+    phaserEvents.off(Event.ITEM_USER_REMOVED, callback, context)
+  }
+
   // method to register event listener and call back function when a player joined
   onPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {
     phaserEvents.on(Event.PLAYER_JOINED, callback, context)
+  }
+
+  offPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {
+    phaserEvents.off(Event.PLAYER_JOINED, callback, context)
   }
 
   // method to register event listener and call back function when a player left
@@ -402,14 +441,26 @@ export default class Network {
     phaserEvents.on(Event.PLAYER_LEFT, callback, context)
   }
 
+  offPlayerLeft(callback: (key: string) => void, context?: any) {
+    phaserEvents.off(Event.PLAYER_LEFT, callback, context)
+  }
+
   // method to register event listener and call back function when myPlayer is ready to connect
   onMyPlayerReady(callback: (key: string) => void, context?: any) {
     phaserEvents.on(Event.MY_PLAYER_READY, callback, context)
   }
 
+  offMyPlayerReady(callback: (key: string) => void, context?: any) {
+    phaserEvents.off(Event.MY_PLAYER_READY, callback, context)
+  }
+
   // method to register event listener and call back function when my video is connected
   onMyPlayerVideoConnected(callback: (key: string) => void, context?: any) {
     phaserEvents.on(Event.MY_PLAYER_VIDEO_CONNECTED, callback, context)
+  }
+
+  offMyPlayerVideoConnected(callback: (key: string) => void, context?: any) {
+    phaserEvents.off(Event.MY_PLAYER_VIDEO_CONNECTED, callback, context)
   }
 
   // method to register event listener and call back function when a player updated
@@ -418,6 +469,24 @@ export default class Network {
     context?: any
   ) {
     phaserEvents.on(Event.PLAYER_UPDATED, callback, context)
+  }
+
+  offPlayerUpdated(
+    callback: (field: string, value: number | string, key: string) => void,
+    context?: any
+  ) {
+    phaserEvents.off(Event.PLAYER_UPDATED, callback, context)
+  }
+
+  offChatMessageAdded(callback: (playerId: string, content: string) => void, context?: any) {
+    phaserEvents.off(Event.UPDATE_DIALOG_BUBBLE, callback, context)
+  }
+
+  offItemUserAdded(
+    callback: (playerId: string, key: string, itemType: ItemType) => void,
+    context?: any
+  ) {
+    phaserEvents.off(Event.ITEM_USER_ADDED, callback, context)
   }
 
   // method to send player updates to Colyseus server

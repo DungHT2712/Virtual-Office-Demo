@@ -250,6 +250,15 @@ export const CustomRoomTable = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [targetDeleteRoom, setTargetDeleteRoom] = useState<{ id: string; name: string } | null>(null)
 
+  // Remove from Shared Dialog State
+  const [removeSharedDialogOpen, setRemoveSharedDialogOpen] = useState(false)
+  const [targetRemoveSharedRoom, setTargetRemoveSharedRoom] = useState<{
+    id: string
+    name: string
+    roomId: string
+    metadataId?: string
+  } | null>(null)
+
   // Share Dialog State
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [targetShareRoom, setTargetShareRoom] = useState<WorkspaceDisplayItem | null>(null)
@@ -336,7 +345,18 @@ export const CustomRoomTable = () => {
     serverWorkspaces.forEach((sw) => {
       const id = sw.id || sw.name
       if (!id) return
-      const activeRoom = map.get(id) || map.get(sw.name) || map.get(sw.id)
+      let activeRoom: WorkspaceDisplayItem | undefined
+      if (sw.id && map.has(sw.id)) {
+        activeRoom = map.get(sw.id)
+      } else if (sw.name) {
+        for (const [key, val] of map.entries()) {
+          if (val.name === sw.name || val.metadata?.name === sw.name) {
+            activeRoom = val
+            map.delete(key) // Xóa key cũ để không bị duplicate phòng
+            break
+          }
+        }
+      }
       map.set(id, {
         roomId: id,
         name: sw.name || activeRoom?.name || id,
@@ -417,15 +437,20 @@ export const CustomRoomTable = () => {
     }
 
     // 1. Kiểm tra nếu là workspace do mình tạo
-    const isOwn = myWorkspaces.some((w) => w.roomId === queryId || w.name === queryId)
+    const isOwn = myWorkspaces.some(
+      (w) => w.roomId === queryId || w.name === queryId || w.metadata?.id === queryId
+    )
     if (isOwn) {
       setSnackbar({ open: true, message: 'Đây là Workspace do chính bạn tạo!', severity: 'info' })
       setSearchWorkspaceId('')
       return
     }
 
-    // 2. Kiểm tra nếu đã có trong danh sách shared
-    if (sharedWorkspaceIds.includes(queryId)) {
+    // 2. Kiểm tra nếu phòng này ĐANG THỰC SỰ HIỂN THỊ trong danh sách shared của người dùng
+    const alreadyInShared = sharedWorkspaces.some(
+      (w) => w.roomId === queryId || w.name === queryId || w.metadata?.id === queryId
+    )
+    if (alreadyInShared) {
       setSnackbar({ open: true, message: 'Workspace này đã có trong danh sách của bạn!', severity: 'info' })
       setSearchWorkspaceId('')
       return
@@ -448,6 +473,20 @@ export const CustomRoomTable = () => {
       const foundWs = data.workspace
       const targetId = foundWs.id || queryId
       const shareMode = foundWs.shareMode || 'free'
+
+      // Kiểm tra lại nếu workspace tìm được là của chính mình
+      if (myWorkspaces.some((w) => w.roomId === foundWs.id || w.name === foundWs.name)) {
+        setSnackbar({ open: true, message: 'Đây là Workspace do chính bạn tạo!', severity: 'info' })
+        setSearchWorkspaceId('')
+        return
+      }
+
+      // Kiểm tra lại nếu workspace tìm được đang có mặt trong danh sách shared
+      if (sharedWorkspaces.some((w) => w.roomId === foundWs.id || w.name === foundWs.name)) {
+        setSnackbar({ open: true, message: 'Workspace này đã có trong danh sách của bạn!', severity: 'info' })
+        setSearchWorkspaceId('')
+        return
+      }
 
       // Lưu vào danh sách Shared của người dùng
       const updatedShared = [...new Set([...sharedWorkspaceIds, targetId])]
@@ -509,13 +548,51 @@ export const CustomRoomTable = () => {
     }
   }
 
-  // Xử lý Xóa Workspace khỏi Shared list
-  const handleRemoveFromShared = (roomId: string) => {
-    const updated = sharedWorkspaceIds.filter((id) => id !== roomId)
-    setSharedWorkspaceIds(updated)
-    localStorage.setItem('skyoffice_shared_workspace_ids', JSON.stringify(updated))
-    window.dispatchEvent(new CustomEvent('skyoffice_shared_workspaces_updated'))
-    setSnackbar({ open: true, message: 'Đã xóa Workspace khỏi danh sách của bạn', severity: 'info' })
+  // Xử lý Mở dialog Xác nhận Xóa Workspace khỏi Shared list
+  const handleOpenRemoveSharedDialog = (ws: WorkspaceDisplayItem) => {
+    setTargetRemoveSharedRoom({
+      id: ws.roomId,
+      name: ws.name,
+      roomId: ws.roomId,
+      metadataId: ws.metadata?.id,
+    })
+    setRemoveSharedDialogOpen(true)
+  }
+
+  // Xử lý Xác nhận Xóa Workspace khỏi Shared list
+  const handleConfirmRemoveShared = async () => {
+    if (!targetRemoveSharedRoom) return
+    const { id, name, roomId, metadataId } = targetRemoveSharedRoom
+    setRemoveSharedDialogOpen(false)
+    setTargetRemoveSharedRoom(null)
+
+    try {
+      const idsToRemove = new Set([id, name, roomId, metadataId].filter(Boolean) as string[])
+      const updated = sharedWorkspaceIds.filter((item) => !idsToRemove.has(item))
+      setSharedWorkspaceIds(updated)
+      localStorage.setItem('skyoffice_shared_workspace_ids', JSON.stringify(updated))
+
+      await fetch(`/api/workspaces/${encodeURIComponent(roomId || id)}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId }),
+      })
+
+      window.dispatchEvent(new CustomEvent('skyoffice_shared_workspaces_updated'))
+      await fetchServerWorkspaces()
+      setSnackbar({
+        open: true,
+        message: `Đã xóa Workspace "${name}" khỏi danh sách của bạn`,
+        severity: 'info',
+      })
+    } catch (e) {
+      console.error('Error removing from shared list:', e)
+      setSnackbar({
+        open: true,
+        message: 'Có lỗi xảy ra khi xóa workspace khỏi danh sách',
+        severity: 'error',
+      })
+    }
   }
 
   // Xử lý Mở dialog Share
@@ -565,9 +642,21 @@ export const CustomRoomTable = () => {
         setShareDialogOpen(false)
         window.dispatchEvent(new CustomEvent('skyoffice_shared_workspaces_updated'))
         await fetchServerWorkspaces()
+      } else {
+        const data = await res.json().catch(() => null)
+        setSnackbar({
+          open: true,
+          message: data?.message || 'Không thể cập nhật chế độ chia sẻ!',
+          severity: 'error',
+        })
       }
     } catch (e) {
       console.error('Failed to update share mode:', e)
+      setSnackbar({
+        open: true,
+        message: 'Có lỗi xảy ra khi cập nhật chế độ chia sẻ',
+        severity: 'error',
+      })
     }
   }
 
@@ -596,8 +685,10 @@ export const CustomRoomTable = () => {
     setTargetDeleteRoom(null)
 
     try {
-      const query = nameToDelete ? `?name=${encodeURIComponent(nameToDelete)}` : ''
-      await fetch(`/api/workspaces/${idToDelete}${query}`, { method: 'DELETE' }).catch(() => null)
+      const params = new URLSearchParams()
+      if (nameToDelete) params.append('name', nameToDelete)
+      params.append('requesterId', currentUserId)
+      await fetch(`/api/workspaces/${idToDelete}?${params.toString()}`, { method: 'DELETE' }).catch(() => null)
     } catch (e) {
       console.error('Error deleting workspace on server:', e)
     }
@@ -885,7 +976,13 @@ export const CustomRoomTable = () => {
                         )}
 
                         {/* 2. Nút SHARE */}
-                        <Tooltip title="Chia sẻ Workspace ID và quản lý chế độ Free / Ask to Join">
+                        <Tooltip
+                          title={
+                            isOwner
+                              ? 'Chia sẻ Workspace ID và quản lý chế độ Free / Ask to Join'
+                              : 'Copy mã Workspace ID để chia sẻ'
+                          }
+                        >
                           <Button
                             variant="outlined"
                             size="small"
@@ -948,7 +1045,7 @@ export const CustomRoomTable = () => {
                                 fontSize: '11px',
                                 '&:hover': { borderColor: '#ef4444', color: '#f87171' },
                               }}
-                              onClick={() => handleRemoveFromShared(roomId)}
+                              onClick={() => handleOpenRemoveSharedDialog(ws)}
                             >
                               Xóa khỏi list
                             </Button>
@@ -1013,49 +1110,78 @@ export const CustomRoomTable = () => {
             </div>
           </div>
 
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
-              Chế độ tham gia (Share Mode):
-            </div>
-            <FormControl component="fieldset">
-              <RadioGroup
-                value={selectedShareMode}
-                onChange={(e) => setSelectedShareMode(e.target.value as 'free' | 'ask')}
-              >
-                <FormControlLabel
-                  value="free"
-                  disabled={targetShareRoom?.ownerId !== currentUserId}
-                  control={<Radio sx={{ color: '#38bdf8', '&.Mui-checked': { color: '#38bdf8' } }} />}
-                  label={
-                    <div>
-                      <b style={{ color: '#f8fafc' }}>Free</b>{' '}
-                      <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-                        — Tự do gia nhập nếu có Workspace ID
-                      </span>
-                    </div>
-                  }
-                />
-                <FormControlLabel
-                  value="ask"
-                  disabled={targetShareRoom?.ownerId !== currentUserId}
-                  control={<Radio sx={{ color: '#f59e0b', '&.Mui-checked': { color: '#f59e0b' } }} />}
-                  label={
-                    <div>
-                      <b style={{ color: '#f8fafc' }}>Ask To Join</b>{' '}
-                      <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-                        — Cần hỏi và xác nhận của chủ phòng để vào workspace
-                      </span>
-                    </div>
-                  }
-                />
-              </RadioGroup>
-            </FormControl>
-            {targetShareRoom?.ownerId !== currentUserId && (
-              <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
-                * Chỉ chủ sở hữu Workspace mới có quyền đổi chế độ Free / Ask To Join.
+          {/* Chỉ chủ sở hữu mới có quyền thay đổi shareMode, người khác chỉ copy được mã */}
+          {targetShareRoom?.ownerId === currentUserId ? (
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>
+                Chế độ tham gia (Share Mode):
               </div>
-            )}
-          </div>
+              <FormControl component="fieldset">
+                <RadioGroup
+                  value={selectedShareMode}
+                  onChange={(e) => setSelectedShareMode(e.target.value as 'free' | 'ask')}
+                >
+                  <FormControlLabel
+                    value="free"
+                    control={<Radio sx={{ color: '#38bdf8', '&.Mui-checked': { color: '#38bdf8' } }} />}
+                    label={
+                      <div>
+                        <b style={{ color: '#f8fafc' }}>Free</b>{' '}
+                        <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                          — Tự do gia nhập nếu có Workspace ID
+                        </span>
+                      </div>
+                    }
+                  />
+                  <FormControlLabel
+                    value="ask"
+                    control={<Radio sx={{ color: '#f59e0b', '&.Mui-checked': { color: '#f59e0b' } }} />}
+                    label={
+                      <div>
+                        <b style={{ color: '#f8fafc' }}>Ask To Join</b>{' '}
+                        <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                          — Cần hỏi và xác nhận của chủ phòng để vào workspace
+                        </span>
+                      </div>
+                    }
+                  />
+                </RadioGroup>
+              </FormControl>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: 6 }}>
+                Chế độ tham gia hiện tại:
+              </div>
+              <div>
+                <Chip
+                  label={
+                    targetShareRoom?.shareMode === 'ask'
+                      ? 'Ask To Join (Cần duyệt)'
+                      : 'Free (Tự do tham gia)'
+                  }
+                  size="small"
+                  sx={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    backgroundColor:
+                      targetShareRoom?.shareMode === 'ask'
+                        ? 'rgba(245, 158, 11, 0.15)'
+                        : 'rgba(34, 197, 94, 0.15)',
+                    color: targetShareRoom?.shareMode === 'ask' ? '#fbbf24' : '#4ade80',
+                    border: `1px solid ${
+                      targetShareRoom?.shareMode === 'ask'
+                        ? 'rgba(245, 158, 11, 0.3)'
+                        : 'rgba(34, 197, 94, 0.3)'
+                    }`,
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic', marginTop: 8 }}>
+                * Bạn chỉ có thể copy mã Workspace ID để chia sẻ. Chỉ chủ workspace mới có quyền cập nhật chế độ chia sẻ.
+              </div>
+            </div>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button
@@ -1164,6 +1290,62 @@ export const CustomRoomTable = () => {
               textTransform: 'none',
               px: 2.5,
               '&:hover': { background: '#b91c1c' },
+            }}
+          >
+            Xác Nhận Xóa
+          </Button>
+        </DialogActions>
+      </StyledDialog>
+
+      {/* DIALOG XÁC NHẬN XÓA WORKSPACE KHỎI DANH SÁCH (NGƯỜI ĐƯỢC SHARE) */}
+      <StyledDialog
+        open={removeSharedDialogOpen}
+        onClose={() => setRemoveSharedDialogOpen(false)}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 800,
+            color: '#38bdf8',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            fontSize: '18px',
+          }}
+        >
+          <LogoutIcon fontSize="medium" /> Xác Nhận Xóa Khỏi Danh Sách?
+        </DialogTitle>
+        <DialogContent sx={{ py: 1.5 }}>
+          <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: 1.6, margin: 0 }}>
+            Bạn có chắc chắn muốn xóa Workspace{' '}
+            <b style={{ color: '#38bdf8' }}>"{targetRemoveSharedRoom?.name}"</b> khỏi danh sách của bạn không?
+          </p>
+          <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: 8, marginBottom: 0 }}>
+            * Thao tác này chỉ gỡ Workspace khỏi danh sách của bạn và hoàn toàn không ảnh hưởng đến Workspace gốc của chủ phòng.
+          </p>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1 }}>
+          <Button
+            onClick={() => setRemoveSharedDialogOpen(false)}
+            variant="outlined"
+            sx={{
+              color: '#94a3b8',
+              borderColor: 'rgba(255, 255, 255, 0.2)',
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Hủy Bỏ
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmRemoveShared}
+            sx={{
+              background: '#ef4444',
+              color: '#ffffff',
+              fontWeight: 700,
+              textTransform: 'none',
+              px: 2.5,
+              '&:hover': { background: '#dc2626' },
             }}
           >
             Xác Nhận Xóa

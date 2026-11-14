@@ -19,6 +19,7 @@ import {
   markAllNotificationsAsReadForUser,
   clearNotificationsForUser,
   removeNotificationsForWorkspace,
+  removeNotificationsForWorkspaceAndUser,
 } from './data/notificationStorage'
 
 import { SkyOffice } from './rooms/SkyOffice'
@@ -99,19 +100,72 @@ app.post('/api/workspaces/:id/share-mode', (req, res) => {
   }
 
   const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const currentOwner = ws?.ownerId || active?.metadata?.ownerId
+
+  // Chỉ có chủ workspace mới được cập nhật share mode
+  if (currentOwner && ownerId && currentOwner !== ownerId) {
+    return res.status(403).json({
+      success: false,
+      message: 'Chỉ có chủ workspace mới có quyền cập nhật chế độ chia sẻ (share mode)!',
+    })
+  }
+
   const updates: any = { shareMode }
-  if (ownerId && (!ws?.ownerId || ws.ownerId === ownerId)) {
+  if (ownerId && (!currentOwner || currentOwner === ownerId)) {
     updates.ownerId = ownerId
     if (ownerName) updates.ownerName = ownerName
   }
 
-  const updated = updateWorkspace(id, updates)
-  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+  const updated = updateWorkspace(targetId, updates)
   if (active && typeof active.setMetadata === 'function') {
     active.setMetadata({ ...active.metadata, ...updates })
   }
 
   res.json({ success: true, shareMode, workspace: updated ? sanitizeWorkspace(updated) : null })
+})
+
+// POST /api/workspaces/:id/leave: Người được share xóa workspace khỏi danh sách của mình (không xóa workspace gốc)
+app.post('/api/workspaces/:id/leave', (req, res) => {
+  const { id } = req.params
+  const { userId } = req.body
+  if (!userId) {
+    return res.status(400).json({ success: false, message: 'Thiếu userId' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+  const targetName = ws?.name || active?.metadata?.name || id
+
+  let sharedUsers = ws?.sharedUsers
+    ? [...ws.sharedUsers]
+    : active?.metadata?.sharedUsers
+    ? [...active.metadata.sharedUsers]
+    : []
+  let pendingRequests = ws?.pendingRequests
+    ? [...ws.pendingRequests]
+    : active?.metadata?.pendingRequests
+    ? [...active.metadata.pendingRequests]
+    : []
+
+  sharedUsers = sharedUsers.filter((u) => u !== userId)
+  pendingRequests = pendingRequests.filter((r) => r.userId !== userId)
+
+  const updates = { sharedUsers, pendingRequests }
+  updateWorkspace(targetId, updates)
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, updates)
+  }
+  if (active && typeof active.setMetadata === 'function') {
+    active.setMetadata({ ...active.metadata, ...updates })
+  }
+
+  // Dọn dẹp mọi thông báo gia nhập liên quan giữa user này và workspace này
+  removeNotificationsForWorkspaceAndUser(targetId, targetName, userId)
+
+  res.json({ success: true, message: 'Đã xóa workspace khỏi danh sách của bạn' })
 })
 
 // POST /api/workspaces/:id/claim: Đồng bộ quyền chủ sở hữu từ client
@@ -371,6 +425,22 @@ app.post('/api/notifications/clear', (req, res) => {
 const deleteWorkspaceHandler = async (req: express.Request, res: express.Response) => {
   const { id } = req.params
   const name = (req.query.name as string) || (req.body && req.body.name)
+  const requesterId =
+    (req.query.requesterId as string) ||
+    (req.body && req.body.requesterId) ||
+    (req.body && req.body.ownerId)
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const currentOwner = ws?.ownerId || active?.metadata?.ownerId
+
+  // Nếu workspace đã có chủ sở hữu và requesterId được cung cấp nhưng không khớp, từ chối xóa workspace gốc
+  if (currentOwner && requesterId && currentOwner !== requesterId) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'Chỉ có chủ sở hữu mới có quyền xóa workspace này' })
+  }
+
   removeWorkspace(id)
   if (name) removeWorkspace(name)
   removeNotificationsForWorkspace(id)

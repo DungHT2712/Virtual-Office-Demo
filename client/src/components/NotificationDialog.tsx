@@ -257,9 +257,9 @@ export default function NotificationDialog({
             new CustomEvent('skyoffice_unread_count_updated', { detail: { count: unreadOrPending } })
           )
 
-          // 1. Tự động thêm workspace đã được duyệt vào shared list của requester
+          // 1. Tự động thêm workspace đã được duyệt vào shared list của requester (chỉ khi thông báo chưa đọc / mới đến)
           data.notifications.forEach((n: NotificationItem) => {
-            if (n.type === 'join_accepted' && n.workspaceId) {
+            if (n.type === 'join_accepted' && n.workspaceId && n.status !== 'read') {
               try {
                 const storedShared = JSON.parse(
                   localStorage.getItem('skyoffice_shared_workspace_ids') || '[]'

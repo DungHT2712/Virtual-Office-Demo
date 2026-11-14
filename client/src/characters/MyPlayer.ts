@@ -23,6 +23,7 @@ export default class MyPlayer extends Player {
   private chairOnSit?: Chair
   public joystickMovement?: JoystickMovement
   private pathWaypoints: GridPoint[] = []
+  private lastPos?: { x: number; y: number; stuckFrames: number }
 
   public virtualButtonE: boolean = false
   public virtualButtonR: boolean = false
@@ -64,6 +65,7 @@ export default class MyPlayer extends Player {
 
   clearMovePath() {
     this.pathWaypoints = []
+    this.lastPos = undefined
   }
 
   setCharacterCustomization(texture: string, config: IAvatarCustomization) {
@@ -294,16 +296,38 @@ export default class MyPlayer extends Player {
           }
         } else if (this.pathWaypoints.length > 0 && movementMode === 'mouse') {
           const target = this.pathWaypoints[0]
+          const footY = this.y + this.height * 0.35
           const dx = target.x - this.x
-          const dy = target.y - (this.y + this.height * 0.25)
+          const dy = target.y - footY
           const dist = Math.hypot(dx, dy)
           const isFinal = this.pathWaypoints.length === 1
-          const reachThreshold = isFinal ? 8 : 12
+          // Điểm trung gian dùng ngưỡng 16px (nửa tile) để rẽ góc cua và luồn qua khe hẹp mượt mà
+          const reachThreshold = isFinal ? 8 : 16
 
-          if (dist <= reachThreshold) {
+          // Kiểm tra nếu nhân vật bị kẹt (vận tốc bị physics cản lại ở góc hẹp)
+          if (!this.lastPos) {
+            this.lastPos = { x: this.x, y: this.y, stuckFrames: 0 }
+          }
+          const movedDist = Math.hypot(this.x - this.lastPos.x, this.y - this.lastPos.y)
+          if (movedDist < 0.25) {
+            this.lastPos.stuckFrames++
+          } else {
+            this.lastPos.stuckFrames = 0
+            this.lastPos.x = this.x
+            this.lastPos.y = this.y
+          }
+
+          // Nếu cọ sát góc tường trong khe hẹp và đã gần waypoint (< 24px), chuyển sang waypoint tiếp theo
+          const isStuckNear = !isFinal && this.lastPos.stuckFrames >= 6 && dist < 24
+          const isStuckFar = this.lastPos.stuckFrames >= 15
+
+          if (dist <= reachThreshold || isStuckNear || isStuckFar) {
+            this.lastPos.stuckFrames = 0
             this.pathWaypoints.shift()
             if (this.pathWaypoints.length === 0) {
-              this.setPosition(target.x, target.y - this.height * 0.25)
+              if (!isStuckFar) {
+                this.setPosition(target.x, target.y - this.height * 0.35)
+              }
               this.setVelocity(0, 0)
               const parts = this.anims.currentAnim.key.split('_')
               parts[parts.length - 2] = 'idle'
