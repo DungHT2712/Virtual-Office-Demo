@@ -11,8 +11,6 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
 import Button from '@mui/material/Button'
 import ShareIcon from '@mui/icons-material/Share'
-import LightModeIcon from '@mui/icons-material/LightMode'
-import DarkModeIcon from '@mui/icons-material/DarkMode'
 import CloseIcon from '@mui/icons-material/Close'
 import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
@@ -24,10 +22,11 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import HomeIcon from '@mui/icons-material/Home'
 import CameraAltIcon from '@mui/icons-material/CameraAlt'
 import NotificationsIcon from '@mui/icons-material/Notifications'
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import Badge from '@mui/material/Badge'
 
-import { BackgroundMode } from '../../../types/BackgroundMode'
-import { MovementMode, setMovementMode, toggleBackgroundMode, setLoggedIn } from '../stores/UserStore'
+import { MovementMode, setMovementMode, setLoggedIn } from '../stores/UserStore'
 import { setRoomJoined } from '../stores/RoomStore'
 import { openDesignMode, closeDesignMode } from '../stores/WorkspaceStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
@@ -91,7 +90,23 @@ const Wrapper = styled.div`
 
 const ButtonGroup = styled.div`
   display: flex;
+  align-items: center;
   gap: 10px;
+`
+
+const FunctionButtonsWrapper = styled.div<{ $collapsed: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  max-width: ${(props) => (props.$collapsed ? '0px' : '650px')};
+  opacity: ${(props) => (props.$collapsed ? 0 : 1)};
+  transform: ${(props) => (props.$collapsed ? 'scale(0.85)' : 'scale(1)')};
+  transform-origin: right center;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease,
+    transform 0.25s ease;
+  pointer-events: ${(props) => (props.$collapsed ? 'none' : 'auto')};
 `
 
 const Title = styled.h3`
@@ -134,12 +149,12 @@ const StyledFab = styled(Fab)`
 `
 
 export default function HelperButtonGroup() {
+  const [collapsed, setCollapsed] = useState(false)
   const [showRoomInfo, setShowRoomInfo] = useState(false)
   const [showStatusDialog, setShowStatusDialog] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-  const backgroundMode = useAppSelector((state) => state.user.backgroundMode)
   const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
   const roomId = useAppSelector((state) => state.room.roomId)
@@ -232,186 +247,209 @@ export default function HelperButtonGroup() {
       </div>
 
       <ButtonGroup>
-        {roomJoined && (
-          <>
-            {/* NÚT CHUYỂN ĐỔI MOVEMENT MODE NHANH */}
-            <Tooltip
-              title={`Chế độ di chuyển: ${
-                movementMode === 'mouse'
-                  ? 'Click Chuột'
-                  : movementMode === 'wasd'
-                  ? 'Phím WASD'
-                  : 'Joystick'
-              } (Bấm để đổi)`}
-            >
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  const modes: MovementMode[] = ['mouse', 'wasd', 'joystick']
-                  const nextMode = modes[(modes.indexOf(movementMode) + 1) % modes.length]
-                  dispatch(setMovementMode(nextMode))
-                }}
-                sx={{
-                  background:
-                    movementMode === 'mouse'
-                      ? '#0891b2'
-                      : movementMode === 'wasd'
-                      ? '#2563eb'
-                      : '#9333ea',
-                  color: '#ffffff',
-                  '&:hover': {
+        <FunctionButtonsWrapper $collapsed={collapsed}>
+          {roomJoined && (
+            <>
+              {/* NÚT CHUYỂN ĐỔI MOVEMENT MODE NHANH */}
+              <Tooltip
+                title={`Chế độ di chuyển: ${
+                  movementMode === 'mouse'
+                    ? 'Click Chuột'
+                    : movementMode === 'wasd'
+                    ? 'Phím WASD'
+                    : 'Joystick'
+                } (Bấm để đổi)`}
+              >
+                <StyledFab
+                  size="small"
+                  onClick={() => {
+                    const modes: MovementMode[] = ['mouse', 'wasd', 'joystick']
+                    const nextMode = modes[(modes.indexOf(movementMode) + 1) % modes.length]
+                    dispatch(setMovementMode(nextMode))
+                  }}
+                  sx={{
                     background:
                       movementMode === 'mouse'
-                        ? '#0e7490'
+                        ? '#0891b2'
                         : movementMode === 'wasd'
-                        ? '#1d4ed8'
-                        : '#7e22ce',
-                  },
-                }}
-              >
-                {movementMode === 'mouse' && <NearMeIcon />}
-                {movementMode === 'wasd' && <KeyboardIcon />}
-                {movementMode === 'joystick' && <VideogameAssetIcon />}
-              </StyledFab>
-            </Tooltip>
+                        ? '#2563eb'
+                        : '#9333ea',
+                    color: '#ffffff',
+                    '&:hover': {
+                      background:
+                        movementMode === 'mouse'
+                          ? '#0e7490'
+                          : movementMode === 'wasd'
+                          ? '#1d4ed8'
+                          : '#7e22ce',
+                    },
+                  }}
+                >
+                  {movementMode === 'mouse' && <NearMeIcon />}
+                  {movementMode === 'wasd' && <KeyboardIcon />}
+                  {movementMode === 'joystick' && <VideogameAssetIcon />}
+                </StyledFab>
+              </Tooltip>
 
-            {/* NÚT QUAY VỀ TRANG CHỦ / RỜI WORKSPACE */}
-            <Tooltip title="Rời Workspace (Quay Về Trang Chủ)">
-              <StyledFab
-                size="small"
-                onClick={() => setShowLeaveConfirm(true)}
-                sx={{
-                  background: '#f97316',
-                  color: '#ffffff',
-                  '&:hover': { background: '#ea580c' },
-                }}
-              >
-                <HomeIcon />
-              </StyledFab>
-            </Tooltip>
+              {/* NÚT QUAY VỀ TRANG CHỦ / RỜI WORKSPACE */}
+              <Tooltip title="Rời Workspace (Quay Về Trang Chủ)">
+                <StyledFab
+                  size="small"
+                  onClick={() => setShowLeaveConfirm(true)}
+                  sx={{
+                    background: '#f97316',
+                    color: '#ffffff',
+                    '&:hover': { background: '#ea580c' },
+                  }}
+                >
+                  <HomeIcon />
+                </StyledFab>
+              </Tooltip>
 
-            {/* NÚT THIẾT KẾ WORKSPACE (NỘI THẤT & PHÒNG) */}
-            <Tooltip
-              title={
-                designMode
-                  ? 'Đang Thiết Kế (Bấm để Hoàn Tất & Thoát Design)'
-                  : 'Chế Độ Thiết Kế (Bảng Nội Thất & Phòng)'
-              }
+              {/* NÚT THIẾT KẾ WORKSPACE (NỘI THẤT & PHÒNG) */}
+              <Tooltip
+                title={
+                  designMode
+                    ? 'Đang Thiết Kế (Bấm để Hoàn Tất & Thoát Design)'
+                    : 'Chế Độ Thiết Kế (Bảng Nội Thất & Phòng)'
+                }
+              >
+                <StyledFab
+                  size="small"
+                  onClick={() => {
+                    if (designMode) {
+                      dispatch(closeDesignMode())
+                    } else {
+                      dispatch(openDesignMode())
+                    }
+                  }}
+                  sx={{
+                    background: designMode ? '#10b981' : '#0284c7',
+                    color: '#ffffff',
+                    boxShadow: designMode
+                      ? '0 0 15px rgba(16, 185, 129, 0.8), 0 0 5px #10b981'
+                      : undefined,
+                    border: designMode ? '2px solid #ffffff' : undefined,
+                    '&:hover': { background: designMode ? '#059669' : '#0369a1' },
+                  }}
+                >
+                  <SquareFootIcon />
+                </StyledFab>
+              </Tooltip>
+
+              {/* Nút Kết nối Webcam / Camera với icon Máy ảnh */}
+              <Tooltip
+                title={
+                  videoConnected
+                    ? 'Tắt Webcam / Camera'
+                    : 'Bật Webcam / Camera'
+                }
+              >
+                <StyledFab
+                  size="small"
+                  onClick={handleToggleWebcam}
+                  sx={{
+                    background: videoConnected ? '#10b981' : '#334155',
+                    color: '#ffffff',
+                    boxShadow: videoConnected ? '0 0 12px rgba(16, 185, 129, 0.8)' : undefined,
+                    border: videoConnected ? '1.5px solid #6ee7b7' : undefined,
+                    '&:hover': {
+                      background: videoConnected ? '#059669' : '#475569',
+                    },
+                  }}
+                >
+                  <CameraAltIcon />
+                </StyledFab>
+              </Tooltip>
+
+              {/* NÚT THÔNG BÁO VÀ YÊU CẦU GIA NHẬP */}
+              <Tooltip title="Thông Báo & Yêu Cầu">
+                <StyledFab
+                  size="small"
+                  onClick={() => setShowNotificationDialog(true)}
+                  sx={{
+                    background: '#1e293b',
+                    color: unreadCount > 0 ? '#38bdf8' : '#ffffff',
+                    border: unreadCount > 0 ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.15)',
+                    '&:hover': { background: '#334155' },
+                  }}
+                >
+                  <Badge badgeContent={unreadCount} color="error">
+                    <NotificationsIcon style={{ fontSize: 20 }} />
+                  </Badge>
+                </StyledFab>
+              </Tooltip>
+
+              <Tooltip title="Room Info">
+                <StyledFab
+                  size="small"
+                  onClick={() => {
+                    setShowRoomInfo(!showRoomInfo)
+                    setShowStatusDialog(false)
+                  }}
+                >
+                  <ShareIcon />
+                </StyledFab>
+              </Tooltip>
+            </>
+          )}
+
+          {/* NÚT CHUYỂN ĐỔI TRẠNG THÁI HOẠT ĐỘNG (MICROSOFT TEAMS) */}
+          <Tooltip title={`Trạng thái: ${currentStatus?.name || 'Sẵn sàng'} (Bấm để thay đổi)`}>
+            <StyledFab
+              size="small"
+              onClick={() => {
+                setShowStatusDialog(!showStatusDialog)
+                setShowRoomInfo(false)
+              }}
+              sx={{
+                background: '#1e293b',
+                border: `2px solid ${currentStatus?.color || '#107c41'}`,
+                boxShadow: `0 0 10px ${currentStatus?.color || '#107c41'}88`,
+                '&:hover': {
+                  background: '#334155',
+                },
+              }}
             >
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  if (designMode) {
-                    dispatch(closeDesignMode())
-                  } else {
-                    dispatch(openDesignMode())
-                  }
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  backgroundColor: currentStatus?.color || '#107c41',
+                  border: '1.5px solid #ffffff',
+                  display: 'inline-block',
+                  boxShadow: '0 0 4px rgba(0, 0, 0, 0.5)',
                 }}
-                sx={{
-                  background: designMode ? '#10b981' : '#0284c7',
-                  color: '#ffffff',
-                  boxShadow: designMode
-                    ? '0 0 15px rgba(16, 185, 129, 0.8), 0 0 5px #10b981'
-                    : undefined,
-                  border: designMode ? '2px solid #ffffff' : undefined,
-                  '&:hover': { background: designMode ? '#059669' : '#0369a1' },
-                }}
-              >
-                <SquareFootIcon />
-              </StyledFab>
-            </Tooltip>
+              />
+            </StyledFab>
+          </Tooltip>
+        </FunctionButtonsWrapper>
 
-            {/* Nút Kết nối Webcam / Camera với icon Máy ảnh */}
-            <Tooltip
-              title={
-                videoConnected
-                  ? 'Tắt Webcam / Camera'
-                  : 'Bật Webcam / Camera'
-              }
-            >
-              <StyledFab
-                size="small"
-                onClick={handleToggleWebcam}
-                sx={{
-                  background: videoConnected ? '#10b981' : '#334155',
-                  color: '#ffffff',
-                  boxShadow: videoConnected ? '0 0 12px rgba(16, 185, 129, 0.8)' : undefined,
-                  border: videoConnected ? '1.5px solid #6ee7b7' : undefined,
-                  '&:hover': {
-                    background: videoConnected ? '#059669' : '#475569',
-                  },
-                }}
-              >
-                <CameraAltIcon />
-              </StyledFab>
-            </Tooltip>
-
-            {/* NÚT THÔNG BÁO VÀ YÊU CẦU GIA NHẬP */}
-            <Tooltip title="Thông Báo & Yêu Cầu">
-              <StyledFab
-                size="small"
-                onClick={() => setShowNotificationDialog(true)}
-                sx={{
-                  background: '#1e293b',
-                  color: unreadCount > 0 ? '#38bdf8' : '#ffffff',
-                  border: unreadCount > 0 ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.15)',
-                  '&:hover': { background: '#334155' },
-                }}
-              >
-                <Badge badgeContent={unreadCount} color="error">
-                  <NotificationsIcon style={{ fontSize: 20 }} />
-                </Badge>
-              </StyledFab>
-            </Tooltip>
-
-            <Tooltip title="Room Info">
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  setShowRoomInfo(!showRoomInfo)
-                  setShowStatusDialog(false)
-                }}
-              >
-                <ShareIcon />
-              </StyledFab>
-            </Tooltip>
-          </>
-        )}
-
-        {/* NÚT CHUYỂN ĐỔI TRẠNG THÁI HOẠT ĐỘNG (MICROSOFT TEAMS) */}
-        <Tooltip title={`Trạng thái: ${currentStatus?.name || 'Sẵn sàng'} (Bấm để thay đổi)`}>
+        {/* NÚT THU GỌN / ẨN HIỆN CÁC NÚT CHỨC NĂNG */}
+        <Tooltip title={collapsed ? 'Hiện các nút chức năng' : 'Thu gọn các nút chức năng'}>
           <StyledFab
             size="small"
             onClick={() => {
-              setShowStatusDialog(!showStatusDialog)
-              setShowRoomInfo(false)
+              setCollapsed(!collapsed)
+              if (!collapsed) {
+                setShowRoomInfo(false)
+                setShowStatusDialog(false)
+              }
             }}
             sx={{
-              background: '#1e293b',
-              border: `2px solid ${currentStatus?.color || '#107c41'}`,
-              boxShadow: `0 0 10px ${currentStatus?.color || '#107c41'}88`,
+              background: collapsed ? '#0284c7' : '#1e293b',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: collapsed ? '0 0 12px rgba(2, 132, 199, 0.5)' : undefined,
               '&:hover': {
-                background: '#334155',
+                background: collapsed ? '#0369a1' : '#334155',
               },
             }}
           >
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                backgroundColor: currentStatus?.color || '#107c41',
-                border: '1.5px solid #ffffff',
-                display: 'inline-block',
-                boxShadow: '0 0 4px rgba(0, 0, 0, 0.5)',
-              }}
-            />
-          </StyledFab>
-        </Tooltip>
-
-        <Tooltip title="Switch Background Theme">
-          <StyledFab size="small" onClick={() => dispatch(toggleBackgroundMode())}>
-            {backgroundMode === BackgroundMode.DAY ? <DarkModeIcon /> : <LightModeIcon />}
+            <Badge badgeContent={collapsed ? unreadCount : 0} color="error">
+              {collapsed ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+            </Badge>
           </StyledFab>
         </Tooltip>
       </ButtonGroup>
