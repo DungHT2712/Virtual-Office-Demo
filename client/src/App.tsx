@@ -9,6 +9,7 @@ import ComputerDialog from './components/ComputerDialog'
 import WhiteboardDialog from './components/WhiteboardDialog'
 import Chat from './components/Chat'
 import HelperButtonGroup from './components/HelperButtonGroup'
+import WorkspaceUserInfo from './components/WorkspaceUserInfo'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import DesignWorkspaceDialog from './components/DesignWorkspaceDialog'
 
@@ -62,8 +63,13 @@ function App() {
     <Backdrop>
       {ui}
       <DesignWorkspaceDialog />
-      {/* Render HelperButtonGroup if user is logged in and no dialogs are opened. */}
-      {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
+      {/* Render WorkspaceUserInfo and HelperButtonGroup if user is logged in and no dialogs are opened. */}
+      {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && (
+        <>
+          <WorkspaceUserInfo />
+          <HelperButtonGroup />
+        </>
+      )}
     </Backdrop>
   )
 }

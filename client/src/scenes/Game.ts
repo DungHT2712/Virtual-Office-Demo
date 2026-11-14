@@ -248,11 +248,17 @@ export default class Game extends Phaser.Scene {
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
-    // Camera follow & world bounds theo đúng kích thước sàn gạch được chọn
+    // Camera follow & world bounds theo đúng kích thước sàn gạch (mở rộng 3 ô để thấy sky bên ngoài)
+    const skyMargin = 3 * (this.map?.tileWidth || 32)
     this.physics.world.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
-    this.cameras.main.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
-    const initialMinZoom = this.getMinZoomNoSky()
-    this.cameras.main.zoom = Math.max(1.5, initialMinZoom)
+    this.cameras.main.setBounds(
+      -skyMargin,
+      -skyMargin,
+      mapWidthInPixels + skyMargin * 2,
+      mapHeightInPixels + skyMargin * 2
+    )
+    const initialMinZoom = this.getMinZoom()
+    this.cameras.main.zoom = Math.max(1.2, initialMinZoom)
     this.cameras.main.startFollow(this.myPlayer, true)
 
     this.scale.on('resize', () => {
@@ -401,17 +407,13 @@ export default class Game extends Phaser.Scene {
       .setDepth(9999)
       .setVisible(false)
 
-    // [CAMERA ZOOM]: Phóng to / Thu nhỏ bằng Ctrl + Scroll hoặc cuộn chuột khi ở chế độ Design Mode
+    // [CAMERA ZOOM]: Phóng to / Thu nhỏ bằng cuộn chuột (hoặc Ctrl + Scroll)
     this.input.on(
       'wheel',
       (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number) => {
         const rawEvent = pointer.event as WheelEvent | undefined
         const state = store.getState()
         const isDesign = state.workspace.designMode
-
-        if (!rawEvent?.ctrlKey && !isDesign) {
-          return
-        }
 
         if (rawEvent) {
           rawEvent.preventDefault()
@@ -425,8 +427,8 @@ export default class Game extends Phaser.Scene {
           const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.2, 3.5)
           this.cameras.main.setZoom(newZoom)
         } else {
-          // Trong chế độ chơi: Giới hạn nghiêm ngặt ở minZoom để không bao giờ thấy sky phía sau
-          const minZoom = this.getMinZoomNoSky()
+          // Trong chế độ chơi: Cho phép thu nhỏ để thấy sky bên ngoài nhưng giới hạn ở phạm vi 3 ô
+          const minZoom = this.getMinZoom()
           const maxZoom = Math.max(3.5, minZoom + 1.5)
           const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, minZoom, maxZoom)
           this.cameras.main.setZoom(newZoom)
@@ -1478,11 +1480,16 @@ export default class Game extends Phaser.Scene {
       if (this.playerSelector) this.playerSelector.setVisible(false)
       this.gridOverlay?.setVisible(true)
     } else {
-      // THOÁT DESIGN MODE: Trở về chế độ chơi, khóa chặt camera và ẩn sky phía sau
-      this.scene.sleep('background')
+      // THOÁT DESIGN MODE: Trở về chế độ chơi, khóa camera theo giới hạn 3 ô và hiện sky
+      const skyMargin = 3 * (this.map?.tileWidth || 32)
       const mapWidthInPixels = this.map.widthInPixels
       const mapHeightInPixels = this.map.heightInPixels
-      this.cameras.main.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
+      this.cameras.main.setBounds(
+        -skyMargin,
+        -skyMargin,
+        mapWidthInPixels + skyMargin * 2,
+        mapHeightInPixels + skyMargin * 2
+      )
       // Hiện lại nhân vật khi thoát Design Mode
       if (this.myPlayer) {
         this.myPlayer.setVisible(true)
@@ -1496,8 +1503,8 @@ export default class Game extends Phaser.Scene {
         if (player.playerContainer) player.playerContainer.setVisible(true)
       })
       if (this.playerSelector) this.playerSelector.setVisible(true)
-      const minZoom = this.getMinZoomNoSky()
-      this.cameras.main.zoomTo(Math.max(1.5, minZoom), 500, 'Power2')
+      const minZoom = this.getMinZoom()
+      this.cameras.main.zoomTo(Math.max(1.2, minZoom), 500, 'Power2')
       if (this.myPlayer) {
         this.cameras.main.startFollow(this.myPlayer, true, 0.08, 0.08)
       }
@@ -2138,27 +2145,35 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  getMinZoomNoSky(): number {
-    if (!this.map || !this.cameras?.main) return 1.0
-    const mapW = this.map.widthInPixels || 32 * 50
-    const mapH = this.map.heightInPixels || 32 * 50
+  getMinZoom(): number {
+    if (!this.map || !this.cameras?.main) return 0.5
+    const skyMargin = 3 * (this.map.tileWidth || 32)
+    const mapW = (this.map.widthInPixels || 32 * 50) + skyMargin * 2
+    const mapH = (this.map.heightInPixels || 32 * 50) + skyMargin * 2
     const camW = this.cameras.main.width || window.innerWidth
     const camH = this.cameras.main.height || window.innerHeight
     return Math.max(camW / mapW, camH / mapH)
   }
 
+  getMinZoomNoSky(): number {
+    return this.getMinZoom()
+  }
+
   clampCameraBounds() {
     if (!this.map || !this.cameras?.main) return
+    const skyMargin = 3 * (this.map.tileWidth || 32)
     const mapW = this.map.widthInPixels
     const mapH = this.map.heightInPixels
     const viewW = this.cameras.main.width / this.cameras.main.zoom
     const viewH = this.cameras.main.height / this.cameras.main.zoom
 
-    const maxScrollX = Math.max(0, mapW - viewW)
-    const maxScrollY = Math.max(0, mapH - viewH)
+    const minScrollX = -skyMargin
+    const minScrollY = -skyMargin
+    const maxScrollX = Math.max(minScrollX, mapW + skyMargin - viewW)
+    const maxScrollY = Math.max(minScrollY, mapH + skyMargin - viewH)
 
-    this.cameras.main.scrollX = Phaser.Math.Clamp(this.cameras.main.scrollX, 0, maxScrollX)
-    this.cameras.main.scrollY = Phaser.Math.Clamp(this.cameras.main.scrollY, 0, maxScrollY)
+    this.cameras.main.scrollX = Phaser.Math.Clamp(this.cameras.main.scrollX, minScrollX, maxScrollX)
+    this.cameras.main.scrollY = Phaser.Math.Clamp(this.cameras.main.scrollY, minScrollY, maxScrollY)
   }
 
   clampCameraZoom() {
@@ -2166,7 +2181,7 @@ export default class Game extends Phaser.Scene {
     const isDesign = store.getState().workspace.designMode
     if (isDesign) return // Không ép clamp zoom trong Design mode để user tự do nhìn toàn cảnh sky
 
-    const minZoom = this.getMinZoomNoSky()
+    const minZoom = this.getMinZoom()
     const maxZoom = Math.max(3.5, minZoom + 1.5)
     if (this.cameras.main.zoom < minZoom) {
       this.cameras.main.setZoom(minZoom)

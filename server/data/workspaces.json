@@ -17,19 +17,19 @@
     "pendingRequests": []
   },
   {
-    "id": "dBqu1SkLp",
+    "id": "6vwzYq6zp",
     "name": "small",
     "description": "small",
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
-    "createdAt": 1794655809038,
-    "ownerId": "usr_OXMJ26",
-    "ownerName": "abc",
-    "shareMode": "ask",
+    "createdAt": 1794671442131,
+    "ownerId": "usr_5ANOJI",
+    "ownerName": "Test",
+    "shareMode": "free",
     "sharedUsers": [
-      "usr_OGIZJN"
+      "usr_5ANOJI"
     ],
     "pendingRequests": []
   },
@@ -66,21 +66,5 @@
     ],
     "createdAt": 1794655809041,
     "pendingRequests": []
-  },
-  {
-    "id": "748NfWBi5",
-    "name": "test",
-    "description": "test",
-    "hasPassword": false,
-    "sizeType": "SMALL",
-    "width": 20,
-    "height": 20,
-    "ownerId": "usr_5ANOJI",
-    "ownerName": "Test",
-    "shareMode": "free",
-    "sharedUsers": [
-      "usr_5ANOJI"
-    ],
-    "createdAt": 1794666917423
   }
 ]
