@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import Fab from '@mui/material/Fab'
-import IconButton from '@mui/material/IconButton'
-import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
@@ -10,17 +8,12 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
 import Button from '@mui/material/Button'
-import ShareIcon from '@mui/icons-material/Share'
-import CloseIcon from '@mui/icons-material/Close'
-import LightbulbIcon from '@mui/icons-material/Lightbulb'
-import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import KeyboardIcon from '@mui/icons-material/Keyboard'
 import NearMeIcon from '@mui/icons-material/NearMe'
 import SquareFootIcon from '@mui/icons-material/SquareFoot'
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import HomeIcon from '@mui/icons-material/Home'
-import CameraAltIcon from '@mui/icons-material/CameraAlt'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 
@@ -28,10 +21,8 @@ import { MovementMode, setMovementMode, setLoggedIn } from '../stores/UserStore'
 import { setRoomJoined } from '../stores/RoomStore'
 import { openDesignMode, closeDesignMode } from '../stores/WorkspaceStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { getAvatarString, getColorByString } from '../util'
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
-import Game from '../scenes/Game'
 import StatusDialog from './StatusDialog'
 
 const Backdrop = styled.div`
@@ -52,36 +43,6 @@ const Backdrop = styled.div`
 
   & > * {
     pointer-events: auto;
-  }
-`
-
-const Wrapper = styled.div`
-  position: relative;
-  font-size: 16px;
-  color: #eee;
-  background: #222639;
-  box-shadow: 0px 0px 5px #0000006f;
-  border-radius: 16px;
-  padding: 15px 35px 15px 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  .close {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-  }
-
-  .tip {
-    margin-left: 12px;
-    font-size: 13px;
-    color: #c2c2c2;
-    display: flex;
-    align-items: center;
-    svg {
-      margin-right: 4px;
-    }
   }
 `
 
@@ -106,39 +67,6 @@ const FunctionButtonsWrapper = styled.div<{ $collapsed: boolean }>`
   pointer-events: ${(props) => (props.$collapsed ? 'none' : 'auto')};
 `
 
-const Title = styled.h3`
-  font-size: 24px;
-  color: #eee;
-  text-align: center;
-`
-
-const RoomName = styled.div`
-  max-width: 400px;
-  max-height: 100px;
-  overflow-wrap: anywhere;
-  overflow-y: auto;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-
-  h3 {
-    font-size: 24px;
-    color: #eee;
-  }
-`
-
-const RoomDescription = styled.div`
-  max-width: 400px;
-  max-height: 150px;
-  overflow-wrap: anywhere;
-  overflow-y: auto;
-  font-size: 16px;
-  color: #c2c2c2;
-  display: flex;
-  justify-content: center;
-`
-
 const StyledFab = styled(Fab)`
   &:hover {
     color: #1ea2df;
@@ -147,30 +75,13 @@ const StyledFab = styled(Fab)`
 
 export default function HelperButtonGroup() {
   const [collapsed, setCollapsed] = useState(false)
-  const [showRoomInfo, setShowRoomInfo] = useState(false)
   const [showStatusDialog, setShowStatusDialog] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const currentStatus = useAppSelector((state) => state.user.currentStatus)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
-  const roomId = useAppSelector((state) => state.room.roomId)
-  const roomName = useAppSelector((state) => state.room.roomName)
-  const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const movementMode = useAppSelector((state) => state.user.movementMode)
   const designMode = useAppSelector((state) => state.workspace.designMode)
-  const videoConnected = useAppSelector((state) => state.user.videoConnected)
-  const currentUser = useAppSelector((state) => state.user)
   const dispatch = useAppDispatch()
-
-  const handleToggleWebcam = () => {
-    const game = phaserGame.scene.keys.game as Game
-    if (game && game.network && game.network.webRTC) {
-      if (videoConnected) {
-        game.network.webRTC.stopUserMedia()
-      } else {
-        game.network.webRTC.getUserMedia()
-      }
-    }
-  }
 
   const handleLeaveWorkspace = () => {
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
@@ -187,26 +98,6 @@ export default function HelperButtonGroup() {
     <Backdrop>
       <div className="wrapper-group">
         {showStatusDialog && <StatusDialog onClose={() => setShowStatusDialog(false)} />}
-        {showRoomInfo && (
-          <Wrapper>
-            <IconButton className="close" onClick={() => setShowRoomInfo(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-            <RoomName>
-              <Avatar style={{ background: getColorByString(roomName) }}>
-                {getAvatarString(roomName)}
-              </Avatar>
-              <h3>{roomName}</h3>
-            </RoomName>
-            <RoomDescription>
-              <ArrowRightIcon /> {roomDescription}
-            </RoomDescription>
-            <p className="tip">
-              <LightbulbIcon />
-              Chia sẻ link này để mời đồng nghiệp vào cùng Workspace!
-            </p>
-          </Wrapper>
-        )}
       </div>
 
       <ButtonGroup>
@@ -300,42 +191,6 @@ export default function HelperButtonGroup() {
                 </StyledFab>
               </Tooltip>
 
-              {/* Nút Kết nối Webcam / Camera với icon Máy ảnh */}
-              <Tooltip
-                title={
-                  videoConnected
-                    ? 'Tắt Webcam / Camera'
-                    : 'Bật Webcam / Camera'
-                }
-              >
-                <StyledFab
-                  size="small"
-                  onClick={handleToggleWebcam}
-                  sx={{
-                    background: videoConnected ? '#10b981' : '#334155',
-                    color: '#ffffff',
-                    boxShadow: videoConnected ? '0 0 12px rgba(16, 185, 129, 0.8)' : undefined,
-                    border: videoConnected ? '1.5px solid #6ee7b7' : undefined,
-                    '&:hover': {
-                      background: videoConnected ? '#059669' : '#475569',
-                    },
-                  }}
-                >
-                  <CameraAltIcon />
-                </StyledFab>
-              </Tooltip>
-
-              <Tooltip title="Room Info">
-                <StyledFab
-                  size="small"
-                  onClick={() => {
-                    setShowRoomInfo(!showRoomInfo)
-                    setShowStatusDialog(false)
-                  }}
-                >
-                  <ShareIcon />
-                </StyledFab>
-              </Tooltip>
             </>
           )}
 
@@ -345,7 +200,6 @@ export default function HelperButtonGroup() {
               size="small"
               onClick={() => {
                 setShowStatusDialog(!showStatusDialog)
-                setShowRoomInfo(false)
               }}
               sx={{
                 background: '#1e293b',
@@ -378,7 +232,6 @@ export default function HelperButtonGroup() {
             onClick={() => {
               setCollapsed(!collapsed)
               if (!collapsed) {
-                setShowRoomInfo(false)
                 setShowStatusDialog(false)
               }
             }}
