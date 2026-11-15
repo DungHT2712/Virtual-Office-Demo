@@ -2,6 +2,7 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { IOfficeState } from '../../../types/IOfficeState'
 import { ChatMessage } from '../schema/OfficeState'
+import { appendChatMessage } from '../../data/workspaceStorage'
 
 type Payload = {
   client: Client
@@ -23,8 +24,18 @@ export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payl
     if (chatMessages.length >= 100) chatMessages.shift()
 
     const newMessage = new ChatMessage()
-    newMessage.author = player.name
+    newMessage.author = player ? player.name : 'Guest'
     newMessage.content = content
+    newMessage.createdAt = Date.now()
     chatMessages.push(newMessage)
+
+    const roomId = (this.room as any).roomId
+    if (roomId) {
+      appendChatMessage(roomId, {
+        author: newMessage.author,
+        content: newMessage.content,
+        createdAt: newMessage.createdAt,
+      })
+    }
   }
 }

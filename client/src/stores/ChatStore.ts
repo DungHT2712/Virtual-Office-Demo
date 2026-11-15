@@ -51,6 +51,9 @@ export const chatSlice = createSlice({
     setShowChat: (state, action: PayloadAction<boolean>) => {
       state.showChat = action.payload
     },
+    clearChat: (state) => {
+      state.chatMessages = []
+    },
   },
 })
 
@@ -60,6 +63,7 @@ export const {
   pushPlayerLeftMessage,
   setFocused,
   setShowChat,
+  clearChat,
 } = chatSlice.actions
 
 export default chatSlice.reducer

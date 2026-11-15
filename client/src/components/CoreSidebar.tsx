@@ -296,6 +296,7 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
   const [openUserDialog, setOpenUserDialog] = useState(false)
   const [openWorkspaceDialog, setOpenWorkspaceDialog] = useState(false)
+  const [isParent, setIsParent] = useState<boolean>(true)
 
   // State cấu hình Workspace
   const [workspaceConfig, setWorkspaceConfig] = useState<CompanyWorkspaceConfig>(() => {
@@ -347,6 +348,9 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
           const wsData = await wsRes.json()
           if (wsData.success && wsData.workspace && isMounted) {
             const ws = wsData.workspace
+            if (ws.isParent !== undefined) {
+              setIsParent(ws.isParent !== false)
+            }
             const cfg: CompanyWorkspaceConfig = {
               companyName: ws.companyName || company.name || 'Virtual Office Co.',
               departmentId: ws.departmentId || 'dept_tech',
@@ -506,7 +510,21 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
                       <WorkspacesIcon sx={{ fontSize: 18 }} />
                     </ModuleIconBox>
                     <ModuleTextBlock>
-                      <span className="module-title">Workspace</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="module-title">Workspace</span>
+                        <Chip
+                          label={isParent ? 'Cha' : 'Con'}
+                          size="small"
+                          sx={{
+                            height: '14px',
+                            fontSize: '9px',
+                            fontWeight: 700,
+                            backgroundColor: isParent ? 'rgba(34, 197, 94, 0.2)' : 'rgba(236, 72, 153, 0.2)',
+                            color: isParent ? '#4ade80' : '#f472b6',
+                            borderRadius: '3px',
+                          }}
+                        />
+                      </div>
                       <span className="module-sub">
                         {workspaceConfig.departmentName
                           ? `${workspaceConfig.companyName} • ${workspaceConfig.departmentName}`
@@ -535,6 +553,7 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
         onClose={() => setOpenCompanyDialog(false)}
         roomId={roomId}
         company={company}
+        isParent={isParent}
         onSave={(updatedCompany) => setCompany(updatedCompany)}
       />
 
@@ -557,6 +576,7 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
         roomId={roomId}
         company={company}
         users={users}
+        isParent={isParent}
         onWorkspaceConfigChange={(cfg) => setWorkspaceConfig(cfg)}
       />
     </>

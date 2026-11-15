@@ -131,6 +131,8 @@ export const CreateRoomForm = () => {
         departmentId: '',
         departmentName: '',
         requireLogin: false,
+        isParent: true,
+        parentWorkspaceId: null,
       }
       const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
       bootstrap.network
@@ -156,6 +158,8 @@ export const CreateRoomForm = () => {
               departmentId: '',
               departmentName: '',
               requireLogin: false,
+              isParent: true,
+              parentWorkspaceId: null,
             })
             localStorage.setItem('saved_workspaces', JSON.stringify(stored))
           } catch (e) {

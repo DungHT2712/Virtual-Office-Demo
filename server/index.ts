@@ -88,8 +88,14 @@ app.post('/matchmake/joinById/:roomId', async (req, res, next) => {
           departmentId: ws.departmentId,
           departmentName: ws.departmentName,
           requireLogin: ws.requireLogin,
+          isParent: ws.isParent,
+          parentWorkspaceId: ws.parentWorkspaceId,
           company: ws.company,
           users: ws.users,
+          projects: ws.projects,
+          tasks: ws.tasks,
+          documentTypes: ws.documentTypes,
+          documents: ws.documents,
           autoDispose: false,
         })
       } catch (err) {
@@ -160,16 +166,34 @@ app.post('/api/workspaces', async (req, res) => {
       requireLogin,
       company,
       users,
+      isParent,
+      parentWorkspaceId,
     } = req.body
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Tên Workspace là bắt buộc' })
     }
 
-    const cleanPassword = password && String(password).trim() ? String(password).trim() : null
-    const hasPassword = !!cleanPassword
+    const isChild = !!parentWorkspaceId || isParent === false
+    const finalIsParent = !isChild
 
-    const defaultCompany = company || {
+    if (isChild && (!companyId || !companyId.trim())) {
+      return res.status(400).json({ success: false, message: 'Workspace con bắt buộc phải chọn công ty!' })
+    }
+
+    const parentWs = parentWorkspaceId ? getWorkspaceById(parentWorkspaceId) : null
+
+    // Tìm thông tin công ty được chọn từ danh mục hoặc từ parent
+    let targetCompany = company
+    if (!targetCompany && companyId) {
+      const allComps = getAllCompanies()
+      targetCompany = allComps.find((c) => c.id === companyId || c.name === companyName)
+    }
+    if (!targetCompany && parentWs?.company && (parentWs.company.id === companyId || parentWs.company.name === companyName)) {
+      targetCompany = parentWs.company
+    }
+
+    const defaultCompany = targetCompany || company || {
       id: companyId || 'comp_voc',
       name: companyName || 'Virtual Office Co.',
       abbr: (companyName || 'VOC').substring(0, 4).toUpperCase(),
@@ -184,6 +208,26 @@ app.post('/api/workspaces', async (req, res) => {
         { id: 'dept_fin', name: 'Tài Chính & Kế Toán', head: 'Chief Accountant' },
       ],
     }
+
+    // Kế thừa thông tin từ Workspace cha nếu là Workspace con
+    const inheritedProjects = isChild && parentWs?.projects && parentWs.projects.length > 0
+      ? JSON.parse(JSON.stringify(parentWs.projects))
+      : undefined
+
+    const inheritedTasks = isChild && parentWs?.tasks && parentWs.tasks.length > 0
+      ? JSON.parse(JSON.stringify(parentWs.tasks))
+      : undefined
+
+    const inheritedDocTypes = isChild && parentWs?.documentTypes && parentWs.documentTypes.length > 0
+      ? JSON.parse(JSON.stringify(parentWs.documentTypes))
+      : undefined
+
+    const inheritedDocs = isChild && parentWs?.documents && parentWs.documents.length > 0
+      ? JSON.parse(JSON.stringify(parentWs.documents))
+      : undefined
+
+    const cleanPassword = password && String(password).trim() ? String(password).trim() : null
+    const hasPassword = !!cleanPassword
 
     const defaultUsers =
       Array.isArray(users) && users.length > 0
@@ -220,8 +264,14 @@ app.post('/api/workspaces', async (req, res) => {
       departmentId: departmentId || '',
       departmentName: departmentName || '',
       requireLogin: !!requireLogin,
+      isParent: finalIsParent,
+      parentWorkspaceId: isChild ? (parentWorkspaceId || parentWs?.id || null) : null,
       company: defaultCompany,
       users: defaultUsers,
+      projects: inheritedProjects,
+      tasks: inheritedTasks,
+      documentTypes: inheritedDocTypes,
+      documents: inheritedDocs,
       autoDispose: false,
     })
 
@@ -245,8 +295,15 @@ app.post('/api/workspaces', async (req, res) => {
       departmentId: departmentId || '',
       departmentName: departmentName || '',
       requireLogin: !!requireLogin,
+      isParent: finalIsParent,
+      parentWorkspaceId: isChild ? (parentWorkspaceId || parentWs?.id || null) : null,
       company: defaultCompany,
       users: defaultUsers,
+      projects: inheritedProjects,
+      tasks: inheritedTasks,
+      documentTypes: inheritedDocTypes,
+      documents: inheritedDocs,
+      chatHistory: [],
       createdAt: Date.now(),
       pendingRequests: [],
     }
@@ -302,6 +359,14 @@ app.post('/api/workspaces/:id/workspace-config', (req, res) => {
   const ws = getWorkspaceById(id)
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
+
+  // Workspace con chỉ có 1 công ty cố định, không được đổi sang công ty khác
+  if (ws && ws.isParent === false && companyId && ws.companyId && companyId !== ws.companyId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Workspace con chỉ có 1 công ty được thiết lập từ ban đầu, không thể đổi sang công ty khác',
+    })
+  }
 
   const updates: any = {}
   if (companyId !== undefined) updates.companyId = companyId
@@ -774,6 +839,14 @@ app.post('/api/workspaces/:id/company', (req, res) => {
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
 
+  // Workspace con chỉ có 1 công ty cố định, không được đổi sang công ty khác
+  if (ws && ws.isParent === false && ws.companyId && company.id && company.id !== ws.companyId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Workspace con chỉ có 1 công ty được thiết lập từ ban đầu, không được đổi sang công ty khác',
+    })
+  }
+
   const updated = updateWorkspace(targetId, { company })
   if (ws?.name && ws.name !== targetId) {
     updateWorkspace(ws.name, { company })
@@ -1230,8 +1303,14 @@ if (savedWorkspaces.length > 0) {
         departmentId: ws.departmentId,
         departmentName: ws.departmentName,
         requireLogin: ws.requireLogin,
+        isParent: ws.isParent,
+        parentWorkspaceId: ws.parentWorkspaceId,
         company: ws.company,
         users: ws.users,
+        projects: ws.projects,
+        tasks: ws.tasks,
+        documentTypes: ws.documentTypes,
+        documents: ws.documents,
         autoDispose: false,
       })
       console.log(`Restored persistent workspace: ${ws.name} (id=${ws.id})`)

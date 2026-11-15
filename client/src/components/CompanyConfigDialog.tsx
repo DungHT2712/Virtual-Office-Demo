@@ -165,10 +165,18 @@ interface Props {
   onClose: () => void
   roomId: string
   company: WorkspaceCompany
+  isParent?: boolean
   onSave: (updated: WorkspaceCompany) => void
 }
 
-export default function CompanyConfigDialog({ open, onClose, roomId, company, onSave }: Props) {
+export default function CompanyConfigDialog({
+  open,
+  onClose,
+  roomId,
+  company,
+  isParent = true,
+  onSave,
+}: Props) {
   const [activeTab, setActiveTab] = useState(0)
   const [companies, setCompanies] = useState<WorkspaceCompany[]>(DEFAULT_COMPANIES)
   const [selectedCompId, setSelectedCompId] = useState<string>(company.id || 'comp_voc')
@@ -462,7 +470,9 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
         <Tab icon={<ListAltIcon sx={{ fontSize: 16 }} />} iconPosition="start" label={`Danh Sách Công Ty (${companies.length})`} />
         <Tab icon={<BusinessIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Thông Tin Công Ty" />
         <Tab icon={<AccountTreeIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Cơ Cấu Phòng Ban" />
-        <Tab icon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="+ Thêm Công Ty Mới" />
+        {isParent !== false && (
+          <Tab icon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="+ Thêm Công Ty Mới" />
+        )}
       </Tabs>
 
       <DialogContent sx={{ p: 3, maxHeight: '65vh', overflowY: 'auto' }}>
@@ -484,19 +494,28 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
         {/* TAB 0: DANH SÁCH CÔNG TY */}
         {activeTab === 0 && (
           <div>
+            {isParent === false && (
+              <Alert severity="info" sx={{ mb: 2, background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
+                Đây là <strong>Workspace Con</strong>. Workspace này chỉ thuộc về 1 công ty duy nhất được thiết lập từ ban đầu và không thể tạo thêm công ty mới hoặc chuyển đổi công ty khác.
+              </Alert>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>
-                Hệ thống hỗ trợ tạo nhiều công ty. Mỗi công ty sở hữu một <strong>Company ID</strong> riêng biệt.
+                {isParent !== false
+                  ? 'Hệ thống hỗ trợ tạo nhiều công ty. Mỗi công ty sở hữu một Company ID riêng biệt.'
+                  : 'Workspace con hiển thị danh sách công ty để tham khảo, công ty hiện tại được cố định.'}
               </span>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={() => setActiveTab(3)}
-                startIcon={<AddCircleOutlineIcon />}
-                sx={{ bgcolor: '#0284c7', color: '#fff', textTransform: 'none', fontSize: 12, fontWeight: 700 }}
-              >
-                Tạo Công Ty Mới
-              </Button>
+              {isParent !== false && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => setActiveTab(3)}
+                  startIcon={<AddCircleOutlineIcon />}
+                  sx={{ bgcolor: '#0284c7', color: '#fff', textTransform: 'none', fontSize: 12, fontWeight: 700 }}
+                >
+                  Tạo Công Ty Mới
+                </Button>
+              )}
             </div>
 
             {companies.map((c) => {
@@ -544,7 +563,7 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {!isCurrentForWorkspace && (
+                    {isParent !== false && !isCurrentForWorkspace && (
                       <Button
                         size="small"
                         variant="outlined"
@@ -725,61 +744,67 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
         {/* TAB 3: THÊM CÔNG TY MỚI */}
         {activeTab === 3 && (
           <div>
-            <SectionCard>
-              <CardTitle>
-                <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
-                Khởi tạo công ty mới
-              </CardTitle>
-              <p style={{ margin: '0 0 14px 0', fontSize: 12, color: '#94a3b8' }}>
-                Hệ thống sẽ tự động gán một <strong>Company ID</strong> ngẫu nhiên độc nhất cho công ty này.
-              </p>
+            {isParent === false ? (
+              <Alert severity="warning" sx={{ background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24' }}>
+                Workspace con không được tạo thêm công ty mới. Workspace con chỉ có 1 công ty cố định đã thiết lập từ ban đầu.
+              </Alert>
+            ) : (
+              <SectionCard>
+                <CardTitle>
+                  <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
+                  Khởi tạo công ty mới
+                </CardTitle>
+                <p style={{ margin: '0 0 14px 0', fontSize: 12, color: '#94a3b8' }}>
+                  Hệ thống sẽ tự động gán một <strong>Company ID</strong> ngẫu nhiên độc nhất cho công ty này.
+                </p>
 
-              <FormGrid>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Tên Công Ty Mới *"
-                  value={newCompName}
-                  onChange={(e) => setNewCompName(e.target.value)}
-                  placeholder="VD: Tech Corp, VinTech, Global Soft..."
-                  sx={textFieldStyles}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Tên Viết Tắt (Abbr)"
-                  value={newCompAbbr}
-                  onChange={(e) => setNewCompAbbr(e.target.value)}
-                  placeholder="VD: TC, VT, GS..."
-                  sx={textFieldStyles}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Tên Miền Doanh Nghiệp"
-                  value={newCompDomain}
-                  onChange={(e) => setNewCompDomain(e.target.value)}
-                  placeholder="VD: company.com"
-                  sx={textFieldStyles}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Đồng Tiền Mặc Định"
-                  value={newCompCurrency}
-                  onChange={(e) => setNewCompCurrency(e.target.value)}
-                  sx={textFieldStyles}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Quốc Gia"
-                  value={newCompCountry}
-                  onChange={(e) => setNewCompCountry(e.target.value)}
-                  sx={textFieldStyles}
-                />
-              </FormGrid>
-            </SectionCard>
+                <FormGrid>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Tên Công Ty Mới *"
+                    value={newCompName}
+                    onChange={(e) => setNewCompName(e.target.value)}
+                    placeholder="VD: Tech Corp, VinTech, Global Soft..."
+                    sx={textFieldStyles}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Tên Viết Tắt (Abbr)"
+                    value={newCompAbbr}
+                    onChange={(e) => setNewCompAbbr(e.target.value)}
+                    placeholder="VD: TC, VT, GS..."
+                    sx={textFieldStyles}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Tên Miền Doanh Nghiệp"
+                    value={newCompDomain}
+                    onChange={(e) => setNewCompDomain(e.target.value)}
+                    placeholder="VD: company.com"
+                    sx={textFieldStyles}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Đồng Tiền Mặc Định"
+                    value={newCompCurrency}
+                    onChange={(e) => setNewCompCurrency(e.target.value)}
+                    sx={textFieldStyles}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Quốc Gia"
+                    value={newCompCountry}
+                    onChange={(e) => setNewCompCountry(e.target.value)}
+                    sx={textFieldStyles}
+                  />
+                </FormGrid>
+              </SectionCard>
+            )}
           </div>
         )}
       </DialogContent>

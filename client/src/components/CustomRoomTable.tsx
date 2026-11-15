@@ -234,6 +234,8 @@ export interface WorkspaceDisplayItem {
   departmentId?: string
   departmentName?: string
   requireLogin?: boolean
+  isParent?: boolean
+  parentWorkspaceId?: string | null
   metadata?: any
 }
 
@@ -320,12 +322,11 @@ export const CustomRoomTable = () => {
           // Tự động đồng bộ dọn dẹp saved_workspaces trong localStorage nếu server không còn phòng đó
           try {
             const serverIds = new Set(data.workspaces.map((w: any) => w.id))
-            const serverNames = new Set(data.workspaces.map((w: any) => w.name))
             const rawSaved = localStorage.getItem('saved_workspaces')
             if (rawSaved) {
               const localSaved = JSON.parse(rawSaved)
               if (Array.isArray(localSaved)) {
-                const cleaned = localSaved.filter((w: any) => serverIds.has(w.id) || serverNames.has(w.name))
+                const cleaned = localSaved.filter((w: any) => serverIds.has(w.id || w.roomId))
                 if (cleaned.length !== localSaved.length) {
                   localStorage.setItem('saved_workspaces', JSON.stringify(cleaned))
                 }
@@ -384,6 +385,8 @@ export const CustomRoomTable = () => {
         departmentId: meta.departmentId || '',
         departmentName: meta.departmentName || '',
         requireLogin: !!meta.requireLogin,
+        isParent: meta.isParent !== undefined ? meta.isParent : true,
+        parentWorkspaceId: meta.parentWorkspaceId || null,
         metadata: meta,
       })
     })
@@ -423,6 +426,8 @@ export const CustomRoomTable = () => {
         departmentId: sw.departmentId || activeRoom?.departmentId || '',
         departmentName: sw.departmentName || activeRoom?.departmentName || '',
         requireLogin: sw.requireLogin !== undefined ? !!sw.requireLogin : (activeRoom?.requireLogin ?? false),
+        isParent: sw.isParent !== undefined ? sw.isParent : (activeRoom?.isParent ?? true),
+        parentWorkspaceId: sw.parentWorkspaceId !== undefined ? sw.parentWorkspaceId : (activeRoom?.parentWorkspaceId ?? null),
         metadata: { ...activeRoom?.metadata, ...sw },
       })
     })
@@ -1060,6 +1065,19 @@ export const CustomRoomTable = () => {
                         {name}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                        {ws.isParent === false ? (
+                          <Chip
+                            label="Workspace Con"
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', fontWeight: 600 }}
+                          />
+                        ) : (
+                          <Chip
+                            label="Workspace Cha"
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', fontWeight: 600 }}
+                          />
+                        )}
                         {isOwner && (
                           <Chip
                             label="Chủ phòng"

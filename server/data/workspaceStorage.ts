@@ -89,6 +89,12 @@ export interface WorkspaceDocument {
   description?: string
 }
 
+export interface StoredChatMessage {
+  author: string
+  content: string
+  createdAt: number
+}
+
 export interface StoredWorkspace {
   id?: string
   name: string
@@ -109,12 +115,15 @@ export interface StoredWorkspace {
   departmentId?: string
   departmentName?: string
   requireLogin?: boolean
+  isParent?: boolean
+  parentWorkspaceId?: string | null
   company?: WorkspaceCompany
   users?: WorkspaceUser[]
   projects?: WorkspaceProject[]
   tasks?: WorkspaceTask[]
   documentTypes?: DocumentType[]
   documents?: WorkspaceDocument[]
+  chatHistory?: StoredChatMessage[]
 }
 
 const STORAGE_FILE = path.join(__dirname, 'workspaces.json')
@@ -176,5 +185,24 @@ export function removeWorkspace(id: string) {
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')
   } catch (err) {
     console.error('Error removing workspace from storage:', err)
+  }
+}
+
+export function appendChatMessage(workspaceId: string, message: StoredChatMessage) {
+  try {
+    const list = getAllWorkspaces()
+    const index = list.findIndex((w) => w.id === workspaceId || w.name === workspaceId)
+    if (index >= 0) {
+      if (!Array.isArray(list[index].chatHistory)) {
+        list[index].chatHistory = []
+      }
+      list[index].chatHistory!.push(message)
+      if (list[index].chatHistory!.length > 100) {
+        list[index].chatHistory!.shift()
+      }
+      fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')
+    }
+  } catch (err) {
+    console.error('Error appending chat message:', err)
   }
 }

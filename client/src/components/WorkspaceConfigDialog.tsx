@@ -221,6 +221,7 @@ interface Props {
   roomId: string
   company: WorkspaceCompany
   users: WorkspaceUser[]
+  isParent?: boolean
   onWorkspaceConfigChange?: (config: CompanyWorkspaceConfig) => void
 }
 
@@ -230,6 +231,7 @@ export default function WorkspaceConfigDialog({
   roomId,
   company,
   users,
+  isParent = true,
   onWorkspaceConfigChange,
 }: Props) {
   const dispatch = useAppDispatch()
@@ -241,6 +243,7 @@ export default function WorkspaceConfigDialog({
   const [tab, setTab] = useState(0)
   const [successMsg, setSuccessMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [isCurrentParent, setIsCurrentParent] = useState<boolean>(isParent !== false)
 
   // Danh sách công ty có sẵn trong hệ thống (mỗi công ty có Company ID riêng)
   const [companiesList, setCompaniesList] = useState<WorkspaceCompany[]>(DEFAULT_COMPANIES)
@@ -301,6 +304,7 @@ export default function WorkspaceConfigDialog({
           const data = await res.json()
           if (data.success && data.workspace && isMounted) {
             const ws = data.workspace
+            if (ws.isParent !== undefined) setIsCurrentParent(ws.isParent !== false)
             if (ws.companyId) setSelectedCompanyId(ws.companyId)
             if (ws.companyName) setSelectedCompany(ws.companyName)
             setSelectedDepartmentId(ws.departmentId || '')
@@ -410,6 +414,10 @@ export default function WorkspaceConfigDialog({
       setErrorMsg('Vui lòng nhập tên Workspace!')
       return
     }
+    if (!newWsCompanyId || !newWsCompanyId.trim()) {
+      setErrorMsg('Workspace con bắt buộc phải chọn công ty!')
+      return
+    }
 
     setCreatingNew(true)
     setErrorMsg('')
@@ -449,6 +457,8 @@ export default function WorkspaceConfigDialog({
       departmentId: newWsDepartmentId || '',
       departmentName,
       requireLogin: newWsRequireLogin,
+      isParent: false,
+      parentWorkspaceId: roomId,
       company: {
         ...newWsCompanyObj,
         id: newWsCompanyId,
@@ -488,6 +498,8 @@ export default function WorkspaceConfigDialog({
               departmentId: newWsDepartmentId || '',
               departmentName,
               requireLogin: newWsRequireLogin,
+              isParent: false,
+              parentWorkspaceId: roomId,
             })
             localStorage.setItem('saved_workspaces', JSON.stringify(stored))
           } catch (e) {
@@ -668,6 +680,11 @@ export default function WorkspaceConfigDialog({
         {/* TAB 0: THIẾT LẬP WORKSPACE HIỆN TẠI */}
         {tab === 0 && (
           <div>
+            {!isCurrentParent && (
+              <Alert severity="info" sx={{ mb: 2, background: 'rgba(16, 185, 129, 0.1)', color: '#34d399' }}>
+                Đây là <strong>Workspace Con</strong> (trực thuộc công ty <strong>{selectedCompany}</strong>). Workspace con chỉ có 1 công ty duy nhất được thiết lập từ ban đầu và kế thừa dữ liệu (phòng ban, project, task, document) từ Workspace cha.
+              </Alert>
+            )}
             <SectionCard>
               <CardTitle>
                 <WorkspacesIcon sx={{ fontSize: 16 }} />
@@ -688,6 +705,21 @@ export default function WorkspaceConfigDialog({
                 <div>
                   <span style={{ color: '#94a3b8' }}>Tên Workspace: </span>
                   <span style={{ fontWeight: 700, color: '#f8fafc' }}>{roomName || 'SkyOffice'}</span>
+                  <span style={{ marginLeft: 8 }}>
+                    {!isCurrentParent ? (
+                      <Chip
+                        label="Workspace Con"
+                        size="small"
+                        sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(236, 72, 153, 0.2)', color: '#f472b6' }}
+                      />
+                    ) : (
+                      <Chip
+                        label="Workspace Cha"
+                        size="small"
+                        sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#4ade80' }}
+                      />
+                    )}
+                  </span>
                 </div>
                 <div>
                   <span style={{ color: '#94a3b8' }}>Room ID: </span>
@@ -702,6 +734,7 @@ export default function WorkspaceConfigDialog({
                 <InputLabel sx={{ color: '#94a3b8' }}>Công ty (Chọn Công ty)</InputLabel>
                 <Select
                   value={selectedCompanyId}
+                  disabled={!isCurrentParent}
                   label="Công ty (Chọn Công ty)"
                   onChange={(e) => {
                     const id = e.target.value
@@ -801,6 +834,9 @@ export default function WorkspaceConfigDialog({
         {/* TAB 1: TẠO WORKSPACE MỚI */}
         {tab === 1 && (
           <div>
+            <Alert severity="info" sx={{ mb: 2, background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
+              Tạo <strong>Workspace Con</strong> mới. Workspace con bắt buộc phải chọn 1 công ty và không được tạo thêm công ty mới. Workspace con sẽ tự động kế thừa toàn bộ phòng ban, dự án (project), công việc (task), tài liệu (document)... của công ty đó.
+            </Alert>
             <SectionCard>
               <CardTitle>
                 <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
@@ -1052,6 +1088,19 @@ export default function WorkspaceConfigDialog({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 14, color: '#f8fafc' }}>{ws.name}</span>
+                        {ws.isParent === false ? (
+                          <Chip
+                            label="Workspace Con"
+                            size="small"
+                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', fontWeight: 600 }}
+                          />
+                        ) : (
+                          <Chip
+                            label="Workspace Cha"
+                            size="small"
+                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', fontWeight: 600 }}
+                          />
+                        )}
                         {isCurrent && (
                           <Chip
                             label="Đang kết nối"

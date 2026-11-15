@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
+import { Player, OfficeState, Computer, Whiteboard, ChatMessage } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
 import { IRoomData, RoomType } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -29,7 +29,7 @@ import {
 } from './commands/DesignCommands'
 import { RoomState } from './schema/RoomState'
 import { FurnitureState } from './schema/FurnitureState'
-import { saveWorkspace, removeWorkspace } from '../data/workspaceStorage'
+import { saveWorkspace, removeWorkspace, getWorkspaceById } from '../data/workspaceStorage'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -87,6 +87,8 @@ export class SkyOffice extends Room<OfficeState> {
     const departmentId = options.departmentId || ''
     const departmentName = options.departmentName || ''
     const requireLogin = !!options.requireLogin
+    const isParent = options.isParent !== undefined ? !!options.isParent : !options.parentWorkspaceId
+    const parentWorkspaceId = options.parentWorkspaceId || null
 
     this.setMetadata({
       name,
@@ -104,6 +106,8 @@ export class SkyOffice extends Room<OfficeState> {
       departmentId,
       departmentName,
       requireLogin,
+      isParent,
+      parentWorkspaceId,
     })
 
     if (this.roomName === RoomType.CUSTOM) {
@@ -125,9 +129,27 @@ export class SkyOffice extends Room<OfficeState> {
         departmentId,
         departmentName,
         requireLogin,
+        isParent,
+        parentWorkspaceId,
         company: options.company,
         users: options.users,
+        projects: options.projects,
+        tasks: options.tasks,
+        documentTypes: options.documentTypes,
+        documents: options.documents,
         createdAt: Date.now(),
+      })
+    }
+
+    // Nạp lịch sử chat riêng biệt của Workspace này
+    const storedWs = getWorkspaceById(this.roomId)
+    if (storedWs && Array.isArray(storedWs.chatHistory)) {
+      storedWs.chatHistory.forEach((msg: any) => {
+        const chatMsg = new ChatMessage()
+        chatMsg.author = msg.author || 'Guest'
+        chatMsg.content = msg.content || ''
+        chatMsg.createdAt = msg.createdAt || Date.now()
+        this.state.chatMessages.push(chatMsg)
       })
     }
 

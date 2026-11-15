@@ -27,6 +27,7 @@ import {
   pushChatMessage,
   pushPlayerJoinedMessage,
   pushPlayerLeftMessage,
+  clearChat,
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 import {
@@ -197,6 +198,7 @@ export default class Network {
   // Rời khỏi phòng hiện tại và quay về sảnh chính (Lobby)
   async leaveRoom() {
     this.joinedPlayers.clear()
+    store.dispatch(clearChat())
     if (this.webRTC) {
       this.webRTC.destroy()
       this.webRTC = undefined
@@ -223,6 +225,7 @@ export default class Network {
     if (!this.room) return
 
     this.joinedPlayers.clear()
+    store.dispatch(clearChat())
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))

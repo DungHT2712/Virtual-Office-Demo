@@ -24,4 +24,10 @@ export interface IRoomData {
   requireLogin?: boolean
   company?: any
   users?: any
+  isParent?: boolean
+  parentWorkspaceId?: string | null
+  projects?: any
+  tasks?: any
+  documentTypes?: any
+  documents?: any
 }
