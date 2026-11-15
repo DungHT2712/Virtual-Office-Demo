@@ -9,9 +9,10 @@
     "height": 20,
     "ownerId": "usr_8V0WWI",
     "ownerName": "Jin",
-    "shareMode": "free",
+    "shareMode": "ask",
     "sharedUsers": [
-      "usr_8V0WWI"
+      "usr_8V0WWI",
+      "usr_Q1RCEC"
     ],
     "companyId": "comp_voc",
     "companyName": "Virtual Office Co.",
@@ -40,6 +41,7 @@
         "role": "Member",
         "status": "active"
       }
-    ]
+    ],
+    "pendingRequests": []
   }
 ]

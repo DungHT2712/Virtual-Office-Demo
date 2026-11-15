@@ -269,6 +269,33 @@ export default class OtherPlayer extends Player {
       this.body.reset(this.x, this.y)
     }
 
+    // Tự động đồng bộ animation chạy/đứng theo hướng chuyển động thực tế
+    if (!isSitting) {
+      if (vx !== 0 || vy !== 0 || Math.abs(this.targetPosition[0] - this.x) > 2 || Math.abs(this.targetPosition[1] - this.y) > 2) {
+        let dir = 'down'
+        const moveX = vx !== 0 ? vx : (this.targetPosition[0] - this.x)
+        const moveY = vy !== 0 ? vy : (this.targetPosition[1] - this.y)
+        if (Math.abs(moveX) > Math.abs(moveY)) {
+          dir = moveX > 0 ? 'right' : 'left'
+        } else {
+          dir = moveY > 0 ? 'down' : 'up'
+        }
+        const runKey = `${this.playerTexture}_run_${dir}`
+        if (this.anims.currentAnim?.key !== runKey && this.anims.animationManager.exists(runKey)) {
+          this.anims.play(runKey, true)
+        }
+      } else if (vx === 0 && vy === 0 && dx === 0 && dy === 0) {
+        if (this.anims.currentAnim && this.anims.currentAnim.key.includes('_run_')) {
+          const parts = this.anims.currentAnim.key.split('_')
+          const dir = parts[parts.length - 1] || 'down'
+          const idleKey = `${this.playerTexture}_idle_${dir}`
+          if (this.anims.animationManager.exists(idleKey)) {
+            this.anims.play(idleKey, true)
+          }
+        }
+      }
+    }
+
     // Neo cứng container theo OtherPlayer
     this.playerContainer.setPosition(this.x, this.y - 30)
 

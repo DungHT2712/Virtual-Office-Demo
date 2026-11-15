@@ -101,6 +101,52 @@ export default class Network {
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
     this.room = await this.client.joinById(roomId, { password })
+
+    // Đợi server đồng bộ State đầu tiên để lấy kích thước Workspace chính xác trước khi vào game
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const done = () => {
+        if (!settled) {
+          settled = true
+          resolve()
+        }
+      }
+
+      this.room!.onStateChange.once((state) => {
+        if (state.workspace) {
+          let w = state.workspace.width
+          let h = state.workspace.height
+          const st = state.workspace.sizeType || 'MEDIUM'
+          if (!w || !h || (w === 50 && st === 'SMALL')) {
+            if (st === 'SMALL') {
+              w = 20
+              h = 20
+            } else if (st === 'LARGE') {
+              w = 70
+              h = 70
+            } else if (st === 'XLARGE') {
+              w = 100
+              h = 100
+            } else {
+              w = 50
+              h = 50
+            }
+          }
+          store.dispatch(
+            setWorkspaceData({
+              sizeType: st,
+              width: w,
+              height: h,
+              floorsConfig: (state.workspace as any).floorsConfig,
+            })
+          )
+        }
+        done()
+      })
+
+      setTimeout(done, 1500)
+    })
+
     this.initialize()
   }
 
@@ -120,6 +166,31 @@ export default class Network {
       shareMode: shareMode || 'free',
       sharedUsers: sharedUsers || [],
     })
+
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const done = () => {
+        if (!settled) {
+          settled = true
+          resolve()
+        }
+      }
+      this.room!.onStateChange.once((state) => {
+        if (state.workspace && state.workspace.width && state.workspace.height) {
+          store.dispatch(
+            setWorkspaceData({
+              sizeType: state.workspace.sizeType || sizeType || 'MEDIUM',
+              width: state.workspace.width,
+              height: state.workspace.height,
+              floorsConfig: (state.workspace as any).floorsConfig,
+            })
+          )
+        }
+        done()
+      })
+      setTimeout(done, 1500)
+    })
+
     this.initialize()
   }
 
@@ -167,16 +238,8 @@ export default class Network {
       }
     }
 
-    // new instance added to the players MapSchema
-    this.room.state.players.onAdd = (player: IPlayer, key: string) => {
-      if (key === this.mySessionId) return
-
-      // Nếu người chơi này đã có tên hợp lệ (đã tham gia phòng trước đó)
-      if (player.name && player.name !== '') {
-        handlePlayerJoin(player, key)
-      }
-
-      // track changes on every child object inside the players MapSchema
+    // Thiết lập listener theo dõi thay đổi vị trí, animation, tên của từng người chơi
+    const setupPlayerListeners = (player: IPlayer, key: string) => {
       player.onChange = (changes) => {
         changes.forEach((change) => {
           const { field, value } = change
@@ -194,12 +257,25 @@ export default class Network {
       }
     }
 
+    // new instance added to the players MapSchema
+    this.room.state.players.onAdd = (player: IPlayer, key: string) => {
+      if (key === this.mySessionId) return
+
+      // Nếu người chơi này đã có tên hợp lệ (đã tham gia phòng trước đó)
+      if (player.name && player.name !== '') {
+        handlePlayerJoin(player, key)
+      }
+
+      setupPlayerListeners(player, key)
+    }
+
     // Kiểm tra đồng bộ các người chơi đã có sẵn trong MapSchema khi join vào phòng
     this.room.state.players.forEach((player: IPlayer, key: string) => {
       if (key === this.mySessionId) return
       if (player.name && player.name !== '') {
         handlePlayerJoin(player, key)
       }
+      setupPlayerListeners(player, key)
     })
 
     // an instance removed from the players MapSchema
@@ -292,13 +368,35 @@ export default class Network {
 
     // Mapmaker: Workspace Grid changes
     if (this.room.state.workspace) {
-      const getWs = () => ({
-        sizeType: this.room!.state.workspace.sizeType,
-        width: this.room!.state.workspace.width,
-        height: this.room!.state.workspace.height,
-        floorsConfig: (this.room!.state.workspace as any).floorsConfig,
-      })
-      store.dispatch(setWorkspaceData(getWs()))
+      const getWs = () => {
+        let w = this.room!.state.workspace.width
+        let h = this.room!.state.workspace.height
+        const st = this.room!.state.workspace.sizeType || 'MEDIUM'
+        if (!w || !h || (w === 50 && st === 'SMALL')) {
+          if (st === 'SMALL') {
+            w = 20
+            h = 20
+          } else if (st === 'LARGE') {
+            w = 70
+            h = 70
+          } else if (st === 'XLARGE') {
+            w = 100
+            h = 100
+          } else {
+            w = 50
+            h = 50
+          }
+        }
+        return {
+          sizeType: st,
+          width: w,
+          height: h,
+          floorsConfig: (this.room!.state.workspace as any).floorsConfig,
+        }
+      }
+      if (this.room.state.workspace.width && this.room.state.workspace.height) {
+        store.dispatch(setWorkspaceData(getWs()))
+      }
       this.room.state.workspace.onChange = () => {
         const ws = getWs()
         store.dispatch(setWorkspaceData(ws))
@@ -430,6 +528,14 @@ export default class Network {
   // method to register event listener and call back function when a player joined
   onPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {
     phaserEvents.on(Event.PLAYER_JOINED, callback, context)
+    // Tức thì gọi callback cho tất cả người chơi đã có mặt trong phòng
+    if (this.room?.state?.players) {
+      this.room.state.players.forEach((player: IPlayer, key: string) => {
+        if (key !== this.mySessionId && player.name && player.name !== '') {
+          callback.call(context, player, key)
+        }
+      })
+    }
   }
 
   offPlayerJoined(callback: (Player: IPlayer, key: string) => void, context?: any) {

@@ -19,5 +19,26 @@
     "message": "Yêu cầu gia nhập của bạn vào workspace [sdfsdf] đã được chấp nhận!",
     "status": "read",
     "createdAt": 1794540894508
+  },
+  {
+    "id": "req__5x0PoP2n_usr_Q1RCEC",
+    "targetUserId": "usr_8V0WWI",
+    "type": "join_request",
+    "workspaceId": "_5x0PoP2n",
+    "workspaceName": "small",
+    "requesterId": "usr_Q1RCEC",
+    "requesterName": "Guest",
+    "status": "accepted",
+    "createdAt": 1794730134675
+  },
+  {
+    "id": "acc__5x0PoP2n_usr_Q1RCEC",
+    "targetUserId": "usr_Q1RCEC",
+    "type": "join_accepted",
+    "workspaceId": "_5x0PoP2n",
+    "workspaceName": "small",
+    "message": "Yêu cầu gia nhập của bạn vào workspace [small] đã được chấp nhận!",
+    "status": "read",
+    "createdAt": 1794730146898
   }
 ]

@@ -222,6 +222,9 @@ export interface WorkspaceDisplayItem {
   description: string
   hasPassword: boolean
   clients: number
+  sizeType?: string
+  width?: number
+  height?: number
   ownerId?: string
   ownerName?: string
   shareMode: 'free' | 'ask'
@@ -353,6 +356,9 @@ export const CustomRoomTable = () => {
         description: meta.description || '',
         hasPassword: meta.hasPassword ?? false,
         clients: r.clients || 0,
+        sizeType: meta.sizeType || 'MEDIUM',
+        width: meta.width,
+        height: meta.height,
         ownerId: meta.ownerId || '',
         ownerName: meta.ownerName || '',
         shareMode: meta.shareMode || 'free',
@@ -382,12 +388,16 @@ export const CustomRoomTable = () => {
           }
         }
       }
+      const finalRoomId = activeRoom?.roomId || id
       map.set(id, {
-        roomId: id,
+        roomId: finalRoomId,
         name: sw.name || activeRoom?.name || id,
         description: sw.description || activeRoom?.description || '',
         hasPassword: !!sw.hasPassword || (activeRoom?.hasPassword ?? false),
         clients: activeRoom?.clients || 0,
+        sizeType: sw.sizeType || activeRoom?.sizeType || 'MEDIUM',
+        width: sw.width || activeRoom?.width,
+        height: sw.height || activeRoom?.height,
         ownerId: sw.ownerId || activeRoom?.ownerId || '',
         ownerName: sw.ownerName || activeRoom?.ownerName || '',
         shareMode: sw.shareMode || activeRoom?.shareMode || 'free',
@@ -771,7 +781,9 @@ export const CustomRoomTable = () => {
   // Xử lý Join phòng
   const handleJoinClick = (roomId: string, pass: string | null) => {
     if (!lobbyJoined) return
-    const targetRoom = allWorkspaceItems.find((r) => r.roomId === roomId)
+    const targetRoom = allWorkspaceItems.find(
+      (r) => r.roomId === roomId || r.name === roomId || (r.metadata && r.metadata.id === roomId)
+    )
     const isOwner = targetRoom?.ownerId === currentUserId
     const isApproved = Array.isArray(targetRoom?.sharedUsers) && targetRoom?.sharedUsers.includes(currentUserId)
     if (targetRoom && targetRoom.shareMode === 'ask' && !isOwner && !isApproved) {
@@ -783,16 +795,35 @@ export const CustomRoomTable = () => {
       return
     }
 
-    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    if (targetRoom?.metadata?.width && targetRoom?.metadata?.height) {
-      dispatch(
-        setWorkspaceData({
-          sizeType: targetRoom.metadata.sizeType || 'MEDIUM',
-          width: targetRoom.metadata.width,
-          height: targetRoom.metadata.height,
-        })
-      )
+    let targetWidth = targetRoom?.width || targetRoom?.metadata?.width
+    let targetHeight = targetRoom?.height || targetRoom?.metadata?.height
+    const targetSizeType = (targetRoom?.sizeType || targetRoom?.metadata?.sizeType || 'MEDIUM') as any
+
+    if (!targetWidth || !targetHeight) {
+      if (targetSizeType === 'SMALL') {
+        targetWidth = 20
+        targetHeight = 20
+      } else if (targetSizeType === 'LARGE') {
+        targetWidth = 70
+        targetHeight = 70
+      } else if (targetSizeType === 'XLARGE') {
+        targetWidth = 100
+        targetHeight = 100
+      } else {
+        targetWidth = 50
+        targetHeight = 50
+      }
     }
+
+    dispatch(
+      setWorkspaceData({
+        sizeType: targetSizeType,
+        width: targetWidth,
+        height: targetHeight,
+      })
+    )
+
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     bootstrap.network
       .joinCustomById(roomId, pass)
       .then(() => bootstrap.launchGame())

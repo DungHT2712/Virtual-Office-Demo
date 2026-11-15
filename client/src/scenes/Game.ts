@@ -197,8 +197,25 @@ export default class Game extends Phaser.Scene {
 
     // Khởi tạo kích thước sàn gạch theo Workspace đã chọn (Nhỏ: 20x20, Vừa: 50x50, Lớn: 70x70, Siêu lớn: 100x100)
     const wsState = store.getState().workspace
-    const wsWidth = (this.network as any).room?.state?.workspace?.width || wsState.workspace?.width || 50
-    const wsHeight = (this.network as any).room?.state?.workspace?.height || wsState.workspace?.height || 50
+    let wsWidth = (this.network as any).room?.state?.workspace?.width || wsState.workspace?.width
+    let wsHeight = (this.network as any).room?.state?.workspace?.height || wsState.workspace?.height
+    const sizeType = (this.network as any).room?.state?.workspace?.sizeType || wsState.workspace?.sizeType
+
+    if (!wsWidth || !wsHeight || (wsWidth === 50 && sizeType === 'SMALL')) {
+      if (sizeType === 'SMALL') {
+        wsWidth = 20
+        wsHeight = 20
+      } else if (sizeType === 'LARGE') {
+        wsWidth = 70
+        wsHeight = 70
+      } else if (sizeType === 'XLARGE') {
+        wsWidth = 100
+        wsHeight = 100
+      } else {
+        wsWidth = 50
+        wsHeight = 50
+      }
+    }
     const mapWidthInPixels = wsWidth * 32
     const mapHeightInPixels = wsHeight * 32
 
@@ -331,12 +348,31 @@ export default class Game extends Phaser.Scene {
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
 
+    // Khởi tạo ngay lập tức tất cả người chơi đã có mặt trước đó trong phòng
+    if ((this.network as any).room?.state?.players) {
+      (this.network as any).room.state.players.forEach((player: IPlayer, key: string) => {
+        if (key !== this.network.mySessionId && player.name && player.name !== '') {
+          this.handlePlayerJoined(player, key)
+        }
+      })
+    }
+
     // [DYNAMIC MAPMAKER LOGIC]: Lắng nghe thay đổi từ Colyseus State
     phaserEvents.on(
       Event.WORKSPACE_UPDATED,
       (ws: any) => {
-        this.renderFloorDoors()
-        this.refreshFloorVisibility()
+        if (
+          ws &&
+          ws.width &&
+          ws.height &&
+          this.map &&
+          (this.map.width !== ws.width || this.map.height !== ws.height)
+        ) {
+          this.updateWorkspaceDimensions(ws.width, ws.height)
+        } else {
+          this.renderFloorDoors()
+          this.refreshFloorVisibility()
+        }
       },
       this
     )
@@ -1319,6 +1355,53 @@ export default class Game extends Phaser.Scene {
   }
 
   /**
+   * Cập nhật kích thước bản đồ và giới hạn vật lý theo kích thước workspace được đồng bộ từ server
+   */
+  updateWorkspaceDimensions(newWidth: number, newHeight: number) {
+    if (!this.map || (this.map.width === newWidth && this.map.height === newHeight)) return
+
+    const mapWidthInPixels = newWidth * 32
+    const mapHeightInPixels = newHeight * 32
+
+    if (this.groundLayer) {
+      this.groundLayer.destroy()
+    }
+    this.map.destroy()
+
+    this.map = this.make.tilemap({
+      tileWidth: 32,
+      tileHeight: 32,
+      width: newWidth,
+      height: newHeight,
+    })
+    const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall', 32, 32, 0, 0, 0)!
+    this.groundLayer = this.map.createBlankLayer('Ground', FloorAndGround)!
+    this.groundLayer.setDepth(-1000)
+    this.groundLayer.fill(411, 0, 0, newWidth, newHeight)
+
+    const skyMargin = 10 * 32
+    this.physics.world.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
+    this.cameras.main.setBounds(
+      -skyMargin,
+      -skyMargin,
+      mapWidthInPixels + skyMargin * 2,
+      mapHeightInPixels + skyMargin * 2
+    )
+
+    if (this.myPlayer) {
+      const clampedX = Phaser.Math.Clamp(this.myPlayer.x, 16, mapWidthInPixels - 16)
+      const clampedY = Phaser.Math.Clamp(this.myPlayer.y, 16, mapHeightInPixels - 16)
+      this.myPlayer.setPosition(clampedX, clampedY)
+      this.myPlayer.setCollideWorldBounds(true)
+      this.network.updatePlayer(clampedX, clampedY, this.myPlayer.anims.currentAnim.key)
+    }
+
+    this.rebuildPathfinder()
+    this.renderFloorDoors()
+    this.refreshFloorVisibility()
+  }
+
+  /**
    * Hiển thị cửa nối giữa các tầng trên tầng hiện tại
    */
   renderFloorDoors() {
@@ -2070,7 +2153,14 @@ export default class Game extends Phaser.Scene {
   }
 
   private handlePlayerUpdated(field: string, value: number | string, id: string) {
-    const otherPlayer = this.otherPlayerMap.get(id)
+    let otherPlayer = this.otherPlayerMap.get(id)
+    if (!otherPlayer) {
+      const serverPlayer = (this.network as any).room?.state?.players?.get(id)
+      if (serverPlayer && serverPlayer.name) {
+        this.handlePlayerJoined(serverPlayer, id)
+        otherPlayer = this.otherPlayerMap.get(id)
+      }
+    }
     otherPlayer?.updateOtherPlayer(field, value)
     if (field === 'floor') {
       this.refreshFloorVisibility()

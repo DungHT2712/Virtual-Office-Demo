@@ -513,15 +513,34 @@ export default function WorkspaceConfigDialog({
   const handleSwitchWorkspace = (targetWs: any) => {
     if (!lobbyJoined) return
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    if (targetWs.width && targetWs.height) {
-      dispatch(
-        setWorkspaceData({
-          sizeType: targetWs.sizeType || 'MEDIUM',
-          width: targetWs.width,
-          height: targetWs.height,
-        })
-      )
+    let targetWidth = targetWs.width
+    let targetHeight = targetWs.height
+    const targetSizeType = targetWs.sizeType || 'MEDIUM'
+
+    if (!targetWidth || !targetHeight) {
+      if (targetSizeType === 'SMALL') {
+        targetWidth = 20
+        targetHeight = 20
+      } else if (targetSizeType === 'LARGE') {
+        targetWidth = 70
+        targetHeight = 70
+      } else if (targetSizeType === 'XLARGE') {
+        targetWidth = 100
+        targetHeight = 100
+      } else {
+        targetWidth = 50
+        targetHeight = 50
+      }
     }
+
+    dispatch(
+      setWorkspaceData({
+        sizeType: targetSizeType,
+        width: targetWidth,
+        height: targetHeight,
+      })
+    )
+
     bootstrap.network
       .joinCustomById(targetWs.id || targetWs.roomId || targetWs.name, null)
       .then(() => {

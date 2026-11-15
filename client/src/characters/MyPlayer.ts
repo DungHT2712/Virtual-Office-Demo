@@ -255,12 +255,24 @@ export default class MyPlayer extends Player {
         let vx = 0
         let vy = 0
 
-        if (movementMode === 'wasd') {
-          if (cursors.left?.isDown || cursors.A?.isDown) { vx -= speed; isManualMoving = true }
-          if (cursors.right?.isDown || cursors.D?.isDown) { vx += speed; isManualMoving = true }
-          if (cursors.up?.isDown || cursors.W?.isDown) { vy -= speed; isManualMoving = true }
-          if (cursors.down?.isDown || cursors.S?.isDown) { vy += speed; isManualMoving = true }
-        } else if (movementMode === 'joystick' && this.joystickMovement?.isMoving) {
+        // Hỗ trợ bàn phím WASD / Phím mũi tên luôn luôn hoạt động mượt mà
+        const isKeyboardMoving =
+          cursors.left?.isDown ||
+          cursors.A?.isDown ||
+          cursors.right?.isDown ||
+          cursors.D?.isDown ||
+          cursors.up?.isDown ||
+          cursors.W?.isDown ||
+          cursors.down?.isDown ||
+          cursors.S?.isDown
+
+        if (isKeyboardMoving) {
+          isManualMoving = true
+          if (cursors.left?.isDown || cursors.A?.isDown) vx -= speed
+          if (cursors.right?.isDown || cursors.D?.isDown) vx += speed
+          if (cursors.up?.isDown || cursors.W?.isDown) vy -= speed
+          if (cursors.down?.isDown || cursors.S?.isDown) vy += speed
+        } else if (this.joystickMovement?.isMoving) {
           isManualMoving = true
           if (this.joystickMovement.direction.left) vx -= speed
           if (this.joystickMovement.direction.right) vx += speed
@@ -274,8 +286,7 @@ export default class MyPlayer extends Player {
           this.setVelocity(vx, vy)
           this.setDepth(Math.max(0, this.y))
 
-          // update animation according to velocity and send new location and anim to server
-          if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
+          // Cập nhật hoạt ảnh trước rồi gửi tọa độ và animation mới nhất lên server
           if (vx > 0) {
             this.play(`${this.playerTexture}_run_right`, true)
           } else if (vx < 0) {
@@ -291,9 +302,10 @@ export default class MyPlayer extends Player {
             // this prevents idle animation keeps getting called
             if (this.anims.currentAnim.key !== newAnim) {
               this.play(parts.join('_'), true)
-              // send new location and anim to server
-              network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
             }
+          }
+          if (vx !== 0 || vy !== 0) {
+            network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
           }
         } else if (this.pathWaypoints.length > 0 && movementMode === 'mouse') {
           const target = this.pathWaypoints[0]
