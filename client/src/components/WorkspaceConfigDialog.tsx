@@ -603,13 +603,10 @@ export default function WorkspaceConfigDialog({
     }
   }
 
-  // Lọc chỉ hiển thị những workspace do CÙNG CÔNG TY tạo (so sánh companyId hoặc companyName)
-  const companyFilteredWorkspaces = workspaceList.filter((ws) => {
-    if (ws.companyId && selectedCompanyId) {
-      return ws.companyId === selectedCompanyId
-    }
-    return ws.companyName === selectedCompany
-  })
+  // Lọc danh sách Workspace con thuộc về Workspace cha này (parentWorkspaceId === roomId)
+  const childWorkspaces = workspaceList.filter(
+    (ws) => ws.parentWorkspaceId === roomId || (ws.metadata && ws.metadata.parentWorkspaceId === roomId)
+  )
 
   return (
     <>
@@ -632,7 +629,7 @@ export default function WorkspaceConfigDialog({
       </HeaderRow>
 
       <Tabs
-        value={tab}
+        value={tab >= (isCurrentParent !== false ? 3 : 2) ? 0 : tab}
         onChange={(_, val) => {
           setTab(val)
           setErrorMsg('')
@@ -654,11 +651,13 @@ export default function WorkspaceConfigDialog({
       >
         <Tab icon={<TuneIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Workspace Hiện Tại" />
         <Tab icon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Tạo Workspace Mới" />
-        <Tab
-          icon={<ListAltIcon sx={{ fontSize: 16 }} />}
-          iconPosition="start"
-          label={`Workspace Cùng Công Ty (${companyFilteredWorkspaces.length})`}
-        />
+        {isCurrentParent !== false && (
+          <Tab
+            icon={<ListAltIcon sx={{ fontSize: 16 }} />}
+            iconPosition="start"
+            label={`Workspace Con (${childWorkspaces.length})`}
+          />
+        )}
       </Tabs>
 
       <DialogContent sx={{ p: 3, maxHeight: '65vh', overflowY: 'auto' }}>
@@ -755,7 +754,10 @@ export default function WorkspaceConfigDialog({
                     </InputAdornment>
                   }
                 >
-                  {companiesList.map((c) => (
+                  {(isCurrentParent === false
+                    ? companiesList.filter((c) => c.id === selectedCompanyId || c.name === selectedCompany)
+                    : companiesList
+                  ).map((c) => (
                     <MenuItem key={c.id} value={c.id}>
                       {c.name} {c.abbr ? `(${c.abbr})` : ''} — [ID: {c.id}]
                     </MenuItem>
@@ -972,7 +974,10 @@ export default function WorkspaceConfigDialog({
                     </InputAdornment>
                   }
                 >
-                  {companiesList.map((c) => (
+                  {(isCurrentParent === false
+                    ? companiesList.filter((c) => c.id === selectedCompanyId || c.name === selectedCompany)
+                    : companiesList
+                  ).map((c) => (
                     <MenuItem key={c.id} value={c.id}>
                       {c.name} {c.abbr ? `(${c.abbr})` : ''} — [ID: {c.id}]
                     </MenuItem>
@@ -1036,8 +1041,8 @@ export default function WorkspaceConfigDialog({
           </div>
         )}
 
-        {/* TAB 2: DANH SÁCH WORKSPACE CÙNG CÔNG TY */}
-        {tab === 2 && (
+        {/* TAB 2: DANH SÁCH WORKSPACE CON CỦA WORKSPACE NÀY (CHỈ HIỂN THỊ KHI LÀ WORKSPACE CHA) */}
+        {tab === 2 && isCurrentParent !== false && (
           <div>
             <div
               style={{
@@ -1055,11 +1060,11 @@ export default function WorkspaceConfigDialog({
             >
               <div>
                 <span style={{ fontSize: 13, color: '#cbd5e1' }}>
-                  Workspace thuộc cùng công ty: <strong style={{ color: '#38bdf8' }}>{selectedCompany}</strong>
+                  Danh sách Workspace con trực thuộc: <strong style={{ color: '#38bdf8' }}>{roomName || roomId}</strong>
                 </span>
                 <span style={{ marginLeft: 8 }}>
                   <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: 4, color: '#fbbf24', fontSize: 11 }}>
-                    CompanyID: {selectedCompanyId}
+                    Workspace Cha ID: {roomId}
                   </code>
                 </span>
               </div>
@@ -1073,13 +1078,13 @@ export default function WorkspaceConfigDialog({
               </Button>
             </div>
 
-            {companyFilteredWorkspaces.length === 0 ? (
+            {childWorkspaces.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 16px', color: '#94a3b8', fontSize: 13 }}>
-                Chưa có Workspace nào khác thuộc công ty <strong>{selectedCompany}</strong>.<br />
-                Bạn có thể tạo thêm workspace mới cho công ty này ở tab <strong>"Tạo Workspace Mới"</strong>!
+                Chưa có Workspace con nào được tạo từ Workspace này.<br />
+                Bạn có thể tạo Workspace con mới ở tab <strong>"Tạo Workspace Mới"</strong>!
               </div>
             ) : (
-              companyFilteredWorkspaces.map((ws) => {
+              childWorkspaces.map((ws) => {
                 const isCurrent = ws.id === roomId || ws.name === roomName
                 const isOwner = ws.ownerId === currentUserId
 
@@ -1088,24 +1093,16 @@ export default function WorkspaceConfigDialog({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 14, color: '#f8fafc' }}>{ws.name}</span>
-                        {ws.isParent === false ? (
-                          <Chip
-                            label="Workspace Con"
-                            size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', fontWeight: 600 }}
-                          />
-                        ) : (
-                          <Chip
-                            label="Workspace Cha"
-                            size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', fontWeight: 600 }}
-                          />
-                        )}
+                        <Chip
+                          label="Workspace Con"
+                          size="small"
+                          sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', fontWeight: 600 }}
+                        />
                         {isCurrent && (
                           <Chip
                             label="Đang kết nối"
                             size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}
+                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}
                           />
                         )}
                         {isOwner && (
@@ -1120,7 +1117,7 @@ export default function WorkspaceConfigDialog({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
                         <Chip
                           icon={<ApartmentIcon sx={{ fontSize: 12 }} />}
-                          label={ws.companyName || selectedCompany}
+                          label={ws.companyName || 'Công ty con'}
                           size="small"
                           sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.06)', color: '#cbd5e1' }}
                         />
@@ -1131,49 +1128,34 @@ export default function WorkspaceConfigDialog({
                             size="small"
                             sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}
                           />
-                        ) : (
-                          <Chip
-                            label="Chưa phân phòng ban"
-                            size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.04)', color: '#94a3b8' }}
-                          />
-                        )}
-                        {ws.requireLogin ? (
-                          <Chip
-                            icon={<VpnKeyIcon sx={{ fontSize: 12 }} />}
-                            label="Cần đăng nhập"
-                            size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}
-                          />
-                        ) : (
-                          <Chip
-                            icon={<LockOpenIcon sx={{ fontSize: 12 }} />}
-                            label="Ra vào tự do"
-                            size="small"
-                            sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.05)', color: '#94a3b8' }}
-                          />
+                        ) : null}
+                        <code style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 4, color: '#94a3b8', fontSize: 11 }}>
+                          ID: {ws.id || ws.roomId}
+                        </code>
+                        {ws.clients !== undefined && (
+                          <span style={{ fontSize: 11, color: '#34d399' }}>• {ws.clients} người online</span>
                         )}
                       </div>
                     </div>
 
-                    <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {!isCurrent && (
                         <Button
                           size="small"
                           variant="contained"
                           onClick={() => handleSwitchWorkspace(ws)}
+                          disabled={switchingWs}
                           endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
                           sx={{
-                            bgcolor: '#0284c7',
-                            color: '#ffffff',
-                            fontWeight: 600,
+                            bgcolor: '#10b981',
+                            color: '#0f172a',
+                            fontWeight: 700,
                             fontSize: 12,
                             textTransform: 'none',
-                            padding: '4px 12px',
-                            '&:hover': { bgcolor: '#0369a1' },
+                            '&:hover': { bgcolor: '#059669' },
                           }}
                         >
-                          Vào Workspace
+                          Chuyển đến
                         </Button>
                       )}
                     </div>

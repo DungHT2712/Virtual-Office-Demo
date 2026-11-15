@@ -552,8 +552,10 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
         open={openCompanyDialog}
         onClose={() => setOpenCompanyDialog(false)}
         roomId={roomId}
+        roomName={roomName}
         company={company}
         isParent={isParent}
+        users={users}
         onSave={(updatedCompany) => setCompany(updatedCompany)}
       />
 

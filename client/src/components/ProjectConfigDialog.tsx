@@ -296,6 +296,8 @@ export default function ProjectConfigDialog({
   const handleSaveForm = () => {
     if (!formName.trim()) return
 
+    const selectedManager = users.find((u) => u.name === formManager.trim())
+
     if (editId) {
       setProjectList(
         projectList.map((p) =>
@@ -307,11 +309,13 @@ export default function ProjectConfigDialog({
                 status: formStatus,
                 priority: formPriority,
                 departmentId: formDeptId,
+                managerId: selectedManager ? selectedManager.id : p.managerId,
                 managerName: formManager.trim(),
                 startDate: formStartDate,
                 endDate: formEndDate,
                 progress: formProgress,
                 description: formDescription.trim(),
+                companyId: p.companyId || company.id || 'comp_voc',
               }
             : p
         )
@@ -324,11 +328,13 @@ export default function ProjectConfigDialog({
         status: formStatus,
         priority: formPriority,
         departmentId: formDeptId || company.departments[0]?.id,
+        managerId: selectedManager ? selectedManager.id : undefined,
         managerName: formManager.trim() || 'Admin',
         startDate: formStartDate,
         endDate: formEndDate,
         progress: formProgress,
         description: formDescription.trim(),
+        companyId: company.id || 'comp_voc',
       }
       setProjectList([...projectList, newProj])
     }

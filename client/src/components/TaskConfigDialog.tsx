@@ -279,6 +279,7 @@ export default function TaskConfigDialog({
     if (!formTitle.trim()) return
 
     const selectedProj = projects.find((p) => p.id === formProjectId)
+    const selectedAssignee = users.find((u) => u.name === formAssignee.trim())
 
     if (editId) {
       setTaskList(
@@ -289,12 +290,14 @@ export default function TaskConfigDialog({
                 title: formTitle.trim(),
                 projectId: formProjectId,
                 projectName: selectedProj ? selectedProj.name : t.projectName,
+                assigneeId: selectedAssignee ? selectedAssignee.id : t.assigneeId,
                 assigneeName: formAssignee.trim(),
                 status: formStatus,
                 priority: formPriority,
                 dueDate: formDueDate,
                 progress: formStatus === 'Completed' ? 100 : t.progress || 0,
                 description: formDescription.trim(),
+                companyId: t.companyId || selectedProj?.companyId || 'comp_voc',
               }
             : t
         )
@@ -305,12 +308,14 @@ export default function TaskConfigDialog({
         title: formTitle.trim(),
         projectId: formProjectId,
         projectName: selectedProj ? selectedProj.name : undefined,
+        assigneeId: selectedAssignee ? selectedAssignee.id : undefined,
         assigneeName: formAssignee.trim() || 'Admin',
         status: formStatus,
         priority: formPriority,
         dueDate: formDueDate,
         progress: formStatus === 'Completed' ? 100 : 0,
         description: formDescription.trim(),
+        companyId: selectedProj?.companyId || 'comp_voc',
       }
       setTaskList([...taskList, newTask])
     }

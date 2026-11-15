@@ -1,1 +1,153 @@
-[]
+[
+  {
+    "id": "3Utyclgep",
+    "name": "parent",
+    "description": "111",
+    "password": null,
+    "hasPassword": false,
+    "sizeType": "SMALL",
+    "width": 20,
+    "height": 20,
+    "ownerId": "usr_QZNN4I",
+    "ownerName": "Guest",
+    "shareMode": "free",
+    "sharedUsers": [
+      "usr_QZNN4I"
+    ],
+    "companyId": "",
+    "companyName": "",
+    "departmentId": "",
+    "departmentName": "",
+    "requireLogin": false,
+    "isParent": true,
+    "parentWorkspaceId": null,
+    "createdAt": 1794761414888,
+    "tasks": [
+      {
+        "id": "task_default_1",
+        "title": "Tối ưu hóa bản đồ và thiết kế không gian làm việc",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "companyId": "comp_voc",
+        "assigneeName": "Admin",
+        "status": "Working",
+        "priority": "High",
+        "dueDate": "2026-11-22",
+        "progress": 70,
+        "description": "Thiết kế các khu vực phòng họp, bàn làm việc và tiện ích"
+      },
+      {
+        "id": "task_default_2",
+        "title": "Tích hợp hệ thống quản trị Core & Projects Frappe",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "companyId": "comp_voc",
+        "assigneeName": "Admin",
+        "status": "Completed",
+        "priority": "Urgent",
+        "dueDate": "2026-11-15",
+        "progress": 100,
+        "description": "Hoàn thiện giao diện và API đồng bộ dữ liệu dự án"
+      },
+      {
+        "id": "task_default_3",
+        "title": "Soạn thảo tài liệu hướng dẫn và onboarding nhân sự mới",
+        "projectId": "proj_default_2",
+        "projectName": "Chiến dịch Ra mắt Sản phẩm Q4",
+        "companyId": "comp_voc",
+        "assigneeName": "Admin",
+        "status": "Open",
+        "priority": "Medium",
+        "dueDate": "2026-11-29",
+        "progress": 0,
+        "description": "Chuẩn bị tài liệu hướng dẫn tham gia văn phòng ảo"
+      },
+      {
+        "id": "task_child_created_99",
+        "title": "Task Test1",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "assigneeName": "Guest",
+        "assigneeId": "usr_QZNN4I",
+        "companyId": "comp_voc",
+        "status": "Working",
+        "priority": "High"
+      },
+      {
+        "id": "task_verify_notification_1",
+        "title": "Task Test1",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "assigneeName": "Guest",
+        "assigneeId": "usr_QZNN4I",
+        "companyId": "comp_voc",
+        "status": "Working",
+        "priority": "High"
+      }
+    ]
+  },
+  {
+    "id": "_8LxEklWJ",
+    "name": "chiild",
+    "description": "abc",
+    "password": null,
+    "hasPassword": false,
+    "sizeType": "SMALL",
+    "width": 20,
+    "height": 20,
+    "ownerId": "usr_QZNN4I",
+    "ownerName": "Guest",
+    "shareMode": "free",
+    "sharedUsers": [
+      "usr_QZNN4I"
+    ],
+    "companyId": "comp_frappe",
+    "companyName": "Frappe Enterprise",
+    "departmentId": "",
+    "departmentName": "",
+    "requireLogin": false,
+    "isParent": false,
+    "parentWorkspaceId": "3Utyclgep",
+    "company": {
+      "id": "comp_frappe",
+      "name": "Frappe Enterprise",
+      "abbr": "FRAPPE",
+      "domain": "frappe.io",
+      "currency": "USD",
+      "country": "Global",
+      "departments": [
+        {
+          "id": "dept_fr_core",
+          "name": "Core Engineering",
+          "head": "Lead Architect"
+        },
+        {
+          "id": "dept_fr_support",
+          "name": "Customer Success",
+          "head": "Support Lead"
+        },
+        {
+          "id": "dept_fr_ops",
+          "name": "Operations & HR",
+          "head": "COO"
+        }
+      ],
+      "createdAt": 1700000000000
+    },
+    "users": [
+      {
+        "id": "usr_QZNN4I",
+        "name": "Guest",
+        "username": "guest",
+        "password": "",
+        "email": "guest@office.local",
+        "role": "Workspace Owner",
+        "departmentId": "dept_bod",
+        "status": "active"
+      }
+    ],
+    "createdAt": 1794761414892,
+    "chatHistory": [],
+    "pendingRequests": []
+  }
+]

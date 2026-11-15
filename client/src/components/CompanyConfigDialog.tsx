@@ -164,8 +164,10 @@ interface Props {
   open: boolean
   onClose: () => void
   roomId: string
+  roomName?: string
   company: WorkspaceCompany
   isParent?: boolean
+  users?: any[]
   onSave: (updated: WorkspaceCompany) => void
 }
 
@@ -173,8 +175,10 @@ export default function CompanyConfigDialog({
   open,
   onClose,
   roomId,
+  roomName,
   company,
   isParent = true,
+  users = [],
   onSave,
 }: Props) {
   const [activeTab, setActiveTab] = useState(0)
@@ -244,6 +248,12 @@ export default function CompanyConfigDialog({
     setCountry(comp.country || 'Việt Nam')
     setDepartments(comp.departments || [])
   }
+
+  useEffect(() => {
+    if (isParent === false) {
+      setSelectedCompId(company.id || 'comp_voc')
+    }
+  }, [isParent, company])
 
   useEffect(() => {
     const cur = companies.find((c) => c.id === selectedCompId) || company
@@ -405,6 +415,35 @@ export default function CompanyConfigDialog({
           onSave(updated)
         }
 
+        // Thông báo gán user cho Trưởng bộ phận nếu có
+        if (users && users.length > 0) {
+          departments.forEach((d) => {
+            if (d.head) {
+              const cleanHead = d.head.trim().toLowerCase()
+              const matchedUser = users.find(
+                (u) =>
+                  (u.name && u.name.toLowerCase() === cleanHead) ||
+                  (u.username && u.username.toLowerCase() === cleanHead) ||
+                  u.id === d.head
+              )
+              if (matchedUser) {
+                fetch('/api/notifications', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    targetUserId: matchedUser.id,
+                    feature: 'Phòng ban',
+                    itemName: d.name,
+                    workspaceId: roomId,
+                    workspaceName: roomName || 'Workspace',
+                    message: `Bạn đã được gán cho Phòng ban ${d.name} trong ${roomName || 'Workspace'}`,
+                  }),
+                }).catch(() => null)
+              }
+            }
+          })
+        }
+
         setSuccessMsg(`Cập nhật thông tin công ty "${updated.name}" thành công!`)
         setTimeout(() => setSuccessMsg(''), 3000)
       }
@@ -414,6 +453,12 @@ export default function CompanyConfigDialog({
       setSaving(false)
     }
   }
+
+  // Trong Workspace con, chỉ hiển thị duy nhất công ty của workspace con đó
+  const displayedCompanies = isParent === false
+    ? companies.filter((c) => c.id === company.id || c.name === company.name)
+    : companies
+  const finalCompanies = displayedCompanies.length > 0 ? displayedCompanies : [company]
 
   const textFieldStyles = {
     '& .MuiOutlinedInput-root': {
@@ -467,7 +512,7 @@ export default function CompanyConfigDialog({
           '& .MuiTabs-indicator': { backgroundColor: '#38bdf8', height: '3px' },
         }}
       >
-        <Tab icon={<ListAltIcon sx={{ fontSize: 16 }} />} iconPosition="start" label={`Danh Sách Công Ty (${companies.length})`} />
+        <Tab icon={<ListAltIcon sx={{ fontSize: 16 }} />} iconPosition="start" label={`Danh Sách Công Ty (${finalCompanies.length})`} />
         <Tab icon={<BusinessIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Thông Tin Công Ty" />
         <Tab icon={<AccountTreeIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Cơ Cấu Phòng Ban" />
         {isParent !== false && (
@@ -496,14 +541,14 @@ export default function CompanyConfigDialog({
           <div>
             {isParent === false && (
               <Alert severity="info" sx={{ mb: 2, background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
-                Đây là <strong>Workspace Con</strong>. Workspace này chỉ thuộc về 1 công ty duy nhất được thiết lập từ ban đầu và không thể tạo thêm công ty mới hoặc chuyển đổi công ty khác.
+                Đây là <strong>Workspace Con</strong>. Workspace này chỉ hiển thị duy nhất công ty được thiết lập từ ban đầu và không thể tạo thêm công ty mới hoặc chuyển đổi công ty khác.
               </Alert>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>
                 {isParent !== false
                   ? 'Hệ thống hỗ trợ tạo nhiều công ty. Mỗi công ty sở hữu một Company ID riêng biệt.'
-                  : 'Workspace con hiển thị danh sách công ty để tham khảo, công ty hiện tại được cố định.'}
+                  : 'Workspace con chỉ hiển thị duy nhất công ty của workspace này.'}
               </span>
               {isParent !== false && (
                 <Button
@@ -518,7 +563,7 @@ export default function CompanyConfigDialog({
               )}
             </div>
 
-            {companies.map((c) => {
+            {finalCompanies.map((c) => {
               const isCurrentForWorkspace = company.id === c.id || company.name === c.name
               const isSelectedToEdit = selectedCompId === c.id
 

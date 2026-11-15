@@ -783,6 +783,34 @@ app.post('/api/notifications/clear', (req, res) => {
   res.json({ success: true })
 })
 
+// 10. POST /api/notifications: Tạo thông báo gán chức năng hoặc thông báo hệ thống
+app.post('/api/notifications', (req, res) => {
+  const { targetUserId, feature, itemName, workspaceId, workspaceName, message } = req.body
+  if (!targetUserId) {
+    return res.status(400).json({ success: false, message: 'Thiếu targetUserId' })
+  }
+  const feat = feature || 'Chức năng'
+  const cleanName =
+    itemName && itemName.toLowerCase().startsWith(feat.toLowerCase() + ' ')
+      ? itemName.substring(feat.length + 1).trim()
+      : itemName || ''
+  const finalMsg =
+    message ||
+    `Bạn đã được gán cho ${feat} ${cleanName} trong ${workspaceName || 'Workspace'}`
+  const notif = {
+    id: 'notif_assign_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    targetUserId,
+    type: 'system' as const,
+    workspaceId: workspaceId || '',
+    workspaceName: workspaceName || '',
+    message: finalMsg,
+    status: 'unread' as const,
+    createdAt: Date.now(),
+  }
+  addNotification(notif)
+  res.json({ success: true, notification: notif })
+})
+
 // API Quản lý Core Module: Company & Users (Theo chuẩn Frappe)
 // GET /api/workspaces/:id/core
 app.get('/api/workspaces/:id/core', (req, res) => {
@@ -893,6 +921,57 @@ app.delete('/api/workspaces/:id/users/:userId', (req, res) => {
   res.json({ success: true, message: 'Đã xóa người dùng' })
 })
 
+// Helper tạo thông báo khi user được gán chức năng (Project, Task, Phòng ban...)
+function notifyAssignment(
+  targetUserId: string,
+  feature: string,
+  itemName: string,
+  workspaceId: string,
+  workspaceName: string
+) {
+  if (!targetUserId) return
+  const cleanName =
+    itemName && itemName.toLowerCase().startsWith(feature.toLowerCase() + ' ')
+      ? itemName.substring(feature.length + 1).trim()
+      : itemName
+  addNotification({
+    id: 'notif_assign_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    targetUserId,
+    type: 'system',
+    workspaceId: workspaceId || '',
+    workspaceName: workspaceName || '',
+    message: `Bạn đã được gán cho ${feature} ${cleanName} trong ${workspaceName}`,
+    status: 'unread',
+    createdAt: Date.now(),
+  })
+}
+
+function findUserIdByNameOrId(ws: any, parentWs: any, nameOrId?: string): string | null {
+  if (!nameOrId || !nameOrId.trim()) return null
+  const str = nameOrId.trim()
+  if (str.startsWith('usr_')) return str
+  const clean = str.toLowerCase()
+  const allUsers = [...(ws?.users || []), ...(parentWs?.users || [])]
+  const found = allUsers.find(
+    (u) =>
+      u.id === str ||
+      (u.name && u.name.toLowerCase() === clean) ||
+      (u.username && u.username.toLowerCase() === clean)
+  )
+  if (found) return found.id
+  const anyWs = getAllWorkspaces()
+  for (const w of anyWs) {
+    const f = (w.users || []).find(
+      (u: any) =>
+        u.id === str ||
+        (u.name && u.name.toLowerCase() === clean) ||
+        (u.username && u.username.toLowerCase() === clean)
+    )
+    if (f) return f.id
+  }
+  return null
+}
+
 // API Quản lý Module Projects & Tasks (Chuẩn Frappe ERP)
 // GET /api/workspaces/:id/projects-data
 app.get('/api/workspaces/:id/projects-data', (req, res) => {
@@ -910,6 +989,7 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
       status: 'Open' as const,
       priority: 'High' as const,
       departmentId: 'dept_tech',
+      companyId: ws.companyId || 'comp_voc',
       managerName: ws.ownerName || 'Admin',
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -923,6 +1003,7 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
       status: 'Open' as const,
       priority: 'Medium' as const,
       departmentId: 'dept_sales',
+      companyId: ws.companyId || 'comp_voc',
       managerName: ws.ownerName || 'Admin',
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
@@ -937,6 +1018,7 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
       title: 'Tối ưu hóa bản đồ và thiết kế không gian làm việc',
       projectId: 'proj_default_1',
       projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      companyId: ws.companyId || 'comp_voc',
       assigneeName: ws.ownerName || 'Admin',
       status: 'Working' as const,
       priority: 'High' as const,
@@ -949,6 +1031,7 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
       title: 'Tích hợp hệ thống quản trị Core & Projects Frappe',
       projectId: 'proj_default_1',
       projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      companyId: ws.companyId || 'comp_voc',
       assigneeName: ws.ownerName || 'Admin',
       status: 'Completed' as const,
       priority: 'Urgent' as const,
@@ -961,6 +1044,7 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
       title: 'Soạn thảo tài liệu hướng dẫn và onboarding nhân sự mới',
       projectId: 'proj_default_2',
       projectName: 'Chiến dịch Ra mắt Sản phẩm Q4',
+      companyId: ws.companyId || 'comp_voc',
       assigneeName: ws.ownerName || 'Admin',
       status: 'Open' as const,
       priority: 'Medium' as const,
@@ -970,10 +1054,63 @@ app.get('/api/workspaces/:id/projects-data', (req, res) => {
     },
   ]
 
+  // 1. Nếu là Workspace Con: CHỈ HIỂN THỊ DỰ ÁN VÀ TASK THUỘC CÔNG TY CỦA WORKSPACE CON
+  // Đồng thời hợp nhất dữ liệu chia sẻ từ Workspace Cha
+  if (ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    const targetCompId = ws.companyId || ws.company?.id
+    const deptIds = new Set((ws.company?.departments || []).map((d: any) => d.id))
+
+    // Hợp nhất projects
+    const mapProj = new Map<string, any>()
+    ;(parentWs?.projects || []).forEach((p: any) => mapProj.set(p.id, p))
+    ;(ws.projects || []).forEach((p: any) => mapProj.set(p.id, p))
+    const allProjects = mapProj.size > 0 ? Array.from(mapProj.values()) : defaultProjects
+
+    const filteredProjects = allProjects.filter((p: any) => {
+      if (p.companyId && targetCompId) return p.companyId === targetCompId
+      if (p.departmentId && deptIds.has(p.departmentId)) return true
+      return !p.companyId
+    })
+    const allowedProjIds = new Set(filteredProjects.map((p: any) => p.id))
+
+    // Hợp nhất tasks
+    const mapTasks = new Map<string, any>()
+    ;(parentWs?.tasks || []).forEach((t: any) => mapTasks.set(t.id, t))
+    ;(ws.tasks || []).forEach((t: any) => mapTasks.set(t.id, t))
+    const allTasks = mapTasks.size > 0 ? Array.from(mapTasks.values()) : defaultTasks
+
+    const filteredTasks = allTasks.filter((t: any) => {
+      if (t.companyId && targetCompId && t.companyId === targetCompId) return true
+      if (t.projectId && allowedProjIds.has(t.projectId)) return true
+      return false
+    })
+
+    return res.json({
+      success: true,
+      projects: filteredProjects,
+      tasks: filteredTasks,
+    })
+  }
+
+  // 2. Nếu là Workspace Cha: HỢP NHẤT TOÀN BỘ DỰ ÁN & TASK TỪ CÁC WORKSPACE CON
+  const childWorkspaces = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+  const mapProj = new Map<string, any>()
+  ;(ws.projects && ws.projects.length > 0 ? ws.projects : defaultProjects).forEach((p: any) => mapProj.set(p.id, p))
+  childWorkspaces.forEach((cw) => {
+    ;(cw.projects || []).forEach((p: any) => mapProj.set(p.id, p))
+  })
+
+  const mapTasks = new Map<string, any>()
+  ;(ws.tasks && ws.tasks.length > 0 ? ws.tasks : defaultTasks).forEach((t: any) => mapTasks.set(t.id, t))
+  childWorkspaces.forEach((cw) => {
+    ;(cw.tasks || []).forEach((t: any) => mapTasks.set(t.id, t))
+  })
+
   res.json({
     success: true,
-    projects: ws.projects && ws.projects.length > 0 ? ws.projects : defaultProjects,
-    tasks: ws.tasks && ws.tasks.length > 0 ? ws.tasks : defaultTasks,
+    projects: Array.from(mapProj.values()),
+    tasks: Array.from(mapTasks.values()),
   })
 })
 
@@ -988,13 +1125,79 @@ app.post('/api/workspaces/:id/projects', (req, res) => {
   const ws = getWorkspaceById(id)
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
+  const oldProjects = ws?.projects || []
 
-  const updated = updateWorkspace(targetId, { projects })
+  // Đảm bảo mỗi project đều mang companyId
+  const targetCompId = ws?.companyId || ws?.company?.id || 'comp_voc'
+  const taggedProjects = projects.map((p: any) => ({
+    ...p,
+    companyId: p.companyId || targetCompId,
+  }))
+
+  const updated = updateWorkspace(targetId, { projects: taggedProjects })
   if (ws?.name && ws.name !== targetId) {
-    updateWorkspace(ws.name, { projects })
+    updateWorkspace(ws.name, { projects: taggedProjects })
   }
 
-  res.json({ success: true, projects: updated?.projects || projects })
+  // Chia sẻ 2 chiều:
+  // Nếu là Workspace Con -> Cập nhật/Merge sang Workspace Cha
+  if (ws && ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    if (parentWs) {
+      const parentProjMap = new Map<string, any>()
+      ;(parentWs.projects || []).forEach((p: any) => parentProjMap.set(p.id, p))
+      taggedProjects.forEach((p: any) => parentProjMap.set(p.id, p))
+      const mergedParent = Array.from(parentProjMap.values())
+      updateWorkspace(parentWs.id, { projects: mergedParent })
+      if (parentWs.name && parentWs.name !== parentWs.id) {
+        updateWorkspace(parentWs.name, { projects: mergedParent })
+      }
+    }
+  }
+
+  // Nếu là Workspace Cha -> Cập nhật sang các Workspace Con cùng công ty
+  if (ws && ws.isParent !== false) {
+    const childWorkspaces = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+    childWorkspaces.forEach((child) => {
+      const childCompId = child.companyId || child.company?.id
+      const childDepts = new Set((child.company?.departments || []).map((d: any) => d.id))
+      const relevantProjects = taggedProjects.filter((p: any) => {
+        if (p.companyId && childCompId) return p.companyId === childCompId
+        if (p.departmentId && childDepts.has(p.departmentId)) return true
+        return false
+      })
+      if (relevantProjects.length > 0) {
+        const childProjMap = new Map<string, any>()
+        ;(child.projects || []).forEach((p: any) => childProjMap.set(p.id, p))
+        relevantProjects.forEach((p: any) => childProjMap.set(p.id, p))
+        updateWorkspace(child.id, { projects: Array.from(childProjMap.values()) })
+      }
+    })
+  }
+
+  // THÔNG BÁO GÁN USER: Bạn đã được gán cho Project [Tên Project] trong [Tên workspace]
+  const parentWs = ws?.parentWorkspaceId ? getWorkspaceById(ws.parentWorkspaceId) : null
+  taggedProjects.forEach((proj: any) => {
+    const oldProj = oldProjects.find((op: any) => op.id === proj.id)
+    const isNew = !oldProj
+    const managerChanged =
+      oldProj &&
+      (oldProj.managerName !== proj.managerName || oldProj.managerId !== proj.managerId)
+    if ((isNew || managerChanged) && (proj.managerName || proj.managerId)) {
+      const targetUserId = findUserIdByNameOrId(ws, parentWs, proj.managerId || proj.managerName)
+      if (targetUserId) {
+        notifyAssignment(
+          targetUserId,
+          'Project',
+          proj.name,
+          ws?.id || targetId,
+          ws?.name || 'Workspace'
+        )
+      }
+    }
+  })
+
+  res.json({ success: true, projects: updated?.projects || taggedProjects })
 })
 
 // POST /api/workspaces/:id/tasks
@@ -1008,13 +1211,79 @@ app.post('/api/workspaces/:id/tasks', (req, res) => {
   const ws = getWorkspaceById(id)
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
+  const oldTasks = ws?.tasks || []
 
-  const updated = updateWorkspace(targetId, { tasks })
+  // Đảm bảo mỗi task đều mang companyId
+  const targetCompId = ws?.companyId || ws?.company?.id || 'comp_voc'
+  const taggedTasks = tasks.map((t: any) => ({
+    ...t,
+    companyId: t.companyId || targetCompId,
+  }))
+
+  const updated = updateWorkspace(targetId, { tasks: taggedTasks })
   if (ws?.name && ws.name !== targetId) {
-    updateWorkspace(ws.name, { tasks })
+    updateWorkspace(ws.name, { tasks: taggedTasks })
   }
 
-  res.json({ success: true, tasks: updated?.tasks || tasks })
+  // Chia sẻ 2 chiều:
+  // Nếu là Workspace Con -> Cập nhật/Merge sang Workspace Cha
+  if (ws && ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    if (parentWs) {
+      const parentTaskMap = new Map<string, any>()
+      ;(parentWs.tasks || []).forEach((t: any) => parentTaskMap.set(t.id, t))
+      taggedTasks.forEach((t: any) => parentTaskMap.set(t.id, t))
+      const mergedParent = Array.from(parentTaskMap.values())
+      updateWorkspace(parentWs.id, { tasks: mergedParent })
+      if (parentWs.name && parentWs.name !== parentWs.id) {
+        updateWorkspace(parentWs.name, { tasks: mergedParent })
+      }
+    }
+  }
+
+  // Nếu là Workspace Cha -> Cập nhật sang các Workspace Con cùng công ty
+  if (ws && ws.isParent !== false) {
+    const childWorkspaces = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+    childWorkspaces.forEach((child) => {
+      const childCompId = child.companyId || child.company?.id
+      const childProjectIds = new Set((child.projects || []).map((p: any) => p.id))
+      const relevantTasks = taggedTasks.filter((t: any) => {
+        if (t.companyId && childCompId) return t.companyId === childCompId
+        if (t.projectId && childProjectIds.has(t.projectId)) return true
+        return false
+      })
+      if (relevantTasks.length > 0) {
+        const childTaskMap = new Map<string, any>()
+        ;(child.tasks || []).forEach((t: any) => childTaskMap.set(t.id, t))
+        relevantTasks.forEach((t: any) => childTaskMap.set(t.id, t))
+        updateWorkspace(child.id, { tasks: Array.from(childTaskMap.values()) })
+      }
+    })
+  }
+
+  // THÔNG BÁO GÁN USER: Bạn đã được gán cho Task [Tên Task] trong [Tên workspace]
+  const parentWs = ws?.parentWorkspaceId ? getWorkspaceById(ws.parentWorkspaceId) : null
+  taggedTasks.forEach((task: any) => {
+    const oldTask = oldTasks.find((ot: any) => ot.id === task.id)
+    const isNew = !oldTask
+    const assigneeChanged =
+      oldTask &&
+      (oldTask.assigneeName !== task.assigneeName || oldTask.assigneeId !== task.assigneeId)
+    if ((isNew || assigneeChanged) && (task.assigneeName || task.assigneeId)) {
+      const targetUserId = findUserIdByNameOrId(ws, parentWs, task.assigneeId || task.assigneeName)
+      if (targetUserId) {
+        notifyAssignment(
+          targetUserId,
+          'Task',
+          task.title,
+          ws?.id || targetId,
+          ws?.name || 'Workspace'
+        )
+      }
+    }
+  })
+
+  res.json({ success: true, tasks: updated?.tasks || taggedTasks })
 })
 
 // DELETE /api/workspaces/:id/projects/:projectId
@@ -1030,6 +1299,28 @@ app.delete('/api/workspaces/:id/projects/:projectId', (req, res) => {
     updateWorkspace(targetId, { projects: newProjects, tasks: newTasks })
     if (ws.name && ws.name !== targetId) {
       updateWorkspace(ws.name, { projects: newProjects, tasks: newTasks })
+    }
+
+    // Đồng bộ xóa ở cha nếu đây là con
+    if (ws.isParent === false && ws.parentWorkspaceId) {
+      const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+      if (parentWs && parentWs.projects) {
+        const parentNewProj = parentWs.projects.filter((p) => p.id !== projectId)
+        const parentNewTasks = parentWs.tasks ? parentWs.tasks.filter((t) => t.projectId !== projectId) : []
+        updateWorkspace(parentWs.id, { projects: parentNewProj, tasks: parentNewTasks })
+      }
+    }
+
+    // Đồng bộ xóa ở các con nếu đây là cha
+    if (ws.isParent !== false) {
+      const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+      children.forEach((c) => {
+        if (c.projects && c.projects.some((p) => p.id === projectId)) {
+          const cNewProj = c.projects.filter((p) => p.id !== projectId)
+          const cNewTasks = c.tasks ? c.tasks.filter((t) => t.projectId !== projectId) : []
+          updateWorkspace(c.id, { projects: cNewProj, tasks: cNewTasks })
+        }
+      })
     }
   }
 
@@ -1048,6 +1339,24 @@ app.delete('/api/workspaces/:id/tasks/:taskId', (req, res) => {
     updateWorkspace(targetId, { tasks: newTasks })
     if (ws.name && ws.name !== targetId) {
       updateWorkspace(ws.name, { tasks: newTasks })
+    }
+
+    // Đồng bộ xóa ở cha nếu đây là con
+    if (ws.isParent === false && ws.parentWorkspaceId) {
+      const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+      if (parentWs && parentWs.tasks) {
+        updateWorkspace(parentWs.id, { tasks: parentWs.tasks.filter((t) => t.id !== taskId) })
+      }
+    }
+
+    // Đồng bộ xóa ở các con nếu đây là cha
+    if (ws.isParent !== false) {
+      const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+      children.forEach((c) => {
+        if (c.tasks && c.tasks.some((t) => t.id === taskId)) {
+          updateWorkspace(c.id, { tasks: c.tasks.filter((t) => t.id !== taskId) })
+        }
+      })
     }
   }
 
@@ -1070,6 +1379,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       code: 'SPEC',
       description: 'Bản vẽ kỹ thuật, kiến trúc hệ thống và đặc tả thiết kế',
       color: '#38bdf8',
+      companyId: ws.companyId || 'comp_voc',
     },
     {
       id: 'doctype_contract',
@@ -1077,6 +1387,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       code: 'CONTRACT',
       description: 'Hợp đồng dự án, thỏa thuận hợp tác và cam kết bảo mật',
       color: '#f59e0b',
+      companyId: ws.companyId || 'comp_voc',
     },
     {
       id: 'doctype_report',
@@ -1084,6 +1395,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       code: 'REPORT',
       description: 'Báo cáo tiến độ tuần, biên bản họp giao ban',
       color: '#10b981',
+      companyId: ws.companyId || 'comp_voc',
     },
     {
       id: 'doctype_manual',
@@ -1091,6 +1403,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       code: 'MANUAL',
       description: 'Quy trình nội bộ, tài liệu onboarding thành viên',
       color: '#a855f7',
+      companyId: ws.companyId || 'comp_voc',
     },
   ]
 
@@ -1102,6 +1415,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       typeName: 'Tài liệu Kỹ thuật & Thiết kế',
       projectId: 'proj_default_1',
       projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      companyId: ws.companyId || 'comp_voc',
       uploadedBy: ws.ownerName || 'Admin',
       uploadedAt: Date.now() - 3600000 * 24,
       fileName: 'Architecture_SkyOffice_v2.pdf',
@@ -1116,6 +1430,7 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
       typeName: 'Báo cáo & Biên bản cuộc họp',
       projectId: 'proj_default_2',
       projectName: 'Chiến dịch Ra mắt Sản phẩm Q4',
+      companyId: ws.companyId || 'comp_voc',
       uploadedBy: ws.ownerName || 'Admin',
       uploadedAt: Date.now() - 3600000 * 8,
       fileName: 'Marketing_Budget_Q4.xlsx',
@@ -1125,10 +1440,55 @@ app.get('/api/workspaces/:id/documents-data', (req, res) => {
     },
   ]
 
+  // 1. Nếu là Workspace Con: CHỈ HIỂN THỊ TÀI LIỆU VÀ LOẠI TÀI LIỆU CỦA CÔNG TY ĐÓ
+  if (ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    const targetCompId = ws.companyId || ws.company?.id
+
+    const mapTypes = new Map<string, any>()
+    ;(parentWs?.documentTypes || []).forEach((t: any) => mapTypes.set(t.id, t))
+    ;(ws.documentTypes || []).forEach((t: any) => mapTypes.set(t.id, t))
+    const allTypes = mapTypes.size > 0 ? Array.from(mapTypes.values()) : defaultTypes
+
+    const filteredTypes = allTypes.filter((t: any) => !t.companyId || t.companyId === targetCompId)
+
+    const mapDocs = new Map<string, any>()
+    ;(parentWs?.documents || []).forEach((d: any) => mapDocs.set(d.id, d))
+    ;(ws.documents || []).forEach((d: any) => mapDocs.set(d.id, d))
+    const allDocs = mapDocs.size > 0 ? Array.from(mapDocs.values()) : defaultDocuments
+
+    const childProjectIds = new Set((ws.projects || []).map((p: any) => p.id))
+    const filteredDocs = allDocs.filter((d: any) => {
+      if (d.companyId && targetCompId && d.companyId === targetCompId) return true
+      if (d.projectId && childProjectIds.has(d.projectId)) return true
+      return !d.companyId
+    })
+
+    return res.json({
+      success: true,
+      documentTypes: filteredTypes,
+      documents: filteredDocs,
+    })
+  }
+
+  // 2. Nếu là Workspace Cha: HỢP NHẤT TOÀN BỘ TÀI LIỆU TỪ CÁC WORKSPACE CON
+  const childWorkspaces = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+  const mapTypes = new Map<string, any>()
+  ;(ws.documentTypes && ws.documentTypes.length > 0 ? ws.documentTypes : defaultTypes).forEach((t: any) => mapTypes.set(t.id, t))
+  childWorkspaces.forEach((cw) => {
+    ;(cw.documentTypes || []).forEach((t: any) => mapTypes.set(t.id, t))
+  })
+
+  const mapDocs = new Map<string, any>()
+  ;(ws.documents && ws.documents.length > 0 ? ws.documents : defaultDocuments).forEach((d: any) => mapDocs.set(d.id, d))
+  childWorkspaces.forEach((cw) => {
+    ;(cw.documents || []).forEach((d: any) => mapDocs.set(d.id, d))
+  })
+
   res.json({
     success: true,
-    documentTypes: ws.documentTypes && ws.documentTypes.length > 0 ? ws.documentTypes : defaultTypes,
-    documents: ws.documents && ws.documents.length > 0 ? ws.documents : defaultDocuments,
+    documentTypes: Array.from(mapTypes.values()),
+    documents: Array.from(mapDocs.values()),
   })
 })
 
@@ -1143,13 +1503,45 @@ app.post('/api/workspaces/:id/document-types', (req, res) => {
   const ws = getWorkspaceById(id)
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
+  const targetCompId = ws?.companyId || ws?.company?.id || 'comp_voc'
 
-  const updated = updateWorkspace(targetId, { documentTypes })
+  const tagged = documentTypes.map((t: any) => ({
+    ...t,
+    companyId: t.companyId || targetCompId,
+  }))
+
+  const updated = updateWorkspace(targetId, { documentTypes: tagged })
   if (ws?.name && ws.name !== targetId) {
-    updateWorkspace(ws.name, { documentTypes })
+    updateWorkspace(ws.name, { documentTypes: tagged })
   }
 
-  res.json({ success: true, documentTypes: updated?.documentTypes || documentTypes })
+  // Đồng bộ sang cha nếu là con
+  if (ws && ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    if (parentWs) {
+      const mapT = new Map<string, any>()
+      ;(parentWs.documentTypes || []).forEach((t: any) => mapT.set(t.id, t))
+      tagged.forEach((t: any) => mapT.set(t.id, t))
+      updateWorkspace(parentWs.id, { documentTypes: Array.from(mapT.values()) })
+    }
+  }
+
+  // Đồng bộ sang con nếu là cha
+  if (ws && ws.isParent !== false) {
+    const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+    children.forEach((c) => {
+      const cCompId = c.companyId || c.company?.id
+      const rel = tagged.filter((t: any) => !t.companyId || t.companyId === cCompId)
+      if (rel.length > 0) {
+        const mapT = new Map<string, any>()
+        ;(c.documentTypes || []).forEach((t: any) => mapT.set(t.id, t))
+        rel.forEach((t: any) => mapT.set(t.id, t))
+        updateWorkspace(c.id, { documentTypes: Array.from(mapT.values()) })
+      }
+    })
+  }
+
+  res.json({ success: true, documentTypes: updated?.documentTypes || tagged })
 })
 
 // POST /api/workspaces/:id/documents
@@ -1163,13 +1555,45 @@ app.post('/api/workspaces/:id/documents', (req, res) => {
   const ws = getWorkspaceById(id)
   const active = findActiveRoom(id)
   const targetId = ws?.id || active?.roomId || id
+  const targetCompId = ws?.companyId || ws?.company?.id || 'comp_voc'
 
-  const updated = updateWorkspace(targetId, { documents })
+  const tagged = documents.map((d: any) => ({
+    ...d,
+    companyId: d.companyId || targetCompId,
+  }))
+
+  const updated = updateWorkspace(targetId, { documents: tagged })
   if (ws?.name && ws.name !== targetId) {
-    updateWorkspace(ws.name, { documents })
+    updateWorkspace(ws.name, { documents: tagged })
   }
 
-  res.json({ success: true, documents: updated?.documents || documents })
+  // Đồng bộ sang cha nếu là con
+  if (ws && ws.isParent === false && ws.parentWorkspaceId) {
+    const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+    if (parentWs) {
+      const mapD = new Map<string, any>()
+      ;(parentWs.documents || []).forEach((d: any) => mapD.set(d.id, d))
+      tagged.forEach((d: any) => mapD.set(d.id, d))
+      updateWorkspace(parentWs.id, { documents: Array.from(mapD.values()) })
+    }
+  }
+
+  // Đồng bộ sang con nếu là cha
+  if (ws && ws.isParent !== false) {
+    const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+    children.forEach((c) => {
+      const cCompId = c.companyId || c.company?.id
+      const rel = tagged.filter((d: any) => !d.companyId || d.companyId === cCompId)
+      if (rel.length > 0) {
+        const mapD = new Map<string, any>()
+        ;(c.documents || []).forEach((d: any) => mapD.set(d.id, d))
+        rel.forEach((d: any) => mapD.set(d.id, d))
+        updateWorkspace(c.id, { documents: Array.from(mapD.values()) })
+      }
+    })
+  }
+
+  res.json({ success: true, documents: updated?.documents || tagged })
 })
 
 // DELETE /api/workspaces/:id/document-types/:typeId
@@ -1184,6 +1608,21 @@ app.delete('/api/workspaces/:id/document-types/:typeId', (req, res) => {
     updateWorkspace(targetId, { documentTypes: newTypes })
     if (ws.name && ws.name !== targetId) {
       updateWorkspace(ws.name, { documentTypes: newTypes })
+    }
+
+    if (ws.isParent === false && ws.parentWorkspaceId) {
+      const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+      if (parentWs && parentWs.documentTypes) {
+        updateWorkspace(parentWs.id, { documentTypes: parentWs.documentTypes.filter((t) => t.id !== typeId) })
+      }
+    }
+    if (ws.isParent !== false) {
+      const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+      children.forEach((c) => {
+        if (c.documentTypes && c.documentTypes.some((t) => t.id === typeId)) {
+          updateWorkspace(c.id, { documentTypes: c.documentTypes.filter((t) => t.id !== typeId) })
+        }
+      })
     }
   }
 
@@ -1202,6 +1641,21 @@ app.delete('/api/workspaces/:id/documents/:docId', (req, res) => {
     updateWorkspace(targetId, { documents: newDocs })
     if (ws.name && ws.name !== targetId) {
       updateWorkspace(ws.name, { documents: newDocs })
+    }
+
+    if (ws.isParent === false && ws.parentWorkspaceId) {
+      const parentWs = getWorkspaceById(ws.parentWorkspaceId)
+      if (parentWs && parentWs.documents) {
+        updateWorkspace(parentWs.id, { documents: parentWs.documents.filter((d) => d.id !== docId) })
+      }
+    }
+    if (ws.isParent !== false) {
+      const children = getAllWorkspaces().filter((w) => w.parentWorkspaceId === ws.id)
+      children.forEach((c) => {
+        if (c.documents && c.documents.some((d) => d.id === docId)) {
+          updateWorkspace(c.id, { documents: c.documents.filter((d) => d.id !== docId) })
+        }
+      })
     }
   }
 
