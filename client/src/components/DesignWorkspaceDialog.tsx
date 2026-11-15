@@ -45,41 +45,6 @@ export const FURNITURE_COLORS = [
 
 // ===== STYLED COMPONENTS CHO GIAO DIỆN DESIGN MODE =====
 
-/* Tab mở nhanh cố định ở mép phải khi chưa vào Design Mode */
-const SideOpenButton = styled.div`
-  position: fixed;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 99999999 !important;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: #ffffff;
-  padding: 14px 10px;
-  border-radius: 12px 0 0 12px;
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.6);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 12px;
-  transition: all 0.2s ease;
-  user-select: none;
-  pointer-events: auto !important;
-
-  &:hover {
-    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
-    box-shadow: -6px 0 20px rgba(56, 189, 248, 0.6);
-  }
-
-  .text {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    letter-spacing: 1px;
-  }
-`
-
 /* BẢNG ĐIỀU KHIỂN CỐ ĐỊNH Ở MÉP PHẢI (Dedicated Right Sidebar) */
 const RightSidebar = styled.div`
   position: fixed;
@@ -1282,19 +1247,8 @@ export default function DesignWorkspaceDialog() {
   // Khi chưa vào phòng thì không hiển thị gì
   if (!loggedIn && !roomJoined) return null
 
-  // Khi chưa mở Design Mode -> Nút Tab mở nhanh ghim cố định ở mép phải
-  if (!designMode) {
-    return ReactDOM.createPortal(
-      <SideOpenButton
-        onClick={() => dispatch(openDesignMode())}
-        title="Bấm để Mở Bảng Thiết Kế Workspace (Nội Thất & Phòng)"
-      >
-        <span style={{ fontSize: '18px' }}>🎨</span>
-        <span className="text">THIẾT KẾ WORKSPACE</span>
-      </SideOpenButton>,
-      document.body
-    )
-  }
+  // Khi chưa mở Design Mode -> Không hiển thị (sử dụng nút thiết kế ở thanh công cụ góc dưới)
+  if (!designMode) return null
 
   const furnitureLabels: Record<string, string> = {
     table: 'Bàn Làm Việc',
