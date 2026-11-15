@@ -211,6 +211,7 @@ export default class Game extends Phaser.Scene {
     })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall', 32, 32, 0, 0, 0)!
     this.groundLayer = this.map.createBlankLayer('Ground', FloorAndGround)!
+    this.groundLayer.setDepth(-1000)
     // Lát toàn bộ mặt sàn bằng sàn gạch bình thường đúng theo kích thước được chọn
     this.groundLayer.fill(411, 0, 0, wsWidth, wsHeight)
 
@@ -248,8 +249,8 @@ export default class Game extends Phaser.Scene {
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
-    // Camera follow & world bounds theo đúng kích thước sàn gạch (mở rộng 3 ô để thấy sky bên ngoài)
-    const skyMargin = 3 * (this.map?.tileWidth || 32)
+    // Camera follow & world bounds theo đúng kích thước sàn gạch (mở rộng 10 ô để thấy sky bên ngoài)
+    const skyMargin = 10 * (this.map?.tileWidth || 32)
     this.physics.world.setBounds(0, 0, mapWidthInPixels, mapHeightInPixels)
     this.cameras.main.setBounds(
       -skyMargin,
@@ -297,7 +298,7 @@ export default class Game extends Phaser.Scene {
         0xffffff,
         0.05
       )
-      .setDepth(2)
+      .setDepth(-950)
       .setVisible(false)
 
     this.ghostMarker = this.add
@@ -1480,8 +1481,8 @@ export default class Game extends Phaser.Scene {
       if (this.playerSelector) this.playerSelector.setVisible(false)
       this.gridOverlay?.setVisible(true)
     } else {
-      // THOÁT DESIGN MODE: Trở về chế độ chơi, khóa camera theo giới hạn 3 ô và hiện sky
-      const skyMargin = 3 * (this.map?.tileWidth || 32)
+      // THOÁT DESIGN MODE: Trở về chế độ chơi, khóa camera theo giới hạn 10 ô và hiện sky
+      const skyMargin = 10 * (this.map?.tileWidth || 32)
       const mapWidthInPixels = this.map.widthInPixels
       const mapHeightInPixels = this.map.heightInPixels
       this.cameras.main.setBounds(
@@ -1673,7 +1674,7 @@ export default class Game extends Phaser.Scene {
       const colorHex = item.itemType.includes(':') ? item.itemType.split(':')[1] : '#2563eb'
       const rugKey = ensureCustomRugTexture(this, colorHex)
       const rug = this.add.sprite(worldX, worldY, rugKey)
-      rug.setDepth(2) // Lớp thảm sàn: nằm dưới nhân vật và bàn ghế
+      rug.setDepth(-900) // Lớp thảm sàn: nằm trên sàn gạch (-1000) nhưng dưới nhân vật và bàn ghế
       rug.setAngle(0) // Thảm sàn luôn phẳng tự nhiên, không xoay góc
       if (item.tint && item.tint !== 0xffffff) {
         rug.setTint(item.tint)
@@ -1712,7 +1713,7 @@ export default class Game extends Phaser.Scene {
       const autumn = isAutumnGrass(item.itemType, item.tint)
       const grassTexture = ensureGrassTexture(this, autumn)
       const grass = this.add.sprite(worldX, worldY, grassTexture)
-      grass.setDepth(2) // Lớp thảm cỏ: nằm dưới nhân vật và vật thể
+      grass.setDepth(-900) // Lớp thảm cỏ: nằm trên sàn gạch (-1000) nhưng dưới nhân vật và vật thể
       grass.setAngle(0)
       obj = grass
     } else if (item.itemType === 'tree_large') {
@@ -1800,7 +1801,7 @@ export default class Game extends Phaser.Scene {
     if (room.roomType === 'pantry') color = 0xc084fc
 
     // 1. Nền phòng bán trong suốt và nhãn tên phân vùng (Bỏ viền trắng nét bao quanh)
-    const graphics = this.add.graphics().setDepth(3)
+    const graphics = this.add.graphics().setDepth(-800)
     graphics.fillStyle(color, 0.08)
     graphics.fillRect(room.gridX * 32, room.gridY * 32, room.width * 32, room.height * 32)
 
@@ -1813,7 +1814,7 @@ export default class Game extends Phaser.Scene {
         backgroundColor: '#000000cc',
         padding: { x: 5, y: 2 },
       })
-      .setDepth(room.gridY * 32 + 50)
+      .setDepth(-750)
 
     this.roomZonesMap.set(room.id, { graphics, text })
 
@@ -2147,7 +2148,7 @@ export default class Game extends Phaser.Scene {
 
   getMinZoom(): number {
     if (!this.map || !this.cameras?.main) return 0.5
-    const skyMargin = 3 * (this.map.tileWidth || 32)
+    const skyMargin = 10 * (this.map.tileWidth || 32)
     const mapW = (this.map.widthInPixels || 32 * 50) + skyMargin * 2
     const mapH = (this.map.heightInPixels || 32 * 50) + skyMargin * 2
     const camW = this.cameras.main.width || window.innerWidth
@@ -2161,7 +2162,7 @@ export default class Game extends Phaser.Scene {
 
   clampCameraBounds() {
     if (!this.map || !this.cameras?.main) return
-    const skyMargin = 3 * (this.map.tileWidth || 32)
+    const skyMargin = 10 * (this.map.tileWidth || 32)
     const mapW = this.map.widthInPixels
     const mapH = this.map.heightInPixels
     const viewW = this.cameras.main.width / this.cameras.main.zoom

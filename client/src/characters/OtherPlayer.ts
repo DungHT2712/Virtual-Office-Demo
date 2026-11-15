@@ -215,7 +215,7 @@ export default class OtherPlayer extends Player {
     }
 
     this.lastUpdateTimestamp = t
-    this.setDepth(this.y) // change player.depth based on player.y
+    this.setDepth(Math.max(0, this.y)) // change player.depth based on player.y, clamping to at least 0
 
     const animKey = this.anims.currentAnim ? this.anims.currentAnim.key : ''
     const animParts = animKey ? animKey.split('_') : []

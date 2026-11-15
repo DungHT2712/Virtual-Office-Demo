@@ -7,6 +7,86 @@ export interface PendingRequest {
   requestedAt: number
 }
 
+export interface CompanyDepartment {
+  id: string
+  name: string
+  parentId?: string
+  head?: string
+}
+
+export interface WorkspaceCompany {
+  name: string
+  abbr?: string
+  domain?: string
+  currency?: string
+  country?: string
+  departments: CompanyDepartment[]
+}
+
+export interface WorkspaceUser {
+  id: string
+  name: string
+  username: string
+  password?: string
+  email?: string
+  departmentId?: string
+  role?: string
+  status?: 'active' | 'disabled'
+}
+
+export interface WorkspaceProject {
+  id: string
+  name: string
+  code?: string
+  status: 'Open' | 'Completed' | 'Cancelled' | 'On Hold'
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent'
+  departmentId?: string
+  managerId?: string
+  managerName?: string
+  startDate?: string
+  endDate?: string
+  progress?: number
+  description?: string
+}
+
+export interface WorkspaceTask {
+  id: string
+  title: string
+  projectId?: string
+  projectName?: string
+  assigneeId?: string
+  assigneeName?: string
+  status: 'Open' | 'Working' | 'Pending Review' | 'Completed' | 'Cancelled'
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent'
+  dueDate?: string
+  progress?: number
+  description?: string
+}
+
+export interface DocumentType {
+  id: string
+  name: string
+  code?: string
+  description?: string
+  color?: string
+}
+
+export interface WorkspaceDocument {
+  id: string
+  title: string
+  typeId: string
+  typeName?: string
+  projectId?: string
+  projectName?: string
+  uploadedBy: string
+  uploadedAt: number
+  fileName: string
+  fileSize?: number
+  fileType?: string
+  fileData?: string
+  description?: string
+}
+
 export interface StoredWorkspace {
   id?: string
   name: string
@@ -22,6 +102,12 @@ export interface StoredWorkspace {
   shareMode?: 'free' | 'ask'
   sharedUsers?: string[]
   pendingRequests?: PendingRequest[]
+  company?: WorkspaceCompany
+  users?: WorkspaceUser[]
+  projects?: WorkspaceProject[]
+  tasks?: WorkspaceTask[]
+  documentTypes?: DocumentType[]
+  documents?: WorkspaceDocument[]
 }
 
 const STORAGE_FILE = path.join(__dirname, 'workspaces.json')

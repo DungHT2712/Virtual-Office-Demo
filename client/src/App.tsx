@@ -10,6 +10,7 @@ import WhiteboardDialog from './components/WhiteboardDialog'
 import Chat from './components/Chat'
 import HelperButtonGroup from './components/HelperButtonGroup'
 import WorkspaceUserInfo from './components/WorkspaceUserInfo'
+import LeftSidebar from './components/LeftSidebar'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
 import DesignWorkspaceDialog from './components/DesignWorkspaceDialog'
 
@@ -67,6 +68,7 @@ function App() {
       {loggedIn && !computerDialogOpen && !whiteboardDialogOpen && (
         <>
           <WorkspaceUserInfo />
+          <LeftSidebar />
           <HelperButtonGroup />
         </>
       )}

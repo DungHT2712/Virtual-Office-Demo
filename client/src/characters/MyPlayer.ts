@@ -135,7 +135,7 @@ export default class MyPlayer extends Player {
     this.play(idleAnimKey, true)
 
     this.playerBehavior = PlayerBehavior.IDLE
-    this.setDepth(this.y)
+    this.setDepth(Math.max(0, this.y))
 
     if (this.playerSelector) {
       this.playerSelector.setPosition(this.x, this.y)
@@ -258,20 +258,21 @@ export default class MyPlayer extends Player {
         if (movementMode === 'wasd') {
           if (cursors.left?.isDown || cursors.A?.isDown) { vx -= speed; isManualMoving = true }
           if (cursors.right?.isDown || cursors.D?.isDown) { vx += speed; isManualMoving = true }
-          if (cursors.up?.isDown || cursors.W?.isDown) { vy -= speed; isManualMoving = true; this.setDepth(this.y) }
-          if (cursors.down?.isDown || cursors.S?.isDown) { vy += speed; isManualMoving = true; this.setDepth(this.y) }
+          if (cursors.up?.isDown || cursors.W?.isDown) { vy -= speed; isManualMoving = true }
+          if (cursors.down?.isDown || cursors.S?.isDown) { vy += speed; isManualMoving = true }
         } else if (movementMode === 'joystick' && this.joystickMovement?.isMoving) {
           isManualMoving = true
           if (this.joystickMovement.direction.left) vx -= speed
           if (this.joystickMovement.direction.right) vx += speed
-          if (this.joystickMovement.direction.up) { vy -= speed; this.setDepth(this.y) }
-          if (this.joystickMovement.direction.down) { vy += speed; this.setDepth(this.y) }
+          if (this.joystickMovement.direction.up) vy -= speed
+          if (this.joystickMovement.direction.down) vy += speed
         }
 
         if (isManualMoving) {
           this.clearMovePath()
           this.body.velocity.setLength(speed)
           this.setVelocity(vx, vy)
+          this.setDepth(Math.max(0, this.y))
 
           // update animation according to velocity and send new location and anim to server
           if (vx !== 0 || vy !== 0) network.updatePlayer(this.x, this.y, this.anims.currentAnim.key)
@@ -339,7 +340,7 @@ export default class MyPlayer extends Player {
             const vx = (dx / dist) * speed
             const vy = (dy / dist) * speed
             this.setVelocity(vx, vy)
-            this.setDepth(this.y)
+            this.setDepth(Math.max(0, this.y))
 
             if (Math.abs(vx) > Math.abs(vy)) {
               if (vx > 0) {

@@ -421,6 +421,423 @@ app.post('/api/notifications/clear', (req, res) => {
   res.json({ success: true })
 })
 
+// API Quản lý Core Module: Company & Users (Theo chuẩn Frappe)
+// GET /api/workspaces/:id/core
+app.get('/api/workspaces/:id/core', (req, res) => {
+  const { id } = req.params
+  const ws = getWorkspaceById(id)
+  if (!ws) {
+    return res.status(404).json({ success: false, message: 'Workspace không tồn tại' })
+  }
+
+  const defaultCompany = {
+    name: ws.name || 'My Company',
+    abbr: (ws.name || 'MC').substring(0, 4).toUpperCase(),
+    domain: '',
+    currency: 'VND',
+    country: 'Việt Nam',
+    departments: [
+      { id: 'dept_bod', name: 'Ban Giám Đốc', head: 'CEO' },
+      { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ', head: '' },
+      { id: 'dept_sales', name: 'Kinh Doanh & Marketing', head: '' },
+      { id: 'dept_hr', name: 'Nhân Sự & Hành Chính', head: '' },
+      { id: 'dept_fin', name: 'Tài Chính & Kế Toán', head: '' },
+    ],
+  }
+
+  const defaultUsers = ws.ownerName ? [
+    {
+      id: ws.ownerId || 'usr_owner',
+      name: ws.ownerName,
+      username: ws.ownerName.toLowerCase().replace(/\s+/g, ''),
+      password: '',
+      email: `${ws.ownerName.toLowerCase().replace(/\s+/g, '')}@office.local`,
+      role: 'Workspace Owner',
+      departmentId: 'dept_bod',
+      status: 'active',
+    }
+  ] : []
+
+  res.json({
+    success: true,
+    company: ws.company || defaultCompany,
+    users: ws.users || defaultUsers,
+  })
+})
+
+// POST /api/workspaces/:id/company
+app.post('/api/workspaces/:id/company', (req, res) => {
+  const { id } = req.params
+  const { company } = req.body
+  if (!company) {
+    return res.status(400).json({ success: false, message: 'Thiếu dữ liệu company' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { company })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { company })
+  }
+
+  res.json({ success: true, company: updated?.company || company })
+})
+
+// POST /api/workspaces/:id/users
+app.post('/api/workspaces/:id/users', (req, res) => {
+  const { id } = req.params
+  const { users } = req.body
+  if (!Array.isArray(users)) {
+    return res.status(400).json({ success: false, message: 'Danh sách users phải là một mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { users })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { users })
+  }
+
+  res.json({ success: true, users: updated?.users || users })
+})
+
+// DELETE /api/workspaces/:id/users/:userId
+app.delete('/api/workspaces/:id/users/:userId', (req, res) => {
+  const { id, userId } = req.params
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  if (ws && ws.users) {
+    const newUsers = ws.users.filter((u) => u.id !== userId)
+    updateWorkspace(targetId, { users: newUsers })
+    if (ws.name && ws.name !== targetId) {
+      updateWorkspace(ws.name, { users: newUsers })
+    }
+  }
+
+  res.json({ success: true, message: 'Đã xóa người dùng' })
+})
+
+// API Quản lý Module Projects & Tasks (Chuẩn Frappe ERP)
+// GET /api/workspaces/:id/projects-data
+app.get('/api/workspaces/:id/projects-data', (req, res) => {
+  const { id } = req.params
+  const ws = getWorkspaceById(id)
+  if (!ws) {
+    return res.status(404).json({ success: false, message: 'Workspace không tồn tại' })
+  }
+
+  const defaultProjects = [
+    {
+      id: 'proj_default_1',
+      name: 'Triển khai Văn phòng ảo SkyOffice',
+      code: 'PROJ-001',
+      status: 'Open' as const,
+      priority: 'High' as const,
+      departmentId: 'dept_tech',
+      managerName: ws.ownerName || 'Admin',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      progress: 65,
+      description: 'Dự án xây dựng và phát triển hệ sinh thái văn phòng tương tác',
+    },
+    {
+      id: 'proj_default_2',
+      name: 'Chiến dịch Ra mắt Sản phẩm Q4',
+      code: 'PROJ-002',
+      status: 'Open' as const,
+      priority: 'Medium' as const,
+      departmentId: 'dept_sales',
+      managerName: ws.ownerName || 'Admin',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
+      progress: 25,
+      description: 'Chiến dịch marketing và tiếp cận đối tác chiến lược',
+    },
+  ]
+
+  const defaultTasks = [
+    {
+      id: 'task_default_1',
+      title: 'Tối ưu hóa bản đồ và thiết kế không gian làm việc',
+      projectId: 'proj_default_1',
+      projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      assigneeName: ws.ownerName || 'Admin',
+      status: 'Working' as const,
+      priority: 'High' as const,
+      dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      progress: 70,
+      description: 'Thiết kế các khu vực phòng họp, bàn làm việc và tiện ích',
+    },
+    {
+      id: 'task_default_2',
+      title: 'Tích hợp hệ thống quản trị Core & Projects Frappe',
+      projectId: 'proj_default_1',
+      projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      assigneeName: ws.ownerName || 'Admin',
+      status: 'Completed' as const,
+      priority: 'Urgent' as const,
+      dueDate: new Date().toISOString().split('T')[0],
+      progress: 100,
+      description: 'Hoàn thiện giao diện và API đồng bộ dữ liệu dự án',
+    },
+    {
+      id: 'task_default_3',
+      title: 'Soạn thảo tài liệu hướng dẫn và onboarding nhân sự mới',
+      projectId: 'proj_default_2',
+      projectName: 'Chiến dịch Ra mắt Sản phẩm Q4',
+      assigneeName: ws.ownerName || 'Admin',
+      status: 'Open' as const,
+      priority: 'Medium' as const,
+      dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      progress: 0,
+      description: 'Chuẩn bị tài liệu hướng dẫn tham gia văn phòng ảo',
+    },
+  ]
+
+  res.json({
+    success: true,
+    projects: ws.projects && ws.projects.length > 0 ? ws.projects : defaultProjects,
+    tasks: ws.tasks && ws.tasks.length > 0 ? ws.tasks : defaultTasks,
+  })
+})
+
+// POST /api/workspaces/:id/projects
+app.post('/api/workspaces/:id/projects', (req, res) => {
+  const { id } = req.params
+  const { projects } = req.body
+  if (!Array.isArray(projects)) {
+    return res.status(400).json({ success: false, message: 'Danh sách projects phải là mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { projects })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { projects })
+  }
+
+  res.json({ success: true, projects: updated?.projects || projects })
+})
+
+// POST /api/workspaces/:id/tasks
+app.post('/api/workspaces/:id/tasks', (req, res) => {
+  const { id } = req.params
+  const { tasks } = req.body
+  if (!Array.isArray(tasks)) {
+    return res.status(400).json({ success: false, message: 'Danh sách tasks phải là mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { tasks })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { tasks })
+  }
+
+  res.json({ success: true, tasks: updated?.tasks || tasks })
+})
+
+// DELETE /api/workspaces/:id/projects/:projectId
+app.delete('/api/workspaces/:id/projects/:projectId', (req, res) => {
+  const { id, projectId } = req.params
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  if (ws && ws.projects) {
+    const newProjects = ws.projects.filter((p) => p.id !== projectId)
+    const newTasks = ws.tasks ? ws.tasks.filter((t) => t.projectId !== projectId) : []
+    updateWorkspace(targetId, { projects: newProjects, tasks: newTasks })
+    if (ws.name && ws.name !== targetId) {
+      updateWorkspace(ws.name, { projects: newProjects, tasks: newTasks })
+    }
+  }
+
+  res.json({ success: true, message: 'Đã xóa dự án' })
+})
+
+// DELETE /api/workspaces/:id/tasks/:taskId
+app.delete('/api/workspaces/:id/tasks/:taskId', (req, res) => {
+  const { id, taskId } = req.params
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  if (ws && ws.tasks) {
+    const newTasks = ws.tasks.filter((t) => t.id !== taskId)
+    updateWorkspace(targetId, { tasks: newTasks })
+    if (ws.name && ws.name !== targetId) {
+      updateWorkspace(ws.name, { tasks: newTasks })
+    }
+  }
+
+  res.json({ success: true, message: 'Đã xóa công việc' })
+})
+
+// API Quản lý Module Documents (Chuẩn Frappe Document Management)
+// GET /api/workspaces/:id/documents-data
+app.get('/api/workspaces/:id/documents-data', (req, res) => {
+  const { id } = req.params
+  const ws = getWorkspaceById(id)
+  if (!ws) {
+    return res.status(404).json({ success: false, message: 'Workspace không tồn tại' })
+  }
+
+  const defaultTypes = [
+    {
+      id: 'doctype_spec',
+      name: 'Tài liệu Kỹ thuật & Thiết kế',
+      code: 'SPEC',
+      description: 'Bản vẽ kỹ thuật, kiến trúc hệ thống và đặc tả thiết kế',
+      color: '#38bdf8',
+    },
+    {
+      id: 'doctype_contract',
+      name: 'Hợp đồng & Pháp lý',
+      code: 'CONTRACT',
+      description: 'Hợp đồng dự án, thỏa thuận hợp tác và cam kết bảo mật',
+      color: '#f59e0b',
+    },
+    {
+      id: 'doctype_report',
+      name: 'Báo cáo & Biên bản cuộc họp',
+      code: 'REPORT',
+      description: 'Báo cáo tiến độ tuần, biên bản họp giao ban',
+      color: '#10b981',
+    },
+    {
+      id: 'doctype_manual',
+      name: 'Hướng dẫn sử dụng & Quy trình',
+      code: 'MANUAL',
+      description: 'Quy trình nội bộ, tài liệu onboarding thành viên',
+      color: '#a855f7',
+    },
+  ]
+
+  const defaultDocuments = [
+    {
+      id: 'doc_default_1',
+      title: 'Kiến trúc Hạ tầng Không gian Ảo 2.0',
+      typeId: 'doctype_spec',
+      typeName: 'Tài liệu Kỹ thuật & Thiết kế',
+      projectId: 'proj_default_1',
+      projectName: 'Triển khai Văn phòng ảo SkyOffice',
+      uploadedBy: ws.ownerName || 'Admin',
+      uploadedAt: Date.now() - 3600000 * 24,
+      fileName: 'Architecture_SkyOffice_v2.pdf',
+      fileSize: 2450000,
+      fileType: 'application/pdf',
+      description: 'Sơ đồ luồng dữ liệu Phaser 3 và Colyseus WebSocket Server',
+    },
+    {
+      id: 'doc_default_2',
+      title: 'Kế hoạch Phân bổ Ngân sách Marketing Q4',
+      typeId: 'doctype_report',
+      typeName: 'Báo cáo & Biên bản cuộc họp',
+      projectId: 'proj_default_2',
+      projectName: 'Chiến dịch Ra mắt Sản phẩm Q4',
+      uploadedBy: ws.ownerName || 'Admin',
+      uploadedAt: Date.now() - 3600000 * 8,
+      fileName: 'Marketing_Budget_Q4.xlsx',
+      fileSize: 840000,
+      fileType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      description: 'Bảng tính chi tiết dự toán chi phí quảng bá đa kênh',
+    },
+  ]
+
+  res.json({
+    success: true,
+    documentTypes: ws.documentTypes && ws.documentTypes.length > 0 ? ws.documentTypes : defaultTypes,
+    documents: ws.documents && ws.documents.length > 0 ? ws.documents : defaultDocuments,
+  })
+})
+
+// POST /api/workspaces/:id/document-types
+app.post('/api/workspaces/:id/document-types', (req, res) => {
+  const { id } = req.params
+  const { documentTypes } = req.body
+  if (!Array.isArray(documentTypes)) {
+    return res.status(400).json({ success: false, message: 'documentTypes phải là mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { documentTypes })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { documentTypes })
+  }
+
+  res.json({ success: true, documentTypes: updated?.documentTypes || documentTypes })
+})
+
+// POST /api/workspaces/:id/documents
+app.post('/api/workspaces/:id/documents', (req, res) => {
+  const { id } = req.params
+  const { documents } = req.body
+  if (!Array.isArray(documents)) {
+    return res.status(400).json({ success: false, message: 'documents phải là mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { documents })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { documents })
+  }
+
+  res.json({ success: true, documents: updated?.documents || documents })
+})
+
+// DELETE /api/workspaces/:id/document-types/:typeId
+app.delete('/api/workspaces/:id/document-types/:typeId', (req, res) => {
+  const { id, typeId } = req.params
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  if (ws && ws.documentTypes) {
+    const newTypes = ws.documentTypes.filter((t) => t.id !== typeId)
+    updateWorkspace(targetId, { documentTypes: newTypes })
+    if (ws.name && ws.name !== targetId) {
+      updateWorkspace(ws.name, { documentTypes: newTypes })
+    }
+  }
+
+  res.json({ success: true, message: 'Đã xóa loại tài liệu' })
+})
+
+// DELETE /api/workspaces/:id/documents/:docId
+app.delete('/api/workspaces/:id/documents/:docId', (req, res) => {
+  const { id, docId } = req.params
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  if (ws && ws.documents) {
+    const newDocs = ws.documents.filter((d) => d.id !== docId)
+    updateWorkspace(targetId, { documents: newDocs })
+    if (ws.name && ws.name !== targetId) {
+      updateWorkspace(ws.name, { documents: newDocs })
+    }
+  }
+
+  res.json({ success: true, message: 'Đã xóa tài liệu' })
+})
+
 // API xóa Workspace lưu trữ
 const deleteWorkspaceHandler = async (req: express.Request, res: express.Response) => {
   const { id } = req.params

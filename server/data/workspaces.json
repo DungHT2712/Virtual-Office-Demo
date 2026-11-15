@@ -1,13 +1,13 @@
 [
   {
-    "id": "Fy6DKxfta",
+    "id": "UF8Cshm0J",
     "name": "sdfsdf",
     "description": "ewftds",
     "hasPassword": false,
     "sizeType": "LARGE",
     "width": 70,
     "height": 70,
-    "createdAt": 1794707809043,
+    "createdAt": 1794712014329,
     "ownerId": "usr_OXMJ26",
     "ownerName": "abc",
     "shareMode": "ask",
@@ -17,24 +17,62 @@
     "pendingRequests": []
   },
   {
-    "id": "pchO6FUw6",
+    "id": "EF9JjPcmu",
     "name": "small",
     "description": "small",
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
-    "createdAt": 1794708424287,
+    "createdAt": 1794712014333,
     "ownerId": "usr_8V0WWI",
     "ownerName": "Guest",
     "shareMode": "free",
     "sharedUsers": [
       "usr_8V0WWI"
     ],
-    "pendingRequests": []
+    "pendingRequests": [],
+    "tasks": [
+      {
+        "id": "task_default_1",
+        "title": "Tối ưu hóa bản đồ và thiết kế không gian làm việc",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "assigneeName": "Guest",
+        "status": "Completed",
+        "priority": "High",
+        "dueDate": "2026-11-22",
+        "progress": 100,
+        "description": "Thiết kế các khu vực phòng họp, bàn làm việc và tiện ích"
+      },
+      {
+        "id": "task_default_2",
+        "title": "Tích hợp hệ thống quản trị Core & Projects Frappe",
+        "projectId": "proj_default_1",
+        "projectName": "Triển khai Văn phòng ảo SkyOffice",
+        "assigneeName": "Guest",
+        "status": "Completed",
+        "priority": "Urgent",
+        "dueDate": "2026-11-15",
+        "progress": 100,
+        "description": "Hoàn thiện giao diện và API đồng bộ dữ liệu dự án"
+      },
+      {
+        "id": "task_default_3",
+        "title": "Soạn thảo tài liệu hướng dẫn và onboarding nhân sự mới",
+        "projectId": "proj_default_2",
+        "projectName": "Chiến dịch Ra mắt Sản phẩm Q4",
+        "assigneeName": "Guest",
+        "status": "Open",
+        "priority": "Medium",
+        "dueDate": "2026-11-29",
+        "progress": 0,
+        "description": "Chuẩn bị tài liệu hướng dẫn tham gia văn phòng ảo"
+      }
+    ]
   },
   {
-    "id": "Iv3rdPki3",
+    "id": "GJFvyXxfh",
     "name": "Android",
     "description": "For android",
     "hasPassword": false,
@@ -47,11 +85,11 @@
     "sharedUsers": [
       "usr_96EMV3"
     ],
-    "createdAt": 1794707809048,
+    "createdAt": 1794712014337,
     "pendingRequests": []
   },
   {
-    "id": "l2vNSGGi8",
+    "id": "M19FaIPDT",
     "name": "abc",
     "description": "abc",
     "hasPassword": false,
@@ -64,7 +102,7 @@
     "sharedUsers": [
       "usr_LIFXB7"
     ],
-    "createdAt": 1794707809050,
+    "createdAt": 1794712014340,
     "pendingRequests": []
   }
 ]
