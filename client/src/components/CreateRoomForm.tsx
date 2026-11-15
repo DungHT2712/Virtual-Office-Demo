@@ -65,6 +65,14 @@ const SizeCard = styled.div<{ $selected: boolean }>`
 
 export type WorkspaceSizeType = 'SMALL' | 'MEDIUM' | 'LARGE' | 'XLARGE'
 
+const DEFAULT_DEPARTMENTS = [
+  { id: 'dept_bod', name: 'Ban Giám Đốc' },
+  { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ' },
+  { id: 'dept_sales', name: 'Kinh Doanh & Tiếp Thị' },
+  { id: 'dept_hr', name: 'Nhân Sự & Hành Chính' },
+  { id: 'dept_fin', name: 'Tài Chính & Kế Toán' },
+]
+
 export const CreateRoomForm = () => {
   const [values, setValues] = useState<IRoomData>({
     name: '',
@@ -76,6 +84,7 @@ export const CreateRoomForm = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [nameFieldEmpty, setNameFieldEmpty] = useState(false)
   const [descriptionFieldEmpty, setDescriptionFieldEmpty] = useState(false)
+
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
   const currentUser = useAppSelector((state) => state.user)
 
@@ -117,6 +126,11 @@ export const CreateRoomForm = () => {
         ownerName: currentUser.playerName || 'Guest',
         shareMode: 'free' as const,
         sharedUsers: [currentUser.userId],
+        companyId: '',
+        companyName: '',
+        departmentId: '',
+        departmentName: '',
+        requireLogin: false,
       }
       const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
       bootstrap.network
@@ -137,6 +151,11 @@ export const CreateRoomForm = () => {
               ownerName: currentUser.playerName || 'Guest',
               shareMode: 'free',
               sharedUsers: [currentUser.userId],
+              companyId: '',
+              companyName: '',
+              departmentId: '',
+              departmentName: '',
+              requireLogin: false,
             })
             localStorage.setItem('saved_workspaces', JSON.stringify(stored))
           } catch (e) {

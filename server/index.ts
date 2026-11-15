@@ -10,7 +10,14 @@ import {
   saveWorkspace,
   updateWorkspace,
   removeWorkspace,
+  StoredWorkspace,
 } from './data/workspaceStorage'
+import {
+  getAllCompanies,
+  getCompanyById,
+  saveCompany,
+  removeCompany,
+} from './data/companyStorage'
 import {
   getNotificationsForUser,
   addNotification,
@@ -55,10 +62,142 @@ function findActiveRoom(id: string) {
   return room
 }
 
+// 0. API QUẢN LÝ NHIỀU CÔNG TY (COMPANIES)
+app.get('/api/companies', (req, res) => {
+  const companies = getAllCompanies()
+  res.json({ success: true, companies })
+})
+
+app.post('/api/companies', (req, res) => {
+  try {
+    const { id, name, abbr, domain, currency, country, departments } = req.body
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Tên công ty là bắt buộc' })
+    }
+    const saved = saveCompany({
+      id: id || 'comp_' + Math.random().toString(36).substring(2, 9),
+      name: name.trim(),
+      abbr: abbr?.trim() || '',
+      domain: domain?.trim() || '',
+      currency: currency?.trim() || 'VND',
+      country: country?.trim() || 'Việt Nam',
+      departments: Array.isArray(departments) ? departments : [],
+      createdAt: Date.now(),
+    })
+    res.json({ success: true, company: saved })
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Lỗi lưu công ty' })
+  }
+})
+
+app.delete('/api/companies/:id', (req, res) => {
+  const { id } = req.params
+  const ok = removeCompany(id)
+  res.json({ success: ok })
+})
+
 // 1. GET /api/workspaces: Lấy danh sách workspace đã lưu
 app.get('/api/workspaces', (req, res) => {
   const list = getAllWorkspaces().map(sanitizeWorkspace)
   res.json({ success: true, workspaces: list })
+})
+
+// POST /api/workspaces: Tạo workspace mới trực tiếp từ Core hoặc API
+app.post('/api/workspaces', (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      password,
+      sizeType,
+      width,
+      height,
+      ownerId,
+      ownerName,
+      shareMode,
+      companyId,
+      companyName,
+      departmentId,
+      departmentName,
+      requireLogin,
+      company,
+      users,
+    } = req.body
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Tên Workspace là bắt buộc' })
+    }
+
+    const id = Math.random().toString(36).substring(2, 11)
+    let hasPassword = false
+    if (password) {
+      hasPassword = true
+    }
+
+    const defaultCompany = company || {
+      id: companyId || 'comp_voc',
+      name: companyName || 'Virtual Office Co.',
+      abbr: (companyName || 'VOC').substring(0, 4).toUpperCase(),
+      domain: 'office.local',
+      currency: 'VND',
+      country: 'Việt Nam',
+      departments: [
+        { id: 'dept_bod', name: 'Ban Giám Đốc', head: 'CEO' },
+        { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ', head: 'CTO' },
+        { id: 'dept_sales', name: 'Kinh Doanh & Tiếp Thị', head: 'Head of Sales' },
+        { id: 'dept_hr', name: 'Nhân Sự & Hành Chính', head: 'HR Lead' },
+        { id: 'dept_fin', name: 'Tài Chính & Kế Toán', head: 'Chief Accountant' },
+      ],
+    }
+
+    const defaultUsers =
+      Array.isArray(users) && users.length > 0
+        ? users
+        : ownerName
+        ? [
+            {
+              id: ownerId || 'usr_owner',
+              name: ownerName,
+              username: ownerName.toLowerCase().replace(/\s+/g, ''),
+              password: '',
+              email: `${ownerName.toLowerCase().replace(/\s+/g, '')}@office.local`,
+              role: 'Workspace Owner',
+              departmentId: departmentId || 'dept_bod',
+              status: 'active' as const,
+            },
+          ]
+        : []
+
+    const newWs: StoredWorkspace = {
+      id,
+      name: name.trim(),
+      description: description || '',
+      password: password || null,
+      hasPassword,
+      sizeType: sizeType || 'MEDIUM',
+      width: width || 50,
+      height: height || 50,
+      ownerId: ownerId || '',
+      ownerName: ownerName || '',
+      shareMode: shareMode || 'free',
+      sharedUsers: ownerId ? [ownerId] : [],
+      companyId: companyId || defaultCompany.id || 'comp_voc',
+      companyName: companyName || defaultCompany.name,
+      departmentId: departmentId || '',
+      departmentName: departmentName || '',
+      requireLogin: !!requireLogin,
+      company: defaultCompany,
+      users: defaultUsers,
+      createdAt: Date.now(),
+      pendingRequests: [],
+    }
+
+    saveWorkspace(newWs)
+    res.json({ success: true, workspace: sanitizeWorkspace(newWs) })
+  } catch (err: any) {
+    console.error('Error creating workspace:', err)
+    res.status(500).json({ success: false, message: err.message || 'Lỗi tạo workspace' })
+  }
 })
 
 // 2. GET /api/workspaces/:id: Tìm workspace theo ID
@@ -80,6 +219,11 @@ app.get('/api/workspaces/:id', (req, res) => {
         ownerName: active.metadata.ownerName,
         shareMode: active.metadata.shareMode || 'free',
         sharedUsers: active.metadata.sharedUsers || [],
+        companyId: active.metadata.companyId || '',
+        companyName: active.metadata.companyName || '',
+        departmentId: active.metadata.departmentId || '',
+        departmentName: active.metadata.departmentName || '',
+        requireLogin: !!active.metadata.requireLogin,
         createdAt: Date.now(),
       }
     }
@@ -89,6 +233,100 @@ app.get('/api/workspaces/:id', (req, res) => {
     return res.status(404).json({ success: false, message: 'Workspace không tồn tại' })
   }
   res.json({ success: true, workspace: sanitizeWorkspace(ws) })
+})
+
+// POST /api/workspaces/:id/workspace-config: Cập nhật công ty, phòng ban, yêu cầu đăng nhập
+app.post('/api/workspaces/:id/workspace-config', (req, res) => {
+  const { id } = req.params
+  const { companyId, companyName, departmentId, departmentName, requireLogin } = req.body
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updates: any = {}
+  if (companyId !== undefined) updates.companyId = companyId
+  if (companyName !== undefined) updates.companyName = companyName
+  if (departmentId !== undefined) updates.departmentId = departmentId
+  if (departmentName !== undefined) updates.departmentName = departmentName
+  if (requireLogin !== undefined) updates.requireLogin = !!requireLogin
+
+  const updated = updateWorkspace(targetId, updates)
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, updates)
+  }
+
+  if (active && typeof active.setMetadata === 'function') {
+    active.setMetadata({ ...active.metadata, ...updates })
+  }
+
+  res.json({ success: true, workspace: updated ? sanitizeWorkspace(updated) : null })
+})
+
+// POST /api/workspaces/:id/auth-user: Xác thực tài khoản & mật khẩu thành viên khi vào workspace
+app.post('/api/workspaces/:id/auth-user', (req, res) => {
+  const { id } = req.params
+  const { username, password, userId } = req.body
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const currentOwner = ws?.ownerId || active?.metadata?.ownerId
+
+  // Nếu là chủ workspace: Không cần đăng nhập, ra vào tự do
+  if (userId && currentOwner && currentOwner === userId) {
+    return res.json({ success: true, verified: true, isOwner: true, message: 'Chủ sở hữu được phép ra vào tự do' })
+  }
+
+  const isRequireLogin = ws?.requireLogin ?? active?.metadata?.requireLogin ?? false
+  // Nếu workspace không yêu cầu đăng nhập: Ra vào tự do
+  if (!isRequireLogin) {
+    return res.json({ success: true, verified: true, isOwner: false, message: 'Workspace không yêu cầu đăng nhập' })
+  }
+
+  if (!username || !username.trim()) {
+    return res.status(400).json({ success: false, message: 'Vui lòng nhập tên tài khoản (Username)!' })
+  }
+
+  const targetUsers = ws?.users || []
+  const cleanUsername = username.trim().toLowerCase()
+  const cleanPassword = String(password || '').trim()
+
+  const foundUser = targetUsers.find(
+    (u) => u.username && u.username.trim().toLowerCase() === cleanUsername
+  )
+
+  if (!foundUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'Tài khoản không tồn tại trong danh sách User của Workspace này!',
+    })
+  }
+
+  if (foundUser.status === 'disabled') {
+    return res.status(403).json({
+      success: false,
+      message: 'Tài khoản này đã bị khóa (disabled). Vui lòng liên hệ quản trị viên!',
+    })
+  }
+
+  if (foundUser.password && foundUser.password.trim() !== cleanPassword) {
+    return res.status(401).json({
+      success: false,
+      message: 'Mật khẩu tài khoản không chính xác!',
+    })
+  }
+
+  return res.json({
+    success: true,
+    verified: true,
+    user: {
+      id: foundUser.id,
+      name: foundUser.name,
+      username: foundUser.username,
+      role: foundUser.role,
+      departmentId: foundUser.departmentId,
+    },
+  })
 })
 
 // 3. POST /api/workspaces/:id/share-mode: Cập nhật chế độ chia sẻ (Free / Ask To Join)

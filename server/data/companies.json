@@ -1,0 +1,32 @@
+[
+  {
+    "id": "comp_voc",
+    "name": "Virtual Office Co.",
+    "abbr": "VOC",
+    "domain": "office.local",
+    "currency": "VND",
+    "country": "Việt Nam",
+    "departments": [
+      { "id": "dept_bod", "name": "Ban Giám Đốc", "head": "CEO" },
+      { "id": "dept_tech", "name": "Kỹ Thuật & Công Nghệ", "head": "CTO" },
+      { "id": "dept_sales", "name": "Kinh Doanh & Tiếp Thị", "head": "Head of Sales" },
+      { "id": "dept_hr", "name": "Nhân Sự & Hành Chính", "head": "HR Lead" },
+      { "id": "dept_fin", "name": "Tài Chính & Kế Toán", "head": "Chief Accountant" }
+    ],
+    "createdAt": 1700000000000
+  },
+  {
+    "id": "comp_frappe",
+    "name": "Frappe Enterprise",
+    "abbr": "FRAPPE",
+    "domain": "frappe.io",
+    "currency": "USD",
+    "country": "Global",
+    "departments": [
+      { "id": "dept_fr_core", "name": "Core Engineering", "head": "Lead Architect" },
+      { "id": "dept_fr_support", "name": "Customer Success", "head": "Support Lead" },
+      { "id": "dept_fr_ops", "name": "Operations & HR", "head": "COO" }
+    ],
+    "createdAt": 1700000000000
+  }
+]

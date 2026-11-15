@@ -16,4 +16,9 @@ export interface IRoomData {
   ownerName?: string
   shareMode?: 'free' | 'ask'
   sharedUsers?: string[]
+  companyId?: string
+  companyName?: string
+  departmentId?: string
+  departmentName?: string
+  requireLogin?: boolean
 }

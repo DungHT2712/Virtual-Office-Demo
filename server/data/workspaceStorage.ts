@@ -15,12 +15,14 @@ export interface CompanyDepartment {
 }
 
 export interface WorkspaceCompany {
+  id?: string
   name: string
   abbr?: string
   domain?: string
   currency?: string
   country?: string
   departments: CompanyDepartment[]
+  createdAt?: number
 }
 
 export interface WorkspaceUser {
@@ -102,6 +104,11 @@ export interface StoredWorkspace {
   shareMode?: 'free' | 'ask'
   sharedUsers?: string[]
   pendingRequests?: PendingRequest[]
+  companyId?: string
+  companyName?: string
+  departmentId?: string
+  departmentName?: string
+  requireLogin?: boolean
   company?: WorkspaceCompany
   users?: WorkspaceUser[]
   projects?: WorkspaceProject[]

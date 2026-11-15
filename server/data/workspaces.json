@@ -1,108 +1,45 @@
 [
   {
-    "id": "UF8Cshm0J",
-    "name": "sdfsdf",
-    "description": "ewftds",
-    "hasPassword": false,
-    "sizeType": "LARGE",
-    "width": 70,
-    "height": 70,
-    "createdAt": 1794712014329,
-    "ownerId": "usr_OXMJ26",
-    "ownerName": "abc",
-    "shareMode": "ask",
-    "sharedUsers": [
-      "usr_OGIZJN"
-    ],
-    "pendingRequests": []
-  },
-  {
-    "id": "EF9JjPcmu",
+    "id": "_5x0PoP2n",
     "name": "small",
     "description": "small",
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
-    "createdAt": 1794712014333,
     "ownerId": "usr_8V0WWI",
-    "ownerName": "Guest",
+    "ownerName": "Jin",
     "shareMode": "free",
     "sharedUsers": [
       "usr_8V0WWI"
     ],
-    "pendingRequests": [],
-    "tasks": [
+    "companyId": "comp_voc",
+    "companyName": "Virtual Office Co.",
+    "departmentId": "",
+    "departmentName": "",
+    "requireLogin": true,
+    "createdAt": 1794726616672,
+    "users": [
       {
-        "id": "task_default_1",
-        "title": "Tối ưu hóa bản đồ và thiết kế không gian làm việc",
-        "projectId": "proj_default_1",
-        "projectName": "Triển khai Văn phòng ảo SkyOffice",
-        "assigneeName": "Guest",
-        "status": "Completed",
-        "priority": "High",
-        "dueDate": "2026-11-22",
-        "progress": 100,
-        "description": "Thiết kế các khu vực phòng họp, bàn làm việc và tiện ích"
+        "id": "usr_8V0WWI",
+        "name": "Jin",
+        "username": "jin",
+        "password": "",
+        "email": "jin@office.local",
+        "role": "Workspace Owner",
+        "departmentId": "dept_bod",
+        "status": "active"
       },
       {
-        "id": "task_default_2",
-        "title": "Tích hợp hệ thống quản trị Core & Projects Frappe",
-        "projectId": "proj_default_1",
-        "projectName": "Triển khai Văn phòng ảo SkyOffice",
-        "assigneeName": "Guest",
-        "status": "Completed",
-        "priority": "Urgent",
-        "dueDate": "2026-11-15",
-        "progress": 100,
-        "description": "Hoàn thiện giao diện và API đồng bộ dữ liệu dự án"
-      },
-      {
-        "id": "task_default_3",
-        "title": "Soạn thảo tài liệu hướng dẫn và onboarding nhân sự mới",
-        "projectId": "proj_default_2",
-        "projectName": "Chiến dịch Ra mắt Sản phẩm Q4",
-        "assigneeName": "Guest",
-        "status": "Open",
-        "priority": "Medium",
-        "dueDate": "2026-11-29",
-        "progress": 0,
-        "description": "Chuẩn bị tài liệu hướng dẫn tham gia văn phòng ảo"
+        "id": "usr_KD0TRZ",
+        "name": "abc",
+        "username": "abc",
+        "password": "123456789",
+        "email": "abc@office.local",
+        "departmentId": "dept_bod",
+        "role": "Member",
+        "status": "active"
       }
     ]
-  },
-  {
-    "id": "GJFvyXxfh",
-    "name": "Android",
-    "description": "For android",
-    "hasPassword": false,
-    "sizeType": "MEDIUM",
-    "width": 50,
-    "height": 50,
-    "ownerId": "usr_96EMV3",
-    "ownerName": "Guest",
-    "shareMode": "free",
-    "sharedUsers": [
-      "usr_96EMV3"
-    ],
-    "createdAt": 1794712014337,
-    "pendingRequests": []
-  },
-  {
-    "id": "M19FaIPDT",
-    "name": "abc",
-    "description": "abc",
-    "hasPassword": false,
-    "sizeType": "LARGE",
-    "width": 70,
-    "height": 70,
-    "ownerId": "usr_LIFXB7",
-    "ownerName": "oiou",
-    "shareMode": "ask",
-    "sharedUsers": [
-      "usr_LIFXB7"
-    ],
-    "createdAt": 1794712014340,
-    "pendingRequests": []
   }
 ]

@@ -79,6 +79,11 @@ export class SkyOffice extends Room<OfficeState> {
     const ownerName = options.ownerName || ''
     const shareMode = options.shareMode || 'free'
     const sharedUsers = options.sharedUsers || []
+    const companyId = options.companyId || ''
+    const companyName = options.companyName || ''
+    const departmentId = options.departmentId || ''
+    const departmentName = options.departmentName || ''
+    const requireLogin = !!options.requireLogin
 
     this.setMetadata({
       name,
@@ -91,6 +96,11 @@ export class SkyOffice extends Room<OfficeState> {
       ownerName,
       shareMode,
       sharedUsers,
+      companyId,
+      companyName,
+      departmentId,
+      departmentName,
+      requireLogin,
     })
 
     if (this.roomName === RoomType.CUSTOM) {
@@ -106,6 +116,11 @@ export class SkyOffice extends Room<OfficeState> {
         ownerName,
         shareMode,
         sharedUsers,
+        companyId,
+        companyName,
+        departmentId,
+        departmentName,
+        requireLogin,
         createdAt: Date.now(),
       })
     }

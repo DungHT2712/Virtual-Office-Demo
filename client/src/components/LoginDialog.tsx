@@ -6,6 +6,7 @@ import Avatar from '@mui/material/Avatar'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
+import VpnKeyIcon from '@mui/icons-material/VpnKey'
 
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation } from 'swiper'
@@ -287,7 +288,83 @@ export default function LoginDialog() {
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
   const roomName = useAppSelector((state) => state.room.roomName)
   const roomDescription = useAppSelector((state) => state.room.roomDescription)
+  const roomId = useAppSelector((state) => state.room.roomId)
+  const currentUserId = useAppSelector((state) => state.user.userId)
   const game = phaserGame.scene.keys.game as Game
+
+  // State kiểm tra Cần đăng nhập (lấy từ User)
+  const [requireLogin, setRequireLogin] = useState(false)
+  const [isOwner, setIsOwner] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+
+  // Kiểm tra cấu hình phòng và session đã xác thực
+  useEffect(() => {
+    if (!roomId) return
+    const storedAuth = sessionStorage.getItem(`ws_auth_${roomId}`)
+    if (storedAuth) {
+      try {
+        const u = JSON.parse(storedAuth)
+        if (u.name) setName(u.name)
+        setIsAuthenticated(true)
+      } catch (e) {}
+    }
+
+    const checkRoomConfig = async () => {
+      try {
+        const res = await fetch(`/api/workspaces/${roomId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.workspace) {
+            const ws = data.workspace
+            const owner = ws.ownerId === currentUserId
+            setIsOwner(owner)
+            setRequireLogin(!!ws.requireLogin)
+          }
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    checkRoomConfig()
+  }, [roomId, currentUserId])
+
+  const handleVerifyUser = async () => {
+    if (!authUsername.trim()) {
+      setAuthError('Vui lòng nhập tài khoản (username)!')
+      return
+    }
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const res = await fetch(`/api/workspaces/${roomId}/auth-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: authUsername.trim(),
+          password: authPassword.trim(),
+          userId: currentUserId,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.verified) {
+        setIsAuthenticated(true)
+        if (data.user) {
+          setName(data.user.name)
+          sessionStorage.setItem(`ws_auth_${roomId}`, JSON.stringify(data.user))
+        }
+      } else {
+        setAuthError(data.message || 'Tài khoản hoặc mật khẩu không chính xác!')
+      }
+    } catch (e: any) {
+      setAuthError(e.message || 'Lỗi xác thực')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
 
   // Update preview canvas whenever avatar or custom appearance changes
   useEffect(() => {
@@ -316,6 +393,10 @@ export default function LoginDialog() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (requireLogin && !isOwner && !isAuthenticated) {
+      setAuthError('Workspace này yêu cầu xác thực tài khoản & mật khẩu User trước khi vào!')
+      return
+    }
     if (name === '') {
       setNameFieldEmpty(true)
     } else if (roomJoined) {
@@ -461,18 +542,70 @@ export default function LoginDialog() {
 
         <Right>
           <div>
-            <TextField
-              autoFocus
-              fullWidth
-              label="Name"
-              variant="outlined"
-              color="secondary"
-              error={nameFieldEmpty}
-              helperText={nameFieldEmpty && 'Name is required'}
-              onInput={(e) => {
-                setName((e.target as HTMLInputElement).value)
-              }}
-            />
+            {requireLogin && !isOwner && !isAuthenticated ? (
+              <div style={{ background: '#191c2b', borderRadius: 10, padding: 12, border: '1px solid #f59e0b', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fbbf24', fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                  <VpnKeyIcon sx={{ fontSize: 16 }} />
+                  Đăng Nhập Tài Khoản User
+                </div>
+                <p style={{ margin: '0 0 10px 0', fontSize: 11, color: '#94a3b8' }}>
+                  Workspace yêu cầu xác thực tài khoản & mật khẩu thành viên để vào.
+                </p>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Tài khoản (Username)"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  sx={{ mb: 1.5 }}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="password"
+                  label="Mật khẩu (Password)"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  sx={{ mb: 1.5 }}
+                />
+                {authError && (
+                  <Alert severity="error" sx={{ mb: 1.5, py: 0.5, fontSize: 12 }}>
+                    {authError}
+                  </Alert>
+                )}
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="small"
+                  disabled={authLoading}
+                  onClick={handleVerifyUser}
+                  sx={{ background: '#d97706', color: '#fff', textTransform: 'none', fontWeight: 700, '&:hover': { background: '#b45309' } }}
+                >
+                  {authLoading ? 'Đang kiểm tra...' : 'Xác thực tài khoản'}
+                </Button>
+              </div>
+            ) : (
+              <>
+                {requireLogin && !isOwner && isAuthenticated && (
+                  <Alert severity="success" sx={{ mb: 1.5, py: 0.5, fontSize: 12 }}>
+                    Đã đăng nhập: <strong>{name}</strong>
+                  </Alert>
+                )}
+                <TextField
+                  autoFocus
+                  fullWidth
+                  label="Name"
+                  value={name}
+                  variant="outlined"
+                  color="secondary"
+                  error={nameFieldEmpty}
+                  helperText={nameFieldEmpty && 'Name is required'}
+                  onInput={(e) => {
+                    setName((e.target as HTMLInputElement).value)
+                  }}
+                />
+              </>
+            )}
             {!videoConnected && (
               <Warning>
                 <Alert variant="outlined" severity="warning">

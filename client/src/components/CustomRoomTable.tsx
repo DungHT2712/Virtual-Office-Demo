@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
 import Button from '@mui/material/Button'
+import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import TableContainer from '@mui/material/TableContainer'
 import Table from '@mui/material/Table'
@@ -35,10 +36,17 @@ import HourglassTopIcon from '@mui/icons-material/HourglassTop'
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
 import LogoutIcon from '@mui/icons-material/Logout'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
+import ApartmentIcon from '@mui/icons-material/Apartment'
+import HubIcon from '@mui/icons-material/Hub'
+import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import LockOpenIcon from '@mui/icons-material/LockOpen'
+import Visibility from '@mui/icons-material/Visibility'
+import VisibilityOff from '@mui/icons-material/VisibilityOff'
 
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { removeAvailableRooms } from '../stores/RoomStore'
 import { setWorkspaceData } from '../stores/WorkspaceStore'
+import { setPlayerName } from '../stores/UserStore'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -219,6 +227,10 @@ export interface WorkspaceDisplayItem {
   shareMode: 'free' | 'ask'
   sharedUsers: string[]
   pendingRequests: { userId: string; userName: string; requestedAt: number }[]
+  companyName?: string
+  departmentId?: string
+  departmentName?: string
+  requireLogin?: boolean
   metadata?: any
 }
 
@@ -245,6 +257,15 @@ export const CustomRoomTable = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [showPasswordError, setShowPasswordError] = useState(false)
   const [passwordFieldEmpty, setPasswordFieldEmpty] = useState(false)
+
+  // Workspace User Login Dialog State (for requireLogin)
+  const [selectedAuthRoom, setSelectedAuthRoom] = useState<WorkspaceDisplayItem | null>(null)
+  const [showUserAuthDialog, setShowUserAuthDialog] = useState(false)
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [showAuthPass, setShowAuthPass] = useState(false)
 
   // Delete Dialog State
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -337,6 +358,10 @@ export const CustomRoomTable = () => {
         shareMode: meta.shareMode || 'free',
         sharedUsers: Array.isArray(meta.sharedUsers) ? meta.sharedUsers : [],
         pendingRequests: Array.isArray(meta.pendingRequests) ? meta.pendingRequests : [],
+        companyName: meta.companyName || '',
+        departmentId: meta.departmentId || '',
+        departmentName: meta.departmentName || '',
+        requireLogin: !!meta.requireLogin,
         metadata: meta,
       })
     })
@@ -368,6 +393,10 @@ export const CustomRoomTable = () => {
         shareMode: sw.shareMode || activeRoom?.shareMode || 'free',
         sharedUsers: Array.isArray(sw.sharedUsers) ? sw.sharedUsers : (activeRoom?.sharedUsers || []),
         pendingRequests: Array.isArray(sw.pendingRequests) ? sw.pendingRequests : (activeRoom?.pendingRequests || []),
+        companyName: sw.companyName || activeRoom?.companyName || '',
+        departmentId: sw.departmentId || activeRoom?.departmentId || '',
+        departmentName: sw.departmentName || activeRoom?.departmentName || '',
+        requireLogin: sw.requireLogin !== undefined ? !!sw.requireLogin : (activeRoom?.requireLogin ?? false),
         metadata: { ...activeRoom?.metadata, ...sw },
       })
     })
@@ -380,35 +409,53 @@ export const CustomRoomTable = () => {
 
     const list = Array.from(map.values())
     return list.map((item) => {
-      // If ownerId is missing but workspace name is in user's saved_workspaces, associate with current user
-      if (!item.ownerId) {
-        const found = localSaved.find((sw: any) => sw.name === item.name || sw.id === item.roomId)
-        if (found) {
-          // Tự động claim owner trên server để server biết ownerId của workspace này
+      // If workspace name or ID is in user's saved_workspaces in this browser, claim/associate with current user
+      const isSaved = localSaved.find((sw: any) => sw.name === item.name || sw.id === item.roomId)
+      if (isSaved) {
+        if (!item.ownerId) {
           fetch(`/api/workspaces/${item.roomId}/claim`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ownerId: currentUserId, ownerName: currentUserName }),
           }).catch(() => null)
-          return { ...item, ownerId: currentUserId, ownerName: currentUserName }
         }
+        return { ...item, ownerId: item.ownerId || currentUserId, ownerName: item.ownerName || currentUserName }
       }
       return item
     })
   }, [availableRooms, serverWorkspaces, currentUserId, currentUserName])
 
   // Filter workspaces according to the requirements:
-  // "Mỗi người sẽ có 1 mã userID random để người dùng chỉ xem được workspace do chính mình tạo hoặc được share"
-  // "Trong manage workspace, chia làm 3 tab bao gồm: All, My Workspace, Shared Workspace"
-  const { myWorkspaces, sharedWorkspaces, allUserWorkspaces } = React.useMemo(() => {
+  // "Người dùng chỉ thấy được workspace do chính mình tạo, muốn thấy hoặc join vào workspace của người khác thì phải nhập mã workspace và được chấp thuận (nếu workspace đó bắt ask to join)"
+  const { myWorkspaces, sharedWorkspaces } = React.useMemo(() => {
     const my: WorkspaceDisplayItem[] = []
     const shared: WorkspaceDisplayItem[] = []
 
+    let localSaved: any[] = []
+    try {
+      localSaved = JSON.parse(localStorage.getItem('saved_workspaces') || '[]')
+    } catch (e) {}
+
     allWorkspaceItems.forEach((ws) => {
-      const isOwner = ws.ownerId === currentUserId
+      const isSavedLocally = localSaved.some(
+        (sw: any) => sw.id === ws.roomId || sw.name === ws.name || (sw.id && sw.id === ws.metadata?.id)
+      )
+      const isOwner = ws.ownerId === currentUserId || isSavedLocally
+      
+      const hasEnteredCode =
+        sharedWorkspaceIds.includes(ws.roomId) ||
+        sharedWorkspaceIds.includes(ws.name) ||
+        (ws.metadata?.id && sharedWorkspaceIds.includes(ws.metadata.id))
+      const isApprovedUser = Array.isArray(ws.sharedUsers) && ws.sharedUsers.includes(currentUserId)
+      const isPendingUser = Array.isArray(ws.pendingRequests) && ws.pendingRequests.some((r) => r.userId === currentUserId)
+
+      // Đối với workspace của người khác:
+      // - Chỉ hiển thị khi người dùng đã nhập mã workspace (hasEnteredCode) hoặc đã được duyệt (isApprovedUser)
+      // - Nếu shareMode === 'ask': chỉ thấy và join khi đã được duyệt (isApprovedUser), hoặc hiển thị đang chờ duyệt nếu đã nhập mã
       const isShared =
         !isOwner &&
-        (sharedWorkspaceIds.includes(ws.roomId) || ws.sharedUsers.includes(currentUserId))
+        ((ws.shareMode === 'free' && (hasEnteredCode || isApprovedUser)) ||
+          (ws.shareMode === 'ask' && (isApprovedUser || (hasEnteredCode && isPendingUser))))
 
       if (isOwner) {
         my.push(ws)
@@ -420,13 +467,23 @@ export const CustomRoomTable = () => {
     return {
       myWorkspaces: my,
       sharedWorkspaces: shared,
-      allUserWorkspaces: [...my, ...shared],
     }
   }, [allWorkspaceItems, currentUserId, sharedWorkspaceIds])
 
-  // Current tab items
+  // Danh sách toàn bộ workspace thuộc về người dùng (Workspace tự tạo + Workspace đã nhập mã/được duyệt)
+  const userAllWorkspaces = React.useMemo(() => {
+    const combined = [...myWorkspaces, ...sharedWorkspaces]
+    const seen = new Set<string>()
+    return combined.filter((w) => {
+      if (seen.has(w.roomId)) return false
+      seen.add(w.roomId)
+      return true
+    })
+  }, [myWorkspaces, sharedWorkspaces])
+
+  // Current tab items: Tab 0 (All) chỉ hiển thị các workspace thuộc về người dùng
   const displayedWorkspaces =
-    activeTab === 0 ? allUserWorkspaces : activeTab === 1 ? myWorkspaces : sharedWorkspaces
+    activeTab === 0 ? userAllWorkspaces : activeTab === 1 ? myWorkspaces : sharedWorkspaces
 
   // Xử lý Tìm kiếm và Thêm Workspace bằng Workspace ID
   const handleSearchAndAdd = async () => {
@@ -503,15 +560,31 @@ export const CustomRoomTable = () => {
         })
         setSnackbar({
           open: true,
-          message: `Đã thêm thành công Workspace "${foundWs.name}" (Free) vào danh sách Shared!`,
+          message: `Đã thêm thành công Workspace "${foundWs.name}" (Free) vào danh sách của bạn!`,
           severity: 'success',
         })
       } else {
-        setSnackbar({
-          open: true,
-          message: `Đã thêm Workspace "${foundWs.name}". Đây là phòng yêu cầu duyệt, hãy nhấn "Ask to Join" để gửi yêu cầu!`,
-          severity: 'info',
-        })
+        // shareMode === 'ask'
+        const isApproved = Array.isArray(foundWs.sharedUsers) && foundWs.sharedUsers.includes(currentUserId)
+        if (isApproved) {
+          setSnackbar({
+            open: true,
+            message: `Workspace "${foundWs.name}" đã được chủ phòng chấp thuận trước đó, đã thêm vào danh sách!`,
+            severity: 'success',
+          })
+        } else {
+          // Tự động gửi yêu cầu tham gia tới chủ phòng
+          await fetch(`/api/workspaces/${targetId}/request-join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUserId, userName: currentUserName }),
+          })
+          setSnackbar({
+            open: true,
+            message: `Workspace "${foundWs.name}" yêu cầu phê duyệt. Đã gửi yêu cầu tham gia tới chủ phòng! Bạn chỉ có thể tham gia sau khi được chấp thuận.`,
+            severity: 'info',
+          })
+        }
       }
 
       setSearchWorkspaceId('')
@@ -698,8 +771,19 @@ export const CustomRoomTable = () => {
   // Xử lý Join phòng
   const handleJoinClick = (roomId: string, pass: string | null) => {
     if (!lobbyJoined) return
-    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     const targetRoom = allWorkspaceItems.find((r) => r.roomId === roomId)
+    const isOwner = targetRoom?.ownerId === currentUserId
+    const isApproved = Array.isArray(targetRoom?.sharedUsers) && targetRoom?.sharedUsers.includes(currentUserId)
+    if (targetRoom && targetRoom.shareMode === 'ask' && !isOwner && !isApproved) {
+      setSnackbar({
+        open: true,
+        message: 'Bạn chưa được chủ workspace chấp thuận yêu cầu gia nhập!',
+        severity: 'warning',
+      })
+      return
+    }
+
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     if (targetRoom?.metadata?.width && targetRoom?.metadata?.height) {
       dispatch(
         setWorkspaceData({
@@ -731,6 +815,78 @@ export const CustomRoomTable = () => {
     setPassword('')
     setPasswordFieldEmpty(false)
     setShowPasswordError(false)
+  }
+
+  // Xử lý Kiểm tra & Đăng nhập tài khoản User trước khi vào Workspace (cho requireLogin)
+  const handleJoinWorkspaceAction = (ws: WorkspaceDisplayItem) => {
+    const isOwner = ws.ownerId === currentUserId
+    const isApproved = Array.isArray(ws.sharedUsers) && ws.sharedUsers.includes(currentUserId)
+    if (ws.shareMode === 'ask' && !isOwner && !isApproved) {
+      setSnackbar({
+        open: true,
+        message: 'Bạn chưa được chủ workspace chấp thuận yêu cầu gia nhập!',
+        severity: 'warning',
+      })
+      return
+    }
+
+    if (ws.requireLogin && !isOwner) {
+      // Trừ chủ workspace, khi vào workspace sẽ có khung đăng nhập để check tài khoản và mật khẩu
+      setSelectedAuthRoom(ws)
+      setAuthUsername('')
+      setAuthPassword('')
+      setAuthError('')
+      setShowUserAuthDialog(true)
+    } else if (ws.hasPassword) {
+      setSelectedRoom(ws.roomId)
+      setShowPasswordDialog(true)
+    } else {
+      // Không cần đăng nhập hoặc là chủ workspace: ra vào tự do
+      handleJoinClick(ws.roomId, null)
+    }
+  }
+
+  const handleUserAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!authUsername.trim()) {
+      setAuthError('Vui lòng nhập tên tài khoản (Username)!')
+      return
+    }
+    setAuthLoading(true)
+    setAuthError('')
+
+    try {
+      const res = await fetch(`/api/workspaces/${selectedAuthRoom?.roomId}/auth-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: authUsername.trim(),
+          password: authPassword.trim(),
+          userId: currentUserId,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.success && data.verified) {
+        setShowUserAuthDialog(false)
+        if (data.user) {
+          sessionStorage.setItem(`ws_auth_${selectedAuthRoom?.roomId}`, JSON.stringify(data.user))
+          dispatch(setPlayerName(data.user.name))
+        }
+        if (selectedAuthRoom?.hasPassword) {
+          setSelectedRoom(selectedAuthRoom.roomId)
+          setShowPasswordDialog(true)
+        } else {
+          handleJoinClick(selectedAuthRoom!.roomId, null)
+        }
+      } else {
+        setAuthError(data.message || 'Tài khoản hoặc mật khẩu không chính xác!')
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Lỗi kiểm tra đăng nhập')
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   return (
@@ -793,7 +949,7 @@ export const CustomRoomTable = () => {
           textColor="inherit"
           indicatorColor="primary"
         >
-          <Tab label={`All (${allUserWorkspaces.length})`} />
+          <Tab label={`All (${userAllWorkspaces.length})`} />
           <Tab label={`My Workspace (${myWorkspaces.length})`} />
           <Tab label={`Shared Workspace (${sharedWorkspaces.length})`} />
         </Tabs>
@@ -806,7 +962,7 @@ export const CustomRoomTable = () => {
             ? 'Bạn chưa tạo Workspace nào. Hãy bấm nút "Tạo Workspace Mới" bên dưới!'
             : activeTab === 2
             ? 'Bạn chưa có Workspace được chia sẻ nào. Hãy nhập mã Workspace ID vào thanh tìm kiếm ở trên để thêm!'
-            : 'Hiện chưa có Workspace nào trong danh sách của bạn.'}
+            : 'Hiện chưa có Workspace nào trong danh sách của bạn. Bạn chỉ thấy Workspace do chính mình tạo hoặc nhập mã Workspace được chia sẻ.'}
         </MessageText>
       ) : (
         <CustomRoomTableContainer component={Paper}>
@@ -844,11 +1000,46 @@ export const CustomRoomTable = () => {
                       <div className="name" style={{ fontWeight: 600, color: '#ffffff' }}>
                         {name}
                       </div>
-                      {isOwner && (
-                        <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>
-                          (Chủ phòng)
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                        {isOwner && (
+                          <Chip
+                            label="Chủ phòng"
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}
+                          />
+                        )}
+                        {ws.companyName && (
+                          <Chip
+                            icon={<ApartmentIcon sx={{ fontSize: 11 }} />}
+                            label={ws.companyName}
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1' }}
+                          />
+                        )}
+                        {ws.departmentName && (
+                          <Chip
+                            icon={<HubIcon sx={{ fontSize: 11 }} />}
+                            label={ws.departmentName}
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}
+                          />
+                        )}
+                        {ws.requireLogin ? (
+                          <Chip
+                            icon={<VpnKeyIcon sx={{ fontSize: 11 }} />}
+                            label="Cần đăng nhập"
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' }}
+                          />
+                        ) : (
+                          <Chip
+                            icon={<LockOpenIcon sx={{ fontSize: 11 }} />}
+                            label="Ra vào tự do"
+                            size="small"
+                            sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.05)', color: '#94a3b8' }}
+                          />
+                        )}
+                      </div>
                     </TableCell>
 
                     <TableCell>
@@ -901,12 +1092,12 @@ export const CustomRoomTable = () => {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
                         {/* 1. Nút JOIN hoặc ASK TO JOIN */}
                         {canJoin ? (
-                          <Tooltip title={hasPassword ? 'Cần mật khẩu' : ''}>
+                          <Tooltip title={ws.requireLogin && !isOwner ? 'Yêu cầu tài khoản User' : hasPassword ? 'Cần mật khẩu' : ''}>
                             <Button
                               variant="contained"
                               size="small"
                               style={{
-                                background: '#0284c7',
+                                background: ws.requireLogin && !isOwner ? '#d97706' : '#0284c7',
                                 color: '#ffffff',
                                 fontWeight: 600,
                                 textTransform: 'none',
@@ -914,17 +1105,14 @@ export const CustomRoomTable = () => {
                                 borderRadius: '6px',
                                 fontSize: '12px',
                               }}
-                              onClick={() => {
-                                if (hasPassword) {
-                                  setShowPasswordDialog(true)
-                                  setSelectedRoom(roomId)
-                                } else {
-                                  handleJoinClick(roomId, null)
-                                }
-                              }}
+                              onClick={() => handleJoinWorkspaceAction(ws)}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                {hasPassword && <LockIcon style={{ fontSize: 14 }} />}
+                                {ws.requireLogin && !isOwner ? (
+                                  <VpnKeyIcon style={{ fontSize: 14 }} />
+                                ) : (
+                                  hasPassword && <LockIcon style={{ fontSize: 14 }} />
+                                )}
                                 Join
                               </div>
                             </Button>
@@ -1249,6 +1437,118 @@ export const CustomRoomTable = () => {
               sx={{ background: '#0284c7', color: '#fff', textTransform: 'none', fontWeight: 700 }}
             >
               Tham Gia
+            </Button>
+          </DialogActions>
+        </form>
+      </StyledDialog>
+
+      {/* DIALOG ĐĂNG NHẬP USER DÀNH CHO WORKSPACE CẦN ĐĂNG NHẬP */}
+      <StyledDialog open={showUserAuthDialog} onClose={() => setShowUserAuthDialog(false)}>
+        <form onSubmit={handleUserAuthSubmit}>
+          <DialogTitle sx={{ fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <VpnKeyIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+            Đăng Nhập Vào Workspace
+          </DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.04)', borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
+                {selectedAuthRoom?.name}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                {selectedAuthRoom?.companyName && (
+                  <Chip
+                    icon={<ApartmentIcon sx={{ fontSize: 11 }} />}
+                    label={selectedAuthRoom.companyName}
+                    size="small"
+                    sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1' }}
+                  />
+                )}
+                {selectedAuthRoom?.departmentName && (
+                  <Chip
+                    icon={<HubIcon sx={{ fontSize: 11 }} />}
+                    label={selectedAuthRoom.departmentName}
+                    size="small"
+                    sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}
+                  />
+                )}
+              </div>
+            </div>
+
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', lineHeight: 1.5 }}>
+              Workspace này yêu cầu xác thực tài khoản & mật khẩu (lấy từ danh mục User). Vui lòng nhập thông tin đăng nhập của bạn:
+            </p>
+
+            <TextField
+              autoFocus
+              fullWidth
+              label="Tên tài khoản (Username)"
+              value={authUsername}
+              onChange={(e) => setAuthUsername(e.target.value)}
+              variant="outlined"
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  color: '#f8fafc',
+                },
+              }}
+            />
+
+            <TextField
+              fullWidth
+              label="Mật khẩu (Password)"
+              type={showAuthPass ? 'text' : 'password'}
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              variant="outlined"
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  color: '#f8fafc',
+                },
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowAuthPass(!showAuthPass)}
+                      sx={{ color: '#94a3b8' }}
+                    >
+                      {showAuthPass ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            {authError && (
+              <Alert severity="error" variant="filled" sx={{ fontSize: '13px' }}>
+                {authError}
+              </Alert>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button
+              onClick={() => setShowUserAuthDialog(false)}
+              sx={{ color: '#94a3b8', textTransform: 'none' }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={authLoading}
+              sx={{
+                background: '#d97706',
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 700,
+                '&:hover': { background: '#b45309' },
+              }}
+            >
+              {authLoading ? 'Đang kiểm tra...' : 'Đăng Nhập & Vào'}
             </Button>
           </DialogActions>
         </form>

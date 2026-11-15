@@ -7,15 +7,23 @@ import Chip from '@mui/material/Chip'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import PeopleIcon from '@mui/icons-material/People'
 import HubIcon from '@mui/icons-material/Hub'
+import WorkspacesIcon from '@mui/icons-material/Workspaces'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 
 import { useAppSelector } from '../hooks'
-import { WorkspaceCompany, WorkspaceUser, DEFAULT_COMPANY } from '../types/core'
+import {
+  WorkspaceCompany,
+  WorkspaceUser,
+  DEFAULT_COMPANY,
+  CompanyWorkspaceConfig,
+  DEFAULT_WORKSPACE_CONFIG,
+} from '../types/core'
 import CompanyConfigDialog from './CompanyConfigDialog'
 import UserConfigDialog from './UserConfigDialog'
+import WorkspaceConfigDialog from './WorkspaceConfigDialog'
 
 const SidebarContainer = styled.div<{ $collapsed: boolean }>`
   position: relative;
@@ -287,6 +295,21 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
   // Dialog visibility
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
   const [openUserDialog, setOpenUserDialog] = useState(false)
+  const [openWorkspaceDialog, setOpenWorkspaceDialog] = useState(false)
+
+  // State cấu hình Workspace
+  const [workspaceConfig, setWorkspaceConfig] = useState<CompanyWorkspaceConfig>(() => {
+    try {
+      const stored = localStorage.getItem(`skyoffice_core_workspace_config_${roomId}`)
+      if (stored) return JSON.parse(stored)
+    } catch (e) {
+      console.error(e)
+    }
+    return {
+      ...DEFAULT_WORKSPACE_CONFIG,
+      companyName: roomName || DEFAULT_WORKSPACE_CONFIG.companyName,
+    }
+  })
 
   // Fetch từ server khi roomId thay đổi
   useEffect(() => {
@@ -315,6 +338,23 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
               setUsers(data.users)
               localStorage.setItem(`skyoffice_core_users_${roomId}`, JSON.stringify(data.users))
             }
+          }
+        }
+
+        // Fetch workspace settings
+        const wsRes = await fetch(`/api/workspaces/${roomId}`)
+        if (wsRes.ok) {
+          const wsData = await wsRes.json()
+          if (wsData.success && wsData.workspace && isMounted) {
+            const ws = wsData.workspace
+            const cfg: CompanyWorkspaceConfig = {
+              companyName: ws.companyName || company.name || 'Virtual Office Co.',
+              departmentId: ws.departmentId || 'dept_tech',
+              departmentName: ws.departmentName || 'Kỹ Thuật & Công Nghệ',
+              requireLogin: !!ws.requireLogin,
+            }
+            setWorkspaceConfig(cfg)
+            localStorage.setItem(`skyoffice_core_workspace_config_${roomId}`, JSON.stringify(cfg))
           }
         }
       } catch (err) {
@@ -455,6 +495,29 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
                   </ModuleLeft>
                   <ChevronRightIcon className="chevron" sx={{ fontSize: 18 }} />
                 </ModuleItem>
+
+                {/* 3. Module Workspace */}
+                <ModuleItem
+                  $accentColor="#10b981"
+                  onClick={() => setOpenWorkspaceDialog(true)}
+                >
+                  <ModuleLeft>
+                    <ModuleIconBox $color="#10b981" $bg="rgba(16, 185, 129, 0.15)">
+                      <WorkspacesIcon sx={{ fontSize: 18 }} />
+                    </ModuleIconBox>
+                    <ModuleTextBlock>
+                      <span className="module-title">Workspace</span>
+                      <span className="module-sub">
+                        {workspaceConfig.departmentName
+                          ? `${workspaceConfig.companyName} • ${workspaceConfig.departmentName}`
+                          : workspaceConfig.companyName}
+                        {' • '}
+                        {workspaceConfig.requireLogin ? 'Cần đăng nhập' : 'Tự do'}
+                      </span>
+                    </ModuleTextBlock>
+                  </ModuleLeft>
+                  <ChevronRightIcon className="chevron" sx={{ fontSize: 18 }} />
+                </ModuleItem>
               </ModuleList>
 
               <FooterNote>
@@ -485,6 +548,16 @@ export default function CoreSidebar({ onCompanyChange, onUsersChange }: Props) {
         currentUserId={currentUserId}
         currentUserName={currentUserName}
         onSave={(updatedUsers) => setUsers(updatedUsers)}
+      />
+
+      {/* Dialog Thiết lập Workspace */}
+      <WorkspaceConfigDialog
+        open={openWorkspaceDialog}
+        onClose={() => setOpenWorkspaceDialog(false)}
+        roomId={roomId}
+        company={company}
+        users={users}
+        onWorkspaceConfigChange={(cfg) => setWorkspaceConfig(cfg)}
       />
     </>
   )

@@ -6,12 +6,14 @@ export interface CompanyDepartment {
 }
 
 export interface WorkspaceCompany {
+  id?: string
   name: string
   abbr?: string
   domain?: string
   currency?: string
   country?: string
   departments: CompanyDepartment[]
+  createdAt?: number
 }
 
 export interface WorkspaceUser {
@@ -25,20 +27,56 @@ export interface WorkspaceUser {
   status?: 'active' | 'disabled'
 }
 
-export const DEFAULT_COMPANY: WorkspaceCompany = {
-  name: 'Virtual Office Co.',
-  abbr: 'VOC',
-  domain: 'office.local',
-  currency: 'VND',
-  country: 'Việt Nam',
-  departments: [
-    { id: 'dept_bod', name: 'Ban Giám Đốc', head: 'CEO' },
-    { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ', head: 'CTO' },
-    { id: 'dept_sales', name: 'Kinh Doanh & Tiếp Thị', head: 'Head of Sales' },
-    { id: 'dept_hr', name: 'Nhân Sự & Hành Chính', head: 'HR Lead' },
-    { id: 'dept_fin', name: 'Tài Chính & Kế Toán', head: 'Chief Accountant' },
-  ],
+export interface CompanyWorkspaceConfig {
+  companyId?: string
+  companyName: string
+  departmentId?: string
+  departmentName?: string
+  requireLogin: boolean
 }
+
+export const DEFAULT_COMPANIES: WorkspaceCompany[] = [
+  {
+    id: 'comp_voc',
+    name: 'Virtual Office Co.',
+    abbr: 'VOC',
+    domain: 'office.local',
+    currency: 'VND',
+    country: 'Việt Nam',
+    departments: [
+      { id: 'dept_bod', name: 'Ban Giám Đốc', head: 'CEO' },
+      { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ', head: 'CTO' },
+      { id: 'dept_sales', name: 'Kinh Doanh & Tiếp Thị', head: 'Head of Sales' },
+      { id: 'dept_hr', name: 'Nhân Sự & Hành Chính', head: 'HR Lead' },
+      { id: 'dept_fin', name: 'Tài Chính & Kế Toán', head: 'Chief Accountant' },
+    ],
+    createdAt: 1700000000000,
+  },
+  {
+    id: 'comp_frappe',
+    name: 'Frappe Enterprise',
+    abbr: 'FRAPPE',
+    domain: 'frappe.io',
+    currency: 'USD',
+    country: 'Global',
+    departments: [
+      { id: 'dept_fr_core', name: 'Core Engineering', head: 'Lead Architect' },
+      { id: 'dept_fr_support', name: 'Customer Success', head: 'Support Lead' },
+      { id: 'dept_fr_ops', name: 'Operations & HR', head: 'COO' },
+    ],
+    createdAt: 1700000000000,
+  },
+]
+
+export const DEFAULT_WORKSPACE_CONFIG: CompanyWorkspaceConfig = {
+  companyId: 'comp_voc',
+  companyName: 'Virtual Office Co.',
+  departmentId: 'dept_tech',
+  departmentName: 'Kỹ Thuật & Công Nghệ',
+  requireLogin: false,
+}
+
+export const DEFAULT_COMPANY: WorkspaceCompany = DEFAULT_COMPANIES[0]
 
 export interface WorkspaceProject {
   id: string

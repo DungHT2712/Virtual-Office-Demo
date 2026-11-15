@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import Button from '@mui/material/Button'
@@ -21,8 +20,11 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CheckIcon from '@mui/icons-material/Check'
+import ListAltIcon from '@mui/icons-material/ListAlt'
+import BusinessIcon from '@mui/icons-material/Business'
 
-import { WorkspaceCompany, CompanyDepartment } from '../types/core'
+import { WorkspaceCompany, CompanyDepartment, DEFAULT_COMPANIES } from '../types/core'
 
 const StyledDialog = styled(Dialog)`
   .MuiDialog-paper {
@@ -31,7 +33,7 @@ const StyledDialog = styled(Dialog)`
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    max-width: 680px;
+    max-width: 740px;
     width: 95vw;
   }
 `
@@ -141,22 +143,20 @@ const DeptItem = styled.div`
   }
 `
 
-const DeptInfo = styled.div`
+const CompanyCard = styled.div<{ $selected: boolean }>`
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  background: ${(props) => (props.$selected ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.7)')};
+  border: 1px solid ${(props) => (props.$selected ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)')};
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  transition: all 0.2s ease;
 
-  .name {
-    font-size: 13px;
-    font-weight: 600;
-    color: #f8fafc;
-  }
-
-  .meta {
-    font-size: 11px;
-    color: #94a3b8;
-    display: flex;
-    gap: 8px;
+  &:hover {
+    border-color: #38bdf8;
+    background: rgba(30, 41, 59, 0.8);
   }
 `
 
@@ -170,6 +170,10 @@ interface Props {
 
 export default function CompanyConfigDialog({ open, onClose, roomId, company, onSave }: Props) {
   const [activeTab, setActiveTab] = useState(0)
+  const [companies, setCompanies] = useState<WorkspaceCompany[]>(DEFAULT_COMPANIES)
+  const [selectedCompId, setSelectedCompId] = useState<string>(company.id || 'comp_voc')
+
+  // Edit company fields
   const [name, setName] = useState(company.name || '')
   const [abbr, setAbbr] = useState(company.abbr || '')
   const [domain, setDomain] = useState(company.domain || '')
@@ -177,27 +181,73 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
   const [country, setCountry] = useState(company.country || 'Việt Nam')
   const [departments, setDepartments] = useState<CompanyDepartment[]>(company.departments || [])
 
-  // New department inputs
+  // Create new company fields
+  const [newCompName, setNewCompName] = useState('')
+  const [newCompAbbr, setNewCompAbbr] = useState('')
+  const [newCompDomain, setNewCompDomain] = useState('')
+  const [newCompCurrency, setNewCompCurrency] = useState('VND')
+  const [newCompCountry, setNewCompCountry] = useState('Việt Nam')
+
+  // Department inputs
   const [newDeptName, setNewDeptName] = useState('')
   const [newDeptHead, setNewDeptHead] = useState('')
-
-  // Edit department state
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null)
   const [editDeptName, setEditDeptName] = useState('')
   const [editDeptHead, setEditDeptHead] = useState('')
 
   const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  // Load danh sách công ty từ server
+  const loadCompanies = async () => {
+    try {
+      const res = await fetch('/api/companies')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && Array.isArray(data.companies) && data.companies.length > 0) {
+          setCompanies(data.companies)
+          localStorage.setItem('skyoffice_companies', JSON.stringify(data.companies))
+        }
+      }
+    } catch (e) {
+      const stored = localStorage.getItem('skyoffice_companies')
+      if (stored) {
+        try {
+          setCompanies(JSON.parse(stored))
+        } catch (err) {}
+      }
+    }
+  }
 
   useEffect(() => {
-    setName(company.name || '')
-    setAbbr(company.abbr || '')
-    setDomain(company.domain || '')
-    setCurrency(company.currency || 'VND')
-    setCountry(company.country || 'Việt Nam')
-    setDepartments(company.departments || [])
-  }, [company])
+    if (open) {
+      loadCompanies()
+    }
+  }, [open])
 
+  // Khi chọn một công ty khác để chỉnh sửa
+  const handleSelectCompanyToEdit = (comp: WorkspaceCompany) => {
+    setSelectedCompId(comp.id || '')
+    setName(comp.name)
+    setAbbr(comp.abbr || '')
+    setDomain(comp.domain || '')
+    setCurrency(comp.currency || 'VND')
+    setCountry(comp.country || 'Việt Nam')
+    setDepartments(comp.departments || [])
+  }
+
+  useEffect(() => {
+    const cur = companies.find((c) => c.id === selectedCompId) || company
+    setName(cur.name || '')
+    setAbbr(cur.abbr || '')
+    setDomain(cur.domain || '')
+    setCurrency(cur.currency || 'VND')
+    setCountry(cur.country || 'Việt Nam')
+    setDepartments(cur.departments || [])
+  }, [selectedCompId, companies])
+
+  // 1. Thêm phòng ban
   const handleAddDepartment = () => {
     if (!newDeptName.trim()) return
     const newDept: CompanyDepartment = {
@@ -230,9 +280,93 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
     setEditingDeptId(null)
   }
 
-  const handleSave = async () => {
+  // 2. Tạo công ty mới
+  const handleCreateCompany = async () => {
+    if (!newCompName.trim()) {
+      setErrorMsg('Vui lòng nhập tên công ty mới!')
+      return
+    }
+
     setSaving(true)
-    const updatedCompany: WorkspaceCompany = {
+    setErrorMsg('')
+
+    const generatedId = 'comp_' + Math.random().toString(36).substring(2, 9)
+    const newComp: WorkspaceCompany = {
+      id: generatedId,
+      name: newCompName.trim(),
+      abbr: newCompAbbr.trim() || newCompName.substring(0, 4).toUpperCase(),
+      domain: newCompDomain.trim() || 'office.local',
+      currency: newCompCurrency.trim() || 'VND',
+      country: newCompCountry.trim() || 'Việt Nam',
+      departments: [
+        { id: 'dept_bod', name: 'Ban Giám Đốc', head: 'CEO' },
+        { id: 'dept_tech', name: 'Kỹ Thuật & Công Nghệ', head: 'CTO' },
+        { id: 'dept_sales', name: 'Kinh Doanh & Tiếp Thị', head: 'Head of Sales' },
+      ],
+      createdAt: Date.now(),
+    }
+
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newComp),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const saved = data.company || newComp
+        const updatedList = [...companies, saved]
+        setCompanies(updatedList)
+        localStorage.setItem('skyoffice_companies', JSON.stringify(updatedList))
+        setSelectedCompId(saved.id)
+        handleSelectCompanyToEdit(saved)
+        setSuccessMsg(`Đã tạo công ty "${saved.name}" (ID: ${saved.id}) thành công!`)
+        setNewCompName('')
+        setNewCompAbbr('')
+        setNewCompDomain('')
+        setActiveTab(0)
+      }
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Lỗi tạo công ty')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 3. Đặt làm công ty của Workspace hiện tại & Lưu
+  const handleSetCurrentCompany = async (comp: WorkspaceCompany) => {
+    setSaving(true)
+    try {
+      localStorage.setItem(`skyoffice_core_company_${roomId}`, JSON.stringify(comp))
+      await fetch(`/api/workspaces/${roomId}/company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: comp }),
+      })
+      // Đồng thời cập nhật companyId và companyName vào workspace config
+      await fetch(`/api/workspaces/${roomId}/workspace-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: comp.id, companyName: comp.name }),
+      })
+
+      onSave(comp)
+      setSuccessMsg(`Đã đặt "${comp.name}" làm công ty cho Workspace này!`)
+      setTimeout(() => setSuccessMsg(''), 3000)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 4. Lưu thay đổi thông tin công ty đang chọn
+  const handleSaveCurrentCompanyDetails = async () => {
+    setSaving(true)
+    setErrorMsg('')
+
+    const updated: WorkspaceCompany = {
+      id: selectedCompId,
       name: name.trim() || 'My Company',
       abbr: abbr.trim() || 'MC',
       domain: domain.trim(),
@@ -242,22 +376,32 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
     }
 
     try {
-      localStorage.setItem(`skyoffice_core_company_${roomId}`, JSON.stringify(updatedCompany))
-      await fetch(`/api/workspaces/${roomId}/company`, {
+      const res = await fetch('/api/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company: updatedCompany }),
+        body: JSON.stringify(updated),
       })
-      onSave(updatedCompany)
-      setSaveSuccess(true)
-      setTimeout(() => {
-        setSaveSuccess(false)
-        onClose()
-      }, 700)
-    } catch (err) {
-      console.error('Failed to save company settings', err)
-      onSave(updatedCompany)
-      onClose()
+      if (res.ok) {
+        const nextList = companies.map((c) => (c.id === selectedCompId ? updated : c))
+        setCompanies(nextList)
+        localStorage.setItem('skyoffice_companies', JSON.stringify(nextList))
+
+        // Nếu công ty này đang gán cho workspace hiện tại thì cập nhật luôn
+        if (company.id === selectedCompId || company.name === updated.name) {
+          localStorage.setItem(`skyoffice_core_company_${roomId}`, JSON.stringify(updated))
+          await fetch(`/api/workspaces/${roomId}/company`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company: updated }),
+          })
+          onSave(updated)
+        }
+
+        setSuccessMsg(`Cập nhật thông tin công ty "${updated.name}" thành công!`)
+        setTimeout(() => setSuccessMsg(''), 3000)
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Lỗi lưu thông tin công ty')
     } finally {
       setSaving(false)
     }
@@ -285,8 +429,8 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
             <ApartmentIcon sx={{ fontSize: 24 }} />
           </HeaderIconBox>
           <TitleGroup>
-            <span className="title">Thiết lập Company (Công ty & Phòng ban)</span>
-            <span className="subtitle">Mô hình tổ chức doanh nghiệp Frappe ERP</span>
+            <span className="title">Quản Lý Công Ty & Phòng Ban</span>
+            <span className="subtitle">Mô hình đa doanh nghiệp - Mỗi công ty có Company ID riêng</span>
           </TitleGroup>
         </HeaderLeft>
         <IconButton onClick={onClose} size="small" sx={{ color: '#94a3b8' }}>
@@ -296,89 +440,198 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
 
       <Tabs
         value={activeTab}
-        onChange={(_, val) => setActiveTab(val)}
+        onChange={(_, val) => {
+          setActiveTab(val)
+          setErrorMsg('')
+          setSuccessMsg('')
+        }}
         sx={{
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          px: 3,
+          px: 2,
           '& .MuiTab-root': {
             color: '#94a3b8',
             textTransform: 'none',
-            fontSize: '13px',
             fontWeight: 600,
+            fontSize: '13px',
+            minHeight: '44px',
             '&.Mui-selected': { color: '#38bdf8' },
           },
-          '& .MuiTabs-indicator': { backgroundColor: '#38bdf8' },
+          '& .MuiTabs-indicator': { backgroundColor: '#38bdf8', height: '3px' },
         }}
       >
-        <Tab icon={<ApartmentIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Thông tin Công ty" />
-        <Tab
-          icon={<AccountTreeIcon sx={{ fontSize: 18 }} />}
-          iconPosition="start"
-          label={`Phòng ban (${departments.length})`}
-        />
+        <Tab icon={<ListAltIcon sx={{ fontSize: 16 }} />} iconPosition="start" label={`Danh Sách Công Ty (${companies.length})`} />
+        <Tab icon={<BusinessIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Thông Tin Công Ty" />
+        <Tab icon={<AccountTreeIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Cơ Cấu Phòng Ban" />
+        <Tab icon={<AddCircleOutlineIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="+ Thêm Công Ty Mới" />
       </Tabs>
 
-      <DialogContent sx={{ p: 3 }}>
-        {saveSuccess && (
+      <DialogContent sx={{ p: 3, maxHeight: '65vh', overflowY: 'auto' }}>
+        {errorMsg && (
+          <Alert severity="error" sx={{ mb: 2, background: 'rgba(239, 68, 68, 0.1)', color: '#f87171' }}>
+            {errorMsg}
+          </Alert>
+        )}
+        {successMsg && (
           <Alert
-            icon={<CheckCircleOutlineIcon fontSize="inherit" />}
             severity="success"
-            sx={{ mb: 2, background: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}
+            sx={{ mb: 2, background: 'rgba(16, 185, 129, 0.1)', color: '#34d399' }}
+            icon={<CheckCircleOutlineIcon />}
           >
-            Đã lưu thiết lập Company thành công!
+            {successMsg}
           </Alert>
         )}
 
+        {/* TAB 0: DANH SÁCH CÔNG TY */}
         {activeTab === 0 && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                Hệ thống hỗ trợ tạo nhiều công ty. Mỗi công ty sở hữu một <strong>Company ID</strong> riêng biệt.
+              </span>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => setActiveTab(3)}
+                startIcon={<AddCircleOutlineIcon />}
+                sx={{ bgcolor: '#0284c7', color: '#fff', textTransform: 'none', fontSize: 12, fontWeight: 700 }}
+              >
+                Tạo Công Ty Mới
+              </Button>
+            </div>
+
+            {companies.map((c) => {
+              const isCurrentForWorkspace = company.id === c.id || company.name === c.name
+              const isSelectedToEdit = selectedCompId === c.id
+
+              return (
+                <CompanyCard key={c.id || c.name} $selected={isSelectedToEdit}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: '#f8fafc' }}>{c.name}</span>
+                      {c.abbr && (
+                        <Chip
+                          label={c.abbr}
+                          size="small"
+                          sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1' }}
+                        />
+                      )}
+                      {isCurrentForWorkspace && (
+                        <Chip
+                          icon={<CheckIcon sx={{ fontSize: 12 }} />}
+                          label="Đang gán cho Workspace"
+                          size="small"
+                          sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}
+                        />
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                      <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: 4, color: '#38bdf8', fontSize: 11 }}>
+                        CompanyID: {c.id}
+                      </code>
+                      <Chip
+                        label={`${c.departments?.length || 0} phòng ban`}
+                        size="small"
+                        sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}
+                      />
+                      {c.domain && (
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>• {c.domain}</span>
+                      )}
+                      {c.country && (
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>• {c.country}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {!isCurrentForWorkspace && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => handleSetCurrentCompany(c)}
+                        sx={{
+                          color: '#34d399',
+                          borderColor: 'rgba(52, 211, 153, 0.3)',
+                          textTransform: 'none',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          '&:hover': { bgcolor: 'rgba(52, 211, 153, 0.1)', borderColor: '#34d399' },
+                        }}
+                      >
+                        Gán Cho Workspace
+                      </Button>
+                    )}
+
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => {
+                        handleSelectCompanyToEdit(c)
+                        setActiveTab(1)
+                      }}
+                      sx={{ bgcolor: '#38bdf8', color: '#0f172a', fontWeight: 700, textTransform: 'none', fontSize: 11 }}
+                    >
+                      Chi Tiết & Sửa
+                    </Button>
+                  </div>
+                </CompanyCard>
+              )
+            })}
+          </div>
+        )}
+
+        {/* TAB 1: THÔNG TIN CÔNG TY ĐANG CHỌN */}
+        {activeTab === 1 && (
           <div>
             <SectionCard>
               <CardTitle>
-                <ApartmentIcon fontSize="small" /> Thông tin cơ bản
+                <ApartmentIcon sx={{ fontSize: 16 }} />
+                Thông tin chung công ty
               </CardTitle>
+
+              <div style={{ marginBottom: 14, fontSize: 12, color: '#94a3b8' }}>
+                Đang cấu hình: <strong style={{ color: '#38bdf8' }}>{name}</strong> • Mã CompanyID: <code style={{ color: '#fbbf24' }}>{selectedCompId}</code>
+              </div>
+
               <FormGrid>
                 <TextField
-                  label="Tên Công ty"
+                  fullWidth
+                  size="small"
+                  label="Tên Công Ty (Company Name)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  size="small"
-                  fullWidth
-                  placeholder="VD: SkyOffice Corp"
                   sx={textFieldStyles}
                 />
                 <TextField
-                  label="Tên viết tắt (Abbreviation)"
+                  fullWidth
+                  size="small"
+                  label="Tên Viết Tắt (Abbreviation)"
                   value={abbr}
                   onChange={(e) => setAbbr(e.target.value)}
-                  size="small"
-                  fullWidth
-                  placeholder="VD: SOC"
                   sx={textFieldStyles}
                 />
                 <TextField
-                  label="Tên miền / Website (Domain)"
+                  fullWidth
+                  size="small"
+                  label="Tên Miền (Domain)"
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
-                  size="small"
-                  fullWidth
-                  placeholder="VD: skyoffice.local"
                   sx={textFieldStyles}
                 />
                 <TextField
-                  label="Quốc gia"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  size="small"
                   fullWidth
-                  placeholder="VD: Việt Nam"
-                  sx={textFieldStyles}
-                />
-                <TextField
-                  label="Đơn vị tiền tệ (Currency)"
+                  size="small"
+                  label="Đồng Tiền Mặc Định (Currency)"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  size="small"
+                  sx={textFieldStyles}
+                />
+                <TextField
                   fullWidth
-                  placeholder="VD: VND"
+                  size="small"
+                  label="Quốc Gia (Country)"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
                   sx={textFieldStyles}
                 />
               </FormGrid>
@@ -386,164 +639,191 @@ export default function CompanyConfigDialog({ open, onClose, roomId, company, on
           </div>
         )}
 
-        {activeTab === 1 && (
+        {/* TAB 2: CƠ CẤU PHÒNG BAN */}
+        {activeTab === 2 && (
           <div>
-            {/* Form thêm phòng ban mới */}
             <SectionCard>
               <CardTitle>
-                <AddCircleOutlineIcon fontSize="small" /> Thêm phòng ban mới
+                <AccountTreeIcon sx={{ fontSize: 16 }} />
+                Phòng ban của công ty: {name}
               </CardTitle>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+
+              {/* Form thêm phòng ban */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                 <TextField
-                  label="Tên phòng ban"
+                  size="small"
+                  fullWidth
+                  label="Tên phòng ban mới"
                   value={newDeptName}
                   onChange={(e) => setNewDeptName(e.target.value)}
-                  size="small"
-                  sx={{ ...textFieldStyles, flex: 2, minWidth: '180px' }}
-                  placeholder="VD: Nghiên cứu & Phát triển (R&D)"
+                  sx={textFieldStyles}
                 />
                 <TextField
-                  label="Trưởng phòng (Head)"
+                  size="small"
+                  label="Trưởng bộ phận (Tùy chọn)"
                   value={newDeptHead}
                   onChange={(e) => setNewDeptHead(e.target.value)}
-                  size="small"
-                  sx={{ ...textFieldStyles, flex: 1.5, minWidth: '150px' }}
-                  placeholder="VD: Trưởng phòng R&D"
+                  sx={textFieldStyles}
                 />
                 <Button
                   variant="contained"
                   onClick={handleAddDepartment}
-                  disabled={!newDeptName.trim()}
                   startIcon={<AddCircleOutlineIcon />}
-                  sx={{
-                    background: '#0284c7',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    '&:hover': { background: '#0369a1' },
-                  }}
+                  sx={{ bgcolor: '#38bdf8', color: '#0f172a', fontWeight: 700, textTransform: 'none', px: 2, whiteSpace: 'nowrap' }}
                 >
                   Thêm
                 </Button>
               </div>
-            </SectionCard>
 
-            {/* Danh sách phòng ban hiện tại */}
-            <SectionCard>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <CardTitle style={{ marginBottom: 0 }}>
-                  <AccountTreeIcon fontSize="small" /> Danh sách phòng ban ({departments.length})
-                </CardTitle>
-                <Chip
-                  label="Cấu trúc Frappe Tree"
-                  size="small"
-                  sx={{
-                    fontSize: '11px',
-                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-                    color: '#38bdf8',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                  }}
-                />
-              </div>
-
-              {departments.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>
-                  Chưa có phòng ban nào. Vui lòng thêm phòng ban ở trên.
-                </div>
-              ) : (
-                <DeptList>
-                  {departments.map((dept) => (
-                    <DeptItem key={dept.id}>
-                      {editingDeptId === dept.id ? (
-                        <div style={{ display: 'flex', gap: 8, width: '100%', alignItems: 'center' }}>
-                          <TextField
-                            size="small"
-                            value={editDeptName}
-                            onChange={(e) => setEditDeptName(e.target.value)}
-                            sx={{ ...textFieldStyles, flex: 2 }}
-                          />
-                          <TextField
-                            size="small"
-                            placeholder="Trưởng phòng"
-                            value={editDeptHead}
-                            onChange={(e) => setEditDeptHead(e.target.value)}
-                            sx={{ ...textFieldStyles, flex: 1 }}
-                          />
-                          <Button
-                            size="small"
-                            variant="contained"
-                            onClick={handleSaveEdit}
-                            sx={{ background: '#10b981', textTransform: 'none' }}
-                          >
-                            Lưu
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={() => setEditingDeptId(null)}
-                            sx={{ color: '#94a3b8', textTransform: 'none' }}
-                          >
-                            Hủy
-                          </Button>
+              {/* Danh sách phòng ban */}
+              <DeptList>
+                {departments.map((dept) => (
+                  <DeptItem key={dept.id}>
+                    {editingDeptId === dept.id ? (
+                      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                        <TextField
+                          size="small"
+                          value={editDeptName}
+                          onChange={(e) => setEditDeptName(e.target.value)}
+                          sx={{ ...textFieldStyles, flex: 2 }}
+                        />
+                        <TextField
+                          size="small"
+                          value={editDeptHead}
+                          onChange={(e) => setEditDeptHead(e.target.value)}
+                          sx={{ ...textFieldStyles, flex: 1 }}
+                        />
+                        <IconButton size="small" onClick={handleSaveEdit} sx={{ color: '#34d399' }}>
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#f8fafc' }}>{dept.name}</span>
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                            Mã: {dept.id} {dept.head ? `• Trưởng bộ phận: ${dept.head}` : ''}
+                          </span>
                         </div>
-                      ) : (
-                        <>
-                          <DeptInfo>
-                            <span className="name">{dept.name}</span>
-                            <div className="meta">
-                              <span>Mã: {dept.id}</span>
-                              {dept.head && <span>• Trưởng phòng: {dept.head}</span>}
-                            </div>
-                          </DeptInfo>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <Tooltip title="Chỉnh sửa">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleStartEdit(dept)}
-                                sx={{ color: '#94a3b8', '&:hover': { color: '#38bdf8' } }}
-                              >
-                                <EditOutlinedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Xóa phòng ban">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteDepartment(dept.id)}
-                                sx={{ color: '#94a3b8', '&:hover': { color: '#f43f5e' } }}
-                              >
-                                <DeleteOutlineIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </div>
-                        </>
-                      )}
-                    </DeptItem>
-                  ))}
-                </DeptList>
-              )}
+                        <div>
+                          <IconButton size="small" onClick={() => handleStartEdit(dept)} sx={{ color: '#94a3b8' }}>
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleDeleteDepartment(dept.id)} sx={{ color: '#ef4444' }}>
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </div>
+                      </>
+                    )}
+                  </DeptItem>
+                ))}
+              </DeptList>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* TAB 3: THÊM CÔNG TY MỚI */}
+        {activeTab === 3 && (
+          <div>
+            <SectionCard>
+              <CardTitle>
+                <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
+                Khởi tạo công ty mới
+              </CardTitle>
+              <p style={{ margin: '0 0 14px 0', fontSize: 12, color: '#94a3b8' }}>
+                Hệ thống sẽ tự động gán một <strong>Company ID</strong> ngẫu nhiên độc nhất cho công ty này.
+              </p>
+
+              <FormGrid>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Tên Công Ty Mới *"
+                  value={newCompName}
+                  onChange={(e) => setNewCompName(e.target.value)}
+                  placeholder="VD: Tech Corp, VinTech, Global Soft..."
+                  sx={textFieldStyles}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Tên Viết Tắt (Abbr)"
+                  value={newCompAbbr}
+                  onChange={(e) => setNewCompAbbr(e.target.value)}
+                  placeholder="VD: TC, VT, GS..."
+                  sx={textFieldStyles}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Tên Miền Doanh Nghiệp"
+                  value={newCompDomain}
+                  onChange={(e) => setNewCompDomain(e.target.value)}
+                  placeholder="VD: company.com"
+                  sx={textFieldStyles}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Đồng Tiền Mặc Định"
+                  value={newCompCurrency}
+                  onChange={(e) => setNewCompCurrency(e.target.value)}
+                  sx={textFieldStyles}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Quốc Gia"
+                  value={newCompCountry}
+                  onChange={(e) => setNewCompCountry(e.target.value)}
+                  sx={textFieldStyles}
+                />
+              </FormGrid>
             </SectionCard>
           </div>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, px: 3, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Button onClick={onClose} sx={{ color: '#94a3b8', textTransform: 'none' }}>
           Đóng
         </Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving}
-          startIcon={<SaveIcon />}
-          sx={{
-            background: '#0284c7',
-            textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '13px',
-            '&:hover': { background: '#0369a1' },
-          }}
-        >
-          {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
-        </Button>
+
+        {(activeTab === 1 || activeTab === 2) && (
+          <Button
+            variant="contained"
+            onClick={handleSaveCurrentCompanyDetails}
+            disabled={saving}
+            startIcon={<SaveIcon />}
+            sx={{
+              background: '#38bdf8',
+              color: '#0f172a',
+              fontWeight: 700,
+              textTransform: 'none',
+              '&:hover': { background: '#0284c7', color: '#fff' },
+            }}
+          >
+            {saving ? 'Đang lưu...' : 'Lưu Thay Đổi Công Ty'}
+          </Button>
+        )}
+
+        {activeTab === 3 && (
+          <Button
+            variant="contained"
+            onClick={handleCreateCompany}
+            disabled={saving}
+            startIcon={<AddCircleOutlineIcon />}
+            sx={{
+              background: '#38bdf8',
+              color: '#0f172a',
+              fontWeight: 700,
+              textTransform: 'none',
+              '&:hover': { background: '#0284c7', color: '#fff' },
+            }}
+          >
+            {saving ? 'Đang tạo...' : 'Tạo Công Ty'}
+          </Button>
+        )}
       </DialogActions>
     </StyledDialog>
   )

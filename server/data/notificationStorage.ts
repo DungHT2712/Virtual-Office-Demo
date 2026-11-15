@@ -10,7 +10,7 @@ export interface NotificationItem {
   requesterId?: string
   requesterName?: string
   message?: string
-  status?: 'pending' | 'accepted' | 'denied' | 'read'
+  status?: 'pending' | 'accepted' | 'denied' | 'read' | 'unread'
   createdAt: number
 }
 
