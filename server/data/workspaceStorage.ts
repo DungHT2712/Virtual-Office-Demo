@@ -134,14 +134,14 @@ export function getAllWorkspaces(): StoredWorkspace[] {
 
 export function getWorkspaceById(id: string): StoredWorkspace | undefined {
   const list = getAllWorkspaces()
-  return list.find((w) => w.id === id || w.name === id)
+  return list.find((w) => w.id === id || (!w.id && w.name === id))
 }
 
 export function saveWorkspace(workspace: StoredWorkspace) {
   try {
     const list = getAllWorkspaces()
     const index = list.findIndex(
-      (w) => (workspace.id && w.id === workspace.id) || w.name === workspace.name
+      (w) => (workspace.id ? w.id === workspace.id : w.name === workspace.name)
     )
     if (index >= 0) {
       list[index] = { ...list[index], ...workspace }
@@ -157,7 +157,7 @@ export function saveWorkspace(workspace: StoredWorkspace) {
 export function updateWorkspace(id: string, updates: Partial<StoredWorkspace>): StoredWorkspace | null {
   try {
     const list = getAllWorkspaces()
-    const index = list.findIndex((w) => w.id === id || w.name === id)
+    const index = list.findIndex((w) => w.id === id || (!w.id && w.name === id))
     if (index >= 0) {
       list[index] = { ...list[index], ...updates }
       fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8')

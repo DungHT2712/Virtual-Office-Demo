@@ -38,6 +38,9 @@ export class SkyOffice extends Room<OfficeState> {
   private password: string | null = null
 
   async onCreate(options: IRoomData) {
+    if (options.id) {
+      this.roomId = options.id
+    }
     const { name, description, password } = options
     this.name = name
     this.description = description
@@ -108,6 +111,7 @@ export class SkyOffice extends Room<OfficeState> {
         id: this.roomId,
         name,
         description,
+        password: password || null,
         hasPassword,
         sizeType,
         width,
@@ -121,6 +125,8 @@ export class SkyOffice extends Room<OfficeState> {
         departmentId,
         departmentName,
         requireLogin,
+        company: options.company,
+        users: options.users,
         createdAt: Date.now(),
       })
     }
@@ -439,6 +445,9 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onAuth(client: Client, options: { password: string | null }) {
     if (this.password) {
+      if (!options || !options.password) {
+        throw new ServerError(403, 'Password is required!')
+      }
       const validPassword = await bcrypt.compare(options.password, this.password)
       if (!validPassword) {
         throw new ServerError(403, 'Password is incorrect!')

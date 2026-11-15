@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import styled from 'styled-components'
 
-import { useAppSelector } from './hooks'
+import { useAppSelector, useAppDispatch } from './hooks'
+import { updateBackgroundModeRealtime } from './stores/UserStore'
 
 import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
@@ -26,14 +27,29 @@ const Backdrop = styled.div`
   & > * {
     pointer-events: auto;
   }
+
+  & > #left-sidebar-container,
+  & > [data-pointer-events='none'] {
+    pointer-events: none !important;
+  }
 `
 
 function App() {
+  const dispatch = useAppDispatch()
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   const computerDialogOpen = useAppSelector((state) => state.computer.computerDialogOpen)
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
+
+  useEffect(() => {
+    // Tự động cập nhật chế độ sáng/tối theo thời gian thực (6h00 - 17h30 sáng, còn lại là đêm)
+    dispatch(updateBackgroundModeRealtime())
+    const interval = setInterval(() => {
+      dispatch(updateBackgroundModeRealtime())
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [dispatch])
 
   let ui: JSX.Element
   if (loggedIn) {

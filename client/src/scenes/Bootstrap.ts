@@ -3,6 +3,7 @@ import Network from '../services/Network'
 import { BackgroundMode } from '../../../types/BackgroundMode'
 import store from '../stores'
 import { setRoomJoined } from '../stores/RoomStore'
+import { updateBackgroundModeRealtime } from '../stores/UserStore'
 
 export default class Bootstrap extends Phaser.Scene {
   private preloadComplete = false
@@ -79,7 +80,16 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.on('complete', () => {
       this.preloadComplete = true
+      store.dispatch(updateBackgroundModeRealtime())
       this.launchBackground(store.getState().user.backgroundMode)
+
+      this.time.addEvent({
+        delay: 15000,
+        loop: true,
+        callback: () => {
+          store.dispatch(updateBackgroundModeRealtime())
+        },
+      })
     })
   }
 

@@ -1,47 +1,95 @@
 [
   {
-    "id": "_5x0PoP2n",
-    "name": "small",
-    "description": "small",
+    "id": "fz0CpF76M",
+    "name": "abc",
+    "description": "abc",
+    "password": null,
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
-    "ownerId": "usr_8V0WWI",
-    "ownerName": "Jin",
-    "shareMode": "ask",
+    "ownerId": "usr_QZNN4I",
+    "ownerName": "Guest",
+    "shareMode": "free",
     "sharedUsers": [
-      "usr_8V0WWI",
-      "usr_Q1RCEC"
+      "usr_QZNN4I"
     ],
-    "companyId": "comp_voc",
-    "companyName": "Virtual Office Co.",
+    "companyId": "",
+    "companyName": "",
     "departmentId": "",
     "departmentName": "",
-    "requireLogin": true,
-    "createdAt": 1794726616672,
+    "requireLogin": false,
+    "createdAt": 1794756691148
+  },
+  {
+    "id": "RDNq3AQ9K",
+    "name": "abcd",
+    "description": "abcd",
+    "password": null,
+    "hasPassword": false,
+    "sizeType": "MEDIUM",
+    "width": 50,
+    "height": 50,
+    "ownerId": "usr_QZNN4I",
+    "ownerName": "Guest",
+    "shareMode": "free",
+    "sharedUsers": [
+      "usr_QZNN4I"
+    ],
+    "companyId": "comp_voc",
+    "companyName": "abc",
+    "departmentId": "",
+    "departmentName": "",
+    "requireLogin": false,
+    "company": {
+      "id": "comp_voc",
+      "name": "abc",
+      "abbr": "VOC",
+      "domain": "office.local",
+      "currency": "VND",
+      "country": "Việt Nam",
+      "departments": [
+        {
+          "id": "dept_bod",
+          "name": "Ban Giám Đốc",
+          "head": "CEO"
+        },
+        {
+          "id": "dept_tech",
+          "name": "Kỹ Thuật & Công Nghệ",
+          "head": "CTO"
+        },
+        {
+          "id": "dept_sales",
+          "name": "Kinh Doanh & Tiếp Thị",
+          "head": "Head of Sales"
+        },
+        {
+          "id": "dept_hr",
+          "name": "Nhân Sự & Hành Chính",
+          "head": "HR Lead"
+        },
+        {
+          "id": "dept_fin",
+          "name": "Tài Chính & Kế Toán",
+          "head": "Chief Accountant"
+        }
+      ],
+      "createdAt": 1700000000000
+    },
     "users": [
       {
-        "id": "usr_8V0WWI",
-        "name": "Jin",
-        "username": "jin",
+        "id": "usr_QZNN4I",
+        "name": "Guest",
+        "username": "guest",
         "password": "",
-        "email": "jin@office.local",
+        "email": "guest@office.local",
         "role": "Workspace Owner",
         "departmentId": "dept_bod",
         "status": "active"
-      },
-      {
-        "id": "usr_KD0TRZ",
-        "name": "abc",
-        "username": "abc",
-        "password": "123456789",
-        "email": "abc@office.local",
-        "departmentId": "dept_bod",
-        "role": "Member",
-        "status": "active"
       }
     ],
+    "createdAt": 1794756703877,
     "pendingRequests": []
   }
 ]

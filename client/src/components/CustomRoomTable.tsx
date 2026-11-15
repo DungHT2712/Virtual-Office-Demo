@@ -316,6 +316,22 @@ export const CustomRoomTable = () => {
         const data = await res.json()
         if (data.success && Array.isArray(data.workspaces)) {
           setServerWorkspaces(data.workspaces)
+
+          // Tự động đồng bộ dọn dẹp saved_workspaces trong localStorage nếu server không còn phòng đó
+          try {
+            const serverIds = new Set(data.workspaces.map((w: any) => w.id))
+            const serverNames = new Set(data.workspaces.map((w: any) => w.name))
+            const rawSaved = localStorage.getItem('saved_workspaces')
+            if (rawSaved) {
+              const localSaved = JSON.parse(rawSaved)
+              if (Array.isArray(localSaved)) {
+                const cleaned = localSaved.filter((w: any) => serverIds.has(w.id) || serverNames.has(w.name))
+                if (cleaned.length !== localSaved.length) {
+                  localStorage.setItem('saved_workspaces', JSON.stringify(cleaned))
+                }
+              }
+            }
+          } catch (e) {}
         }
       }
     } catch (e) {
@@ -826,10 +842,22 @@ export const CustomRoomTable = () => {
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     bootstrap.network
       .joinCustomById(roomId, pass)
-      .then(() => bootstrap.launchGame())
+      .then(() => {
+        resetPasswordDialog()
+        bootstrap.launchGame()
+      })
       .catch((error) => {
         console.error(error)
-        if (pass) setShowPasswordError(true)
+        const msg = error?.message || ''
+        if (pass && (msg.includes('Password') || error?.code === 403)) {
+          setShowPasswordError(true)
+        } else {
+          setSnackbar({
+            open: true,
+            message: msg ? `Lỗi: ${msg}` : 'Không thể kết nối đến Workspace!',
+            severity: 'error',
+          })
+        }
       })
   }
 

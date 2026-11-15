@@ -267,6 +267,13 @@ export default function WorkspaceConfigDialog({
   // 3. State Danh sách Workspaces
   const [workspaceList, setWorkspaceList] = useState<any[]>([])
 
+  // State nhập mật khẩu khi chuyển Workspace
+  const [switchTargetWs, setSwitchTargetWs] = useState<any | null>(null)
+  const [switchPassword, setSwitchPassword] = useState('')
+  const [showSwitchPasswordDialog, setShowSwitchPasswordDialog] = useState(false)
+  const [switchPasswordError, setSwitchPasswordError] = useState('')
+  const [switchingWs, setSwitchingWs] = useState(false)
+
   // Load danh sách công ty từ server
   const loadCompanies = async () => {
     try {
@@ -512,45 +519,76 @@ export default function WorkspaceConfigDialog({
   // 3. Xử lý Chuyển sang Workspace khác
   const handleSwitchWorkspace = (targetWs: any) => {
     if (!lobbyJoined) return
-    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-    let targetWidth = targetWs.width
-    let targetHeight = targetWs.height
-    const targetSizeType = targetWs.sizeType || 'MEDIUM'
-
-    if (!targetWidth || !targetHeight) {
-      if (targetSizeType === 'SMALL') {
-        targetWidth = 20
-        targetHeight = 20
-      } else if (targetSizeType === 'LARGE') {
-        targetWidth = 70
-        targetHeight = 70
-      } else if (targetSizeType === 'XLARGE') {
-        targetWidth = 100
-        targetHeight = 100
-      } else {
-        targetWidth = 50
-        targetHeight = 50
-      }
+    const targetId = targetWs.id || targetWs.roomId || targetWs.name
+    if (targetId === roomId || targetWs.name === roomName) {
+      setErrorMsg('Bạn đang ở trong Workspace này rồi!')
+      return
     }
 
-    dispatch(
-      setWorkspaceData({
-        sizeType: targetSizeType,
-        width: targetWidth,
-        height: targetHeight,
-      })
-    )
+    if (targetWs.hasPassword) {
+      setSwitchTargetWs(targetWs)
+      setSwitchPassword('')
+      setSwitchPasswordError('')
+      setShowSwitchPasswordDialog(true)
+    } else {
+      executeSwitchWorkspace(targetWs, null)
+    }
+  }
 
-    bootstrap.network
-      .joinCustomById(targetWs.id || targetWs.roomId || targetWs.name, null)
-      .then(() => {
-        onClose()
-        bootstrap.launchGame()
-      })
-      .catch((err) => {
-        console.error(err)
-        setErrorMsg('Không thể vào workspace này (có thể cần mật khẩu bảo vệ)')
-      })
+  const executeSwitchWorkspace = async (targetWs: any, pass: string | null) => {
+    setSwitchingWs(true)
+    setErrorMsg('')
+    try {
+      const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+      let targetWidth = targetWs.width
+      let targetHeight = targetWs.height
+      const targetSizeType = targetWs.sizeType || 'MEDIUM'
+
+      if (!targetWidth || !targetHeight) {
+        if (targetSizeType === 'SMALL') {
+          targetWidth = 20
+          targetHeight = 20
+        } else if (targetSizeType === 'LARGE') {
+          targetWidth = 70
+          targetHeight = 70
+        } else if (targetSizeType === 'XLARGE') {
+          targetWidth = 100
+          targetHeight = 100
+        } else {
+          targetWidth = 50
+          targetHeight = 50
+        }
+      }
+
+      dispatch(
+        setWorkspaceData({
+          sizeType: targetSizeType,
+          width: targetWidth,
+          height: targetHeight,
+        })
+      )
+
+      if (bootstrap) {
+        bootstrap.leaveGame()
+      }
+
+      const targetId = targetWs.id || targetWs.roomId || targetWs.name
+      await bootstrap.network.joinCustomById(targetId, pass)
+      setShowSwitchPasswordDialog(false)
+      onClose()
+      bootstrap.launchGame()
+    } catch (err: any) {
+      console.error('Error switching workspace:', err)
+      const msg = err?.message || ''
+      if (pass && (msg.includes('Password') || err?.code === 403)) {
+        setSwitchPasswordError('Mật khẩu không chính xác!')
+      } else {
+        setErrorMsg(msg ? `Lỗi kết nối: ${msg}` : 'Không thể vào workspace này!')
+        setShowSwitchPasswordDialog(false)
+      }
+    } finally {
+      setSwitchingWs(false)
+    }
   }
 
   // Lọc chỉ hiển thị những workspace do CÙNG CÔNG TY tạo (so sánh companyId hoặc companyName)
@@ -562,6 +600,7 @@ export default function WorkspaceConfigDialog({
   })
 
   return (
+    <>
     <StyledDialog open={open} onClose={onClose}>
       <HeaderRow>
         <HeaderLeft>
@@ -1139,5 +1178,91 @@ export default function WorkspaceConfigDialog({
         )}
       </DialogActions>
     </StyledDialog>
+
+    {/* DIALOG NHẬP MẬT KHẨU KHI CHUYỂN WORKSPACE */}
+    <Dialog
+      open={showSwitchPasswordDialog}
+      onClose={() => {
+        if (!switchingWs) setShowSwitchPasswordDialog(false)
+      }}
+      PaperProps={{
+        sx: {
+          background: '#0f172a',
+          color: '#f8fafc',
+          borderRadius: '16px',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          p: 1,
+          maxWidth: 420,
+          width: '90vw',
+        },
+      }}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!switchPassword.trim()) {
+            setSwitchPasswordError('Vui lòng nhập mật khẩu!')
+            return
+          }
+          executeSwitchWorkspace(switchTargetWs, switchPassword.trim())
+        }}
+      >
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+            Workspace Yêu Cầu Mật Khẩu
+          </span>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+            Workspace "{switchTargetWs?.name}" được bảo vệ bằng mật khẩu. Vui lòng nhập mật khẩu để vào:
+          </div>
+        </div>
+        <DialogContent sx={{ p: '20px' }}>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            type="password"
+            label="Mật khẩu Workspace"
+            value={switchPassword}
+            onChange={(e) => {
+              setSwitchPassword(e.target.value)
+              setSwitchPasswordError('')
+            }}
+            error={!!switchPasswordError}
+            helperText={switchPasswordError}
+            disabled={switchingWs}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                background: 'rgba(255, 255, 255, 0.04)',
+                color: '#f8fafc',
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: '20px', pb: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <Button
+            onClick={() => setShowSwitchPasswordDialog(false)}
+            disabled={switchingWs}
+            sx={{ color: '#94a3b8', textTransform: 'none' }}
+          >
+            Hủy
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={switchingWs}
+            sx={{
+              bgcolor: '#0284c7',
+              color: '#ffffff',
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': { bgcolor: '#0369a1' },
+            }}
+          >
+            {switchingWs ? 'Đang vào...' : 'Xác nhận vào'}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+    </>
   )
 }

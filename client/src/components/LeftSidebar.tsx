@@ -11,11 +11,13 @@ const LeftSidebarContainer = styled.div`
   top: 134px;
   left: 16px;
   z-index: 999;
-  width: 280px;
+  width: fit-content;
+  max-width: 280px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
-  pointer-events: none;
+  pointer-events: none !important;
   max-height: calc(100vh - 150px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -43,7 +45,7 @@ export default function LeftSidebar() {
   if (designMode) return null
 
   return (
-    <LeftSidebarContainer>
+    <LeftSidebarContainer id="left-sidebar-container" data-pointer-events="none">
       <CoreSidebar onCompanyChange={setCompany} onUsersChange={setUsers} />
       <ProjectSidebar company={company} users={users} onProjectsChange={setProjects} />
       <DocumentSidebar projects={projects} users={users} />

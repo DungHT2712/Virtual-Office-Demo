@@ -41,9 +41,20 @@ export function getStoredStatuses(): UserStatus[] {
   return DEFAULT_STATUSES
 }
 
-export function getInitialBackgroundMode() {
-  const currentHour = new Date().getHours()
-  return currentHour > 6 && currentHour <= 18 ? BackgroundMode.DAY : BackgroundMode.NIGHT
+export function getCurrentRealTimeBackgroundMode(): BackgroundMode {
+  const now = new Date()
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const totalMinutes = hours * 60 + minutes
+
+  // Từ 6h00 (360 phút) đến 17h30 (17 * 60 + 30 = 1050 phút) là buổi sáng
+  // Khoảng thời gian còn lại (từ sau 17h30 đến trước 6h00) là buổi đêm
+  const isDay = totalMinutes >= 360 && totalMinutes <= 1050
+  return isDay ? BackgroundMode.DAY : BackgroundMode.NIGHT
+}
+
+export function getInitialBackgroundMode(): BackgroundMode {
+  return getCurrentRealTimeBackgroundMode()
 }
 
 export type MovementMode = 'mouse' | 'wasd' | 'joystick'
@@ -103,6 +114,21 @@ export const userSlice = createSlice({
       state.backgroundMode = newMode
       const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
       bootstrap.changeBackgroundMode(newMode)
+    },
+    updateBackgroundModeRealtime: (state) => {
+      const realTimeMode = getCurrentRealTimeBackgroundMode()
+      if (state.backgroundMode !== realTimeMode) {
+        state.backgroundMode = realTimeMode
+        const bootstrap = phaserGame?.scene?.keys?.bootstrap as Bootstrap
+        bootstrap?.changeBackgroundMode?.(realTimeMode)
+      }
+    },
+    setBackgroundMode: (state, action: PayloadAction<BackgroundMode>) => {
+      if (state.backgroundMode !== action.payload) {
+        state.backgroundMode = action.payload
+        const bootstrap = phaserGame?.scene?.keys?.bootstrap as Bootstrap
+        bootstrap?.changeBackgroundMode?.(action.payload)
+      }
     },
     setSessionId: (state, action: PayloadAction<string>) => {
       state.sessionId = action.payload
@@ -228,6 +254,8 @@ export const userSlice = createSlice({
 
 export const {
   toggleBackgroundMode,
+  updateBackgroundModeRealtime,
+  setBackgroundMode,
   setSessionId,
   setUserId,
   setVideoConnected,

@@ -1181,11 +1181,11 @@ export default class Game extends Phaser.Scene {
         return
       }
 
-      // Khi không ở Design Mode: Xử lý click-to-move cho chế độ Mouse
+      // Khi không ở Design Mode: Xử lý click-to-move (hỗ trợ cả chế độ Mouse và WASD)
       if (!this.pathfinder) return
       if (this.myPlayer.playerBehavior === PlayerBehavior.SITTING) return
       if (!state.user.loggedIn) return
-      if (state.user.movementMode !== 'mouse') return
+      if (state.user.movementMode === 'joystick') return
       if (state.computer.computerDialogOpen || state.whiteboard.whiteboardDialogOpen) return
 
       const footY = this.myPlayer.y + this.myPlayer.height * 0.35

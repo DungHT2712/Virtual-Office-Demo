@@ -5,6 +5,7 @@ export enum RoomType {
 }
 
 export interface IRoomData {
+  id?: string
   name: string
   description: string
   password: string | null
@@ -21,4 +22,6 @@ export interface IRoomData {
   departmentId?: string
   departmentName?: string
   requireLogin?: boolean
+  company?: any
+  users?: any
 }

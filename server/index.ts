@@ -62,6 +62,44 @@ function findActiveRoom(id: string) {
   return room
 }
 
+// Tự động phục hồi phòng Colyseus khi client gọi joinById nếu phòng đã lưu nhưng chưa chạy
+app.post('/matchmake/joinById/:roomId', async (req, res, next) => {
+  const { roomId } = req.params
+  const active = findActiveRoom(roomId)
+  if (!active) {
+    const ws = getWorkspaceById(roomId)
+    if (ws) {
+      console.log(`On-demand restoring workspace room for roomId=${roomId} (${ws.name})`)
+      try {
+        await matchMaker.createRoom(RoomType.CUSTOM, {
+          id: ws.id,
+          name: ws.name,
+          description: ws.description,
+          password: ws.password,
+          sizeType: ws.sizeType,
+          width: ws.width,
+          height: ws.height,
+          ownerId: ws.ownerId,
+          ownerName: ws.ownerName,
+          shareMode: ws.shareMode || 'free',
+          sharedUsers: ws.sharedUsers || [],
+          companyId: ws.companyId,
+          companyName: ws.companyName,
+          departmentId: ws.departmentId,
+          departmentName: ws.departmentName,
+          requireLogin: ws.requireLogin,
+          company: ws.company,
+          users: ws.users,
+          autoDispose: false,
+        })
+      } catch (err) {
+        console.error('Failed to restore room on-demand:', err)
+      }
+    }
+  }
+  next()
+})
+
 // 0. API QUẢN LÝ NHIỀU CÔNG TY (COMPANIES)
 app.get('/api/companies', (req, res) => {
   const companies = getAllCompanies()
@@ -103,7 +141,7 @@ app.get('/api/workspaces', (req, res) => {
 })
 
 // POST /api/workspaces: Tạo workspace mới trực tiếp từ Core hoặc API
-app.post('/api/workspaces', (req, res) => {
+app.post('/api/workspaces', async (req, res) => {
   try {
     const {
       name,
@@ -128,11 +166,8 @@ app.post('/api/workspaces', (req, res) => {
       return res.status(400).json({ success: false, message: 'Tên Workspace là bắt buộc' })
     }
 
-    const id = Math.random().toString(36).substring(2, 11)
-    let hasPassword = false
-    if (password) {
-      hasPassword = true
-    }
+    const cleanPassword = password && String(password).trim() ? String(password).trim() : null
+    const hasPassword = !!cleanPassword
 
     const defaultCompany = company || {
       id: companyId || 'comp_voc',
@@ -168,11 +203,35 @@ app.post('/api/workspaces', (req, res) => {
           ]
         : []
 
+    // Tạo phòng Colyseus thực tế trên Game Server
+    const roomListing = await matchMaker.createRoom(RoomType.CUSTOM, {
+      name: name.trim(),
+      description: description || '',
+      password: cleanPassword,
+      sizeType: sizeType || 'MEDIUM',
+      width: width || 50,
+      height: height || 50,
+      ownerId: ownerId || '',
+      ownerName: ownerName || '',
+      shareMode: shareMode || 'free',
+      sharedUsers: ownerId ? [ownerId] : [],
+      companyId: companyId || defaultCompany.id || 'comp_voc',
+      companyName: companyName || defaultCompany.name,
+      departmentId: departmentId || '',
+      departmentName: departmentName || '',
+      requireLogin: !!requireLogin,
+      company: defaultCompany,
+      users: defaultUsers,
+      autoDispose: false,
+    })
+
+    const id = roomListing.roomId
+
     const newWs: StoredWorkspace = {
       id,
       name: name.trim(),
       description: description || '',
-      password: password || null,
+      password: cleanPassword,
       hasPassword,
       sizeType: sizeType || 'MEDIUM',
       width: width || 50,
@@ -1155,6 +1214,7 @@ if (savedWorkspaces.length > 0) {
   savedWorkspaces.forEach(async (ws) => {
     try {
       await matchMaker.createRoom(RoomType.CUSTOM, {
+        id: ws.id,
         name: ws.name,
         description: ws.description,
         password: ws.password,
@@ -1165,9 +1225,16 @@ if (savedWorkspaces.length > 0) {
         ownerName: ws.ownerName,
         shareMode: ws.shareMode || 'free',
         sharedUsers: ws.sharedUsers || [],
+        companyId: ws.companyId,
+        companyName: ws.companyName,
+        departmentId: ws.departmentId,
+        departmentName: ws.departmentName,
+        requireLogin: ws.requireLogin,
+        company: ws.company,
+        users: ws.users,
         autoDispose: false,
       })
-      console.log(`Restored persistent workspace: ${ws.name}`)
+      console.log(`Restored persistent workspace: ${ws.name} (id=${ws.id})`)
     } catch (e) {
       console.error(`Failed to restore workspace ${ws.name}:`, e)
     }
