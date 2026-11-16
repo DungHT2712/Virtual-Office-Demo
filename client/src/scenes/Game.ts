@@ -41,6 +41,10 @@ import {
   ensureGrassTexture,
   isAutumnGrass,
   getFlowerTypeFromItem,
+  ensureModularTableTexture,
+  ensureWoodenChairTexture,
+  ensureSingleSofaTexture,
+  ensureModularSofaTexture,
 } from '../utils/FurnitureTextures'
 
 export default class Game extends Phaser.Scene {
@@ -1156,8 +1160,11 @@ export default class Game extends Phaser.Scene {
         }
         this.network.placeFurniture(toolToPlace, gridX, gridY, orientation, undefined, undefined, this.currentFloor)
         const toolLabels: Record<string, string> = {
-          table: 'bàn làm việc',
-          chair: 'ghế ngồi',
+          table: 'bàn ghép làm việc',
+          chair: 'ghế xoay văn phòng',
+          chair_wood: 'ghế gỗ tự nhiên',
+          chair_sofa: 'sofa đơn êm ái',
+          sofa_multi: 'sofa băng dài / ghép',
           computer: 'máy tính lên bàn',
           vase: 'bình hoa tươi',
           whiteboard: 'bảng trắng',
@@ -1678,8 +1685,10 @@ export default class Game extends Phaser.Scene {
 
     let obj: Phaser.GameObjects.GameObject | null = null
 
-    if (item.itemType === 'table') {
-      const tableTexture = `custom_table_${orientation % 4}`
+    if (item.itemType === 'table' || item.itemType.startsWith('table')) {
+      const itemFloor = item.floor ?? 1
+      const mask = this.getTableNeighborMask(item.gridX, item.gridY, itemFloor)
+      const tableTexture = ensureModularTableTexture(this, orientation, mask)
       const table = this.obstaclesGroup.create(worldX, worldY, tableTexture)
       table.setDepth(worldY)
       table.setAngle(0)
@@ -1696,7 +1705,15 @@ export default class Game extends Phaser.Scene {
         compOnTable.setTexture(`custom_computer_${orientation % 4}`)
         compOnTable.setAngle(0)
       }
-    } else if (item.itemType === 'chair') {
+
+      // Làm mới kết nối của các bàn kề bên để chúng nối liền ngay lập tức
+      this.refreshNearbyTables(item.gridX, item.gridY, itemFloor)
+    } else if (
+      item.itemType === 'chair' ||
+      item.itemType === 'chair_wood' ||
+      item.itemType === 'chair_sofa' ||
+      item.itemType === 'sofa_multi'
+    ) {
       const chair = this.chairsGroup.get(worldX, worldY, 'chairs', 0) as Chair
       const chairFrames = [0, 3, 1, 2] // 0: down, 1: left, 2: up, 3: right
       const chairDirections: ('down' | 'left' | 'up' | 'right')[] = ['down', 'left', 'up', 'right']
@@ -1706,11 +1723,44 @@ export default class Game extends Phaser.Scene {
           : item.itemDirection
           ? chairDirections.indexOf(item.itemDirection as any)
           : 0) % 4 + 4) % 4
-      chair.setFrame(chairFrames[dirIndex])
+
+      if (item.itemType === 'chair_wood') {
+        const tex = ensureWoodenChairTexture(this, dirIndex)
+        chair.setTexture(tex)
+        chair.setSize(32, 32)
+        chair.setDisplaySize(32, 32)
+      } else if (item.itemType === 'chair_sofa') {
+        const colorHex =
+          item.tint && item.tint !== 0xffffff
+            ? '#' + item.tint.toString(16).padStart(6, '0')
+            : '#2563eb'
+        const tex = ensureSingleSofaTexture(this, dirIndex, colorHex)
+        chair.setTexture(tex)
+        chair.setSize(32, 32)
+        chair.setDisplaySize(32, 32)
+      } else if (item.itemType === 'sofa_multi') {
+        const itemFloor = item.floor ?? 1
+        const mask = this.getSofaNeighborMask(item.gridX, item.gridY, itemFloor)
+        const colorHex =
+          item.tint && item.tint !== 0xffffff
+            ? '#' + item.tint.toString(16).padStart(6, '0')
+            : '#2563eb'
+        const tex = ensureModularSofaTexture(this, dirIndex, mask, colorHex)
+        chair.setTexture(tex)
+        chair.setSize(32, 32)
+        chair.setDisplaySize(32, 32)
+        this.refreshNearbySofas(item.gridX, item.gridY, itemFloor)
+      } else {
+        chair.setTexture('chairs')
+        chair.setFrame(chairFrames[dirIndex])
+        chair.setSize(32, 64)
+        chair.setDisplaySize(32, 64)
+      }
+
       chair.itemDirection = chairDirections[dirIndex]
       chair.setDepth(worldY)
       chair.setAngle(0)
-      if (item.tint && item.tint !== 0xffffff) {
+      if (item.tint && item.tint !== 0xffffff && item.itemType === 'chair') {
         chair.setCustomColor(item.tint)
       } else {
         chair.clearTint()
@@ -1840,9 +1890,110 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  private getTableNeighborMask(gridX: number, gridY: number, floor: number = 1): number {
+    const furns = store?.getState()?.workspace?.furnitures || {}
+    const isTableAt = (gx: number, gy: number) => {
+      return Object.values(furns).some(
+        (f) =>
+          (f.itemType === 'table' || f.itemType.startsWith('table')) &&
+          f.gridX === gx &&
+          f.gridY === gy &&
+          (f.floor || 1) === floor
+      )
+    }
+    let mask = 0
+    if (isTableAt(gridX - 1, gridY)) mask |= 1 // Left
+    if (isTableAt(gridX + 1, gridY)) mask |= 2 // Right
+    if (isTableAt(gridX, gridY - 1)) mask |= 4 // Up
+    if (isTableAt(gridX, gridY + 1)) mask |= 8 // Down
+    return mask
+  }
+
+  private refreshNearbyTables(gridX: number, gridY: number, floor: number = 1) {
+    const deltas = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]
+    const furns = store?.getState()?.workspace?.furnitures || {}
+    for (const [dx, dy] of deltas) {
+      const nx = gridX + dx
+      const ny = gridY + dy
+      const neighborItem = Object.values(furns).find(
+        (f) =>
+          (f.itemType === 'table' || f.itemType.startsWith('table')) &&
+          f.gridX === nx &&
+          f.gridY === ny &&
+          (f.floor || 1) === floor
+      )
+      if (neighborItem) {
+        const obj = this.furnitureMap.get(neighborItem.id) as Phaser.GameObjects.Sprite
+        if (obj) {
+          const nMask = this.getTableNeighborMask(nx, ny, floor)
+          const nOrientation = neighborItem.orientation || 0
+          const nTex = ensureModularTableTexture(this, nOrientation, nMask)
+          obj.setTexture(nTex)
+        }
+      }
+    }
+  }
+
+  private getSofaNeighborMask(gridX: number, gridY: number, floor: number = 1): number {
+    const furns = store?.getState()?.workspace?.furnitures || {}
+    const isSofaAt = (gx: number, gy: number) => {
+      return Object.values(furns).some(
+        (f) =>
+          f.itemType === 'sofa_multi' &&
+          f.gridX === gx &&
+          f.gridY === gy &&
+          (f.floor || 1) === floor
+      )
+    }
+    let mask = 0
+    if (isSofaAt(gridX - 1, gridY)) mask |= 1 // Left
+    if (isSofaAt(gridX + 1, gridY)) mask |= 2 // Right
+    return mask
+  }
+
+  private refreshNearbySofas(gridX: number, gridY: number, floor: number = 1) {
+    const deltas = [
+      [-1, 0],
+      [1, 0],
+    ]
+    const furns = store?.getState()?.workspace?.furnitures || {}
+    for (const [dx, dy] of deltas) {
+      const nx = gridX + dx
+      const ny = gridY + dy
+      const neighborItem = Object.values(furns).find(
+        (f) =>
+          f.itemType === 'sofa_multi' &&
+          f.gridX === nx &&
+          f.gridY === ny &&
+          (f.floor || 1) === floor
+      )
+      if (neighborItem) {
+        const obj = this.furnitureMap.get(neighborItem.id) as Phaser.GameObjects.Sprite
+        if (obj) {
+          const nMask = this.getSofaNeighborMask(nx, ny, floor)
+          const nOrientation = neighborItem.orientation || 0
+          const colorHex =
+            neighborItem.tint && neighborItem.tint !== 0xffffff
+              ? '#' + neighborItem.tint.toString(16).padStart(6, '0')
+              : '#2563eb'
+          const nTex = ensureModularSofaTexture(this, nOrientation, nMask, colorHex)
+          obj.setTexture(nTex)
+        }
+      }
+    }
+  }
+
   private handleFurnitureRemoved(id: string) {
     const existing = this.furnitureMap.get(id)
     if (existing) {
+      const state = store.getState()
+      const item = state.workspace.furnitures[id]
+
       if (this.computerMap.has(id)) {
         this.computerMap.delete(id)
       }
@@ -1853,7 +2004,14 @@ export default class Game extends Phaser.Scene {
       this.furnitureMap.delete(id)
       this.rebuildPathfinder()
 
-      const state = store.getState()
+      if (item) {
+        if (item.itemType === 'table' || item.itemType.startsWith('table')) {
+          this.refreshNearbyTables(item.gridX, item.gridY, item.floor ?? 1)
+        } else if (item.itemType === 'sofa_multi') {
+          this.refreshNearbySofas(item.gridX, item.gridY, item.floor ?? 1)
+        }
+      }
+
       if (state.workspace.selectedFurnitureIds?.includes(id)) {
         const remaining = state.workspace.selectedFurnitureIds.filter((selId) => selId !== id)
         this.drawSelectedHighlights(remaining)

@@ -72,208 +72,297 @@ export function getRugTextureKey(colorHex: string = '#2563eb'): string {
   return `rug_${cleanHex}`
 }
 
-export function createTableCanvas(direction: number = 0): HTMLCanvasElement {
+export function createTableCanvas(direction: number = 0, mask: number = 0): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 32
   const ctx = canvas.getContext('2d')!
 
   const dir = ((direction % 4) + 4) % 4
+  const hasLeft = (mask & 1) !== 0
+  const hasRight = (mask & 2) !== 0
+  const hasUp = (mask & 4) !== 0
+  const hasDown = (mask & 8) !== 0
 
   if (dir === 0) {
     // ===== HƯỚNG 0: MẶT TRƯỚC (Down / Front View) =====
-    // Đổ bóng sàn dưới chân bàn
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.beginPath()
-    ctx.ellipse(16, 29, 13, 3, 0, 0, Math.PI * 2)
-    ctx.fill()
+    // 1. Đổ bóng sàn dưới chân bàn (chỉ vẽ bóng ở các góc ngoài thực tế)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    if (!hasDown) {
+      if (!hasLeft && !hasRight) {
+        ctx.beginPath()
+        ctx.ellipse(16, 29, 13, 3, 0, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        if (!hasLeft) {
+          ctx.beginPath()
+          ctx.ellipse(5, 29, 4, 2, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        if (!hasRight) {
+          ctx.beginPath()
+          ctx.ellipse(27, 29, 4, 2, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.fillRect(hasLeft ? 0 : 5, 28, (hasRight ? 32 : 27) - (hasLeft ? 0 : 5), 2)
+      }
+    }
 
-    // Chân sau
+    // 2. Chân sau (chỉ vẽ khi không bị che bởi bàn phía trên)
     ctx.fillStyle = '#5c2b09'
-    ctx.fillRect(5, 14, 3, 11)
-    ctx.fillRect(24, 14, 3, 11)
+    if (!hasUp) {
+      if (!hasLeft) ctx.fillRect(5, 14, 3, 11)
+      if (!hasRight) ctx.fillRect(24, 14, 3, 11)
+    }
 
-    // Chân trước
-    ctx.fillStyle = '#853e0d'
-    ctx.fillRect(3, 16, 4, 13)
-    ctx.fillRect(25, 16, 4, 13)
+    // 3. Thanh xà ngang đỡ mặt bàn
+    if (!hasDown) {
+      ctx.fillStyle = '#78350f'
+      const bx1 = hasLeft ? 0 : 5
+      const bx2 = hasRight ? 32 : 27
+      ctx.fillRect(bx1, 15, bx2 - bx1, 3)
+    }
 
-    // Viền sáng chân bàn
-    ctx.fillStyle = '#a14d13'
-    ctx.fillRect(3, 16, 1, 13)
-    ctx.fillRect(25, 16, 1, 13)
+    // 4. Chân trước
+    if (!hasDown) {
+      if (!hasLeft) {
+        ctx.fillStyle = '#853e0d'
+        ctx.fillRect(3, 16, 4, 13)
+        ctx.fillStyle = '#a14d13'
+        ctx.fillRect(3, 16, 1, 13)
+        ctx.fillStyle = '#334155'
+        ctx.fillRect(3, 28, 4, 1)
+      }
+      if (!hasRight) {
+        ctx.fillStyle = '#853e0d'
+        ctx.fillRect(25, 16, 4, 13)
+        ctx.fillStyle = '#a14d13'
+        ctx.fillRect(25, 16, 1, 13)
+        ctx.fillStyle = '#334155'
+        ctx.fillRect(25, 28, 4, 1)
+      }
+    }
 
-    // Đệm đế chân bàn
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(3, 28, 4, 1)
-    ctx.fillRect(25, 28, 4, 1)
+    // 5. Gờ cạnh trước mặt bàn (3D bevel)
+    if (!hasDown) {
+      ctx.fillStyle = '#6b300a'
+      const fx1 = hasLeft ? 0 : 1
+      const fx2 = hasRight ? 32 : 31
+      ctx.fillRect(fx1, 13, fx2 - fx1, 4)
+    }
 
-    // Thanh xà ngang đỡ mặt bàn
-    ctx.fillStyle = '#78350f'
-    ctx.fillRect(5, 15, 22, 3)
+    // 6. Mặt bàn gỗ chính
+    const topX1 = hasLeft ? 0 : 1
+    const topX2 = hasRight ? 32 : 31
+    const topY1 = hasUp ? 0 : 4
+    const topY2 = hasDown ? 32 : 14
 
-    // Gờ cạnh trước mặt bàn (3D bevel)
-    ctx.fillStyle = '#6b300a'
-    ctx.fillRect(1, 13, 30, 4)
-
-    // Mặt bàn gỗ chính
     ctx.fillStyle = '#b45309'
-    ctx.fillRect(1, 4, 30, 10)
+    ctx.fillRect(topX1, topY1, topX2 - topX1, topY2 - topY1)
 
     // Bề mặt phản quang ấm áp
+    const inX1 = hasLeft ? 0 : 2
+    const inX2 = hasRight ? 32 : 30
+    const inY1 = hasUp ? 0 : 5
+    const inY2 = hasDown ? 32 : 13
     ctx.fillStyle = '#d97706'
-    ctx.fillRect(2, 5, 28, 8)
+    ctx.fillRect(inX1, inY1, inX2 - inX1, inY2 - inY1)
 
     // Cạnh trên phản sáng (Sunlight highlight)
     ctx.fillStyle = '#fde68a'
-    ctx.fillRect(1, 4, 30, 1)
-    ctx.fillRect(1, 5, 1, 9)
+    if (!hasUp) {
+      ctx.fillRect(topX1, topY1, topX2 - topX1, 1)
+    }
+    if (!hasLeft) {
+      ctx.fillRect(topX1, topY1 + (hasUp ? 0 : 1), 1, topY2 - topY1 - (hasUp ? 0 : 1))
+    }
 
-    // Vân gỗ ngang
+    // Vân gỗ ngang nối liền mạch
     ctx.fillStyle = '#92400e'
-    ctx.fillRect(4, 7, 10, 1)
-    ctx.fillRect(17, 9, 11, 1)
-    ctx.fillRect(6, 11, 16, 1)
+    const grainX1 = hasLeft ? 0 : topX1 + 3
+    const grainX2 = hasRight ? 32 : topX2 - 3
+    ctx.fillRect(grainX1, 7, grainX2 - grainX1, 1)
+    ctx.fillRect(grainX1 + 2, 10, Math.max(0, grainX2 - grainX1 - 4), 1)
+
   } else if (dir === 1) {
     // ===== HƯỚNG 1: MẶT TRÁI (Left View / Desk faces Left) =====
-    // Đổ bóng sàn
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.beginPath()
-    ctx.ellipse(16, 29, 10, 3, 0, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    if (!hasLeft && !hasRight) {
+      ctx.beginPath()
+      ctx.ellipse(16, 29, 10, 3, 0, 0, Math.PI * 2)
+      ctx.fill()
+    } else {
+      ctx.beginPath()
+      ctx.ellipse(16, 29, 7, 2, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
 
-    // Chân sau (bên phải góc nhìn)
-    ctx.fillStyle = '#5c2b09'
-    ctx.fillRect(20, 15, 4, 13)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(20, 27, 4, 1)
+    // Chân sau
+    if (!hasRight) {
+      ctx.fillStyle = '#5c2b09'
+      ctx.fillRect(20, 15, 4, 13)
+      ctx.fillStyle = '#334155'
+      ctx.fillRect(20, 27, 4, 1)
+    }
 
-    // Chân trước (bên trái góc nhìn)
-    ctx.fillStyle = '#853e0d'
-    ctx.fillRect(7, 16, 4, 13)
-    ctx.fillStyle = '#a14d13'
-    ctx.fillRect(7, 16, 1, 13)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(7, 28, 4, 1)
+    // Chân trước
+    if (!hasLeft) {
+      ctx.fillStyle = '#853e0d'
+      ctx.fillRect(7, 16, 4, 13)
+      ctx.fillStyle = '#a14d13'
+      ctx.fillRect(7, 16, 1, 13)
+      ctx.fillStyle = '#334155'
+      ctx.fillRect(7, 28, 4, 1)
+    }
 
-    // Thanh xà ngang nối 2 chân bên hông
+    // Thanh xà ngang
     ctx.fillStyle = '#78350f'
     ctx.fillRect(9, 18, 13, 3)
 
-    // Cạnh gờ bàn phía trước (hướng sang trái)
-    ctx.fillStyle = '#6b300a'
-    ctx.fillRect(6, 4, 4, 14)
+    // Cạnh gờ bàn
+    if (!hasLeft) {
+      ctx.fillStyle = '#6b300a'
+      ctx.fillRect(6, 4, 4, 14)
+    }
 
-    // Mặt bàn gỗ nhìn nghiêng
+    // Mặt bàn gỗ
+    const topX1 = hasLeft ? 0 : 9
+    const topX2 = hasRight ? 32 : 25
+    const topY1 = hasUp ? 0 : 4
+    const topY2 = hasDown ? 32 : 17
     ctx.fillStyle = '#b45309'
-    ctx.fillRect(9, 4, 16, 13)
+    ctx.fillRect(topX1, topY1, topX2 - topX1, topY2 - topY1)
 
-    // Bề mặt gỗ phản quang
     ctx.fillStyle = '#d97706'
-    ctx.fillRect(10, 5, 14, 11)
+    ctx.fillRect(topX1 + 1, topY1 + 1, Math.max(0, topX2 - topX1 - 2), Math.max(0, topY2 - topY1 - 2))
 
-    // Highlight cạnh viền
     ctx.fillStyle = '#fde68a'
-    ctx.fillRect(6, 4, 19, 1)
-    ctx.fillRect(6, 4, 1, 14)
+    if (!hasUp) ctx.fillRect(topX1, topY1, topX2 - topX1, 1)
+    if (!hasLeft) ctx.fillRect(6, 4, 1, 14)
 
-    // Vân gỗ dọc
     ctx.fillStyle = '#92400e'
-    ctx.fillRect(13, 6, 1, 9)
-    ctx.fillRect(18, 7, 1, 8)
+    ctx.fillRect(13, topY1 + 2, 1, Math.max(0, topY2 - topY1 - 4))
   } else if (dir === 2) {
     // ===== HƯỚNG 2: MẶT SAU (Up / Back View) =====
-    // Đổ bóng sàn
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.beginPath()
-    ctx.ellipse(16, 29, 13, 3, 0, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    if (!hasDown) {
+      if (!hasLeft && !hasRight) {
+        ctx.beginPath()
+        ctx.ellipse(16, 29, 13, 3, 0, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        if (!hasLeft) {
+          ctx.beginPath()
+          ctx.ellipse(5, 29, 4, 2, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        if (!hasRight) {
+          ctx.beginPath()
+          ctx.ellipse(27, 29, 4, 2, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
 
-    // Chân trước (nằm phía xa/khuất)
-    ctx.fillStyle = '#5c2b09'
-    ctx.fillRect(5, 6, 3, 10)
-    ctx.fillRect(24, 6, 3, 10)
-
-    // Tấm ván gỗ che sau lưng bàn (Modesty Panel đặc trưng mặt sau bàn)
-    ctx.fillStyle = '#78350f'
-    ctx.fillRect(3, 13, 26, 10)
-    ctx.fillStyle = '#6b300a'
-    ctx.fillRect(3, 13, 26, 2)
-    ctx.fillStyle = '#5c2b09'
-    ctx.fillRect(6, 16, 1, 6)
-    ctx.fillRect(16, 16, 1, 6)
-    ctx.fillRect(25, 16, 1, 6)
+    // Modesty Panel
+    if (!hasDown) {
+      const px1 = hasLeft ? 0 : 3
+      const px2 = hasRight ? 32 : 29
+      ctx.fillStyle = '#78350f'
+      ctx.fillRect(px1, 13, px2 - px1, 10)
+      ctx.fillStyle = '#6b300a'
+      ctx.fillRect(px1, 13, px2 - px1, 2)
+    }
 
     // Chân sau (gần camera hơn)
-    ctx.fillStyle = '#853e0d'
-    ctx.fillRect(3, 16, 4, 13)
-    ctx.fillRect(25, 16, 4, 13)
-    ctx.fillStyle = '#a14d13'
-    ctx.fillRect(3, 16, 1, 13)
-    ctx.fillRect(25, 16, 1, 13)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(3, 28, 4, 1)
-    ctx.fillRect(25, 28, 4, 1)
+    if (!hasDown) {
+      if (!hasLeft) {
+        ctx.fillStyle = '#853e0d'
+        ctx.fillRect(3, 16, 4, 13)
+        ctx.fillStyle = '#a14d13'
+        ctx.fillRect(3, 16, 1, 13)
+        ctx.fillStyle = '#334155'
+        ctx.fillRect(3, 28, 4, 1)
+      }
+      if (!hasRight) {
+        ctx.fillStyle = '#853e0d'
+        ctx.fillRect(25, 16, 4, 13)
+        ctx.fillStyle = '#a14d13'
+        ctx.fillRect(25, 16, 1, 13)
+        ctx.fillStyle = '#334155'
+        ctx.fillRect(25, 28, 4, 1)
+      }
+    }
 
-    // Mặt bàn gỗ nhìn từ phía sau
+    // Mặt bàn
+    const topX1 = hasLeft ? 0 : 1
+    const topX2 = hasRight ? 32 : 31
+    const topY1 = hasUp ? 0 : 4
+    const topY2 = hasDown ? 32 : 14
+
     ctx.fillStyle = '#b45309'
-    ctx.fillRect(1, 4, 30, 10)
+    ctx.fillRect(topX1, topY1, topX2 - topX1, topY2 - topY1)
     ctx.fillStyle = '#d97706'
-    ctx.fillRect(2, 5, 28, 8)
+    ctx.fillRect(topX1 + 1, topY1 + 1, Math.max(0, topX2 - topX1 - 2), Math.max(0, topY2 - topY1 - 2))
     ctx.fillStyle = '#fde68a'
-    ctx.fillRect(1, 4, 30, 1)
+    if (!hasUp) ctx.fillRect(topX1, topY1, topX2 - topX1, 1)
 
-    // Vân gỗ
     ctx.fillStyle = '#92400e'
-    ctx.fillRect(4, 7, 10, 1)
-    ctx.fillRect(17, 9, 11, 1)
+    const grainX1 = hasLeft ? 0 : topX1 + 3
+    const grainX2 = hasRight ? 32 : topX2 - 3
+    ctx.fillRect(grainX1, 7, grainX2 - grainX1, 1)
   } else {
     // ===== HƯỚNG 3: MẶT PHẢI (Right View / Desk faces Right) =====
-    // Đổ bóng sàn
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.beginPath()
-    ctx.ellipse(16, 29, 10, 3, 0, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+    if (!hasLeft && !hasRight) {
+      ctx.beginPath()
+      ctx.ellipse(16, 29, 10, 3, 0, 0, Math.PI * 2)
+      ctx.fill()
+    } else {
+      ctx.beginPath()
+      ctx.ellipse(16, 29, 7, 2, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
 
-    // Chân sau (bên trái góc nhìn)
-    ctx.fillStyle = '#5c2b09'
-    ctx.fillRect(8, 15, 4, 13)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(8, 27, 4, 1)
+    if (!hasLeft) {
+      ctx.fillStyle = '#5c2b09'
+      ctx.fillRect(8, 15, 4, 13)
+      ctx.fillStyle = '#334155'
+      ctx.fillRect(8, 27, 4, 1)
+    }
 
-    // Chân trước (bên phải góc nhìn)
-    ctx.fillStyle = '#853e0d'
-    ctx.fillRect(21, 16, 4, 13)
-    ctx.fillStyle = '#a14d13'
-    ctx.fillRect(21, 16, 1, 13)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(21, 28, 4, 1)
+    if (!hasRight) {
+      ctx.fillStyle = '#853e0d'
+      ctx.fillRect(21, 16, 4, 13)
+      ctx.fillStyle = '#a14d13'
+      ctx.fillRect(21, 16, 1, 13)
+      ctx.fillStyle = '#334155'
+      ctx.fillRect(21, 28, 4, 1)
+    }
 
-    // Thanh xà ngang nối 2 chân bên hông
     ctx.fillStyle = '#78350f'
     ctx.fillRect(10, 18, 13, 3)
 
-    // Cạnh gờ bàn phía trước (hướng sang phải)
-    ctx.fillStyle = '#6b300a'
-    ctx.fillRect(22, 4, 4, 14)
+    if (!hasRight) {
+      ctx.fillStyle = '#6b300a'
+      ctx.fillRect(22, 4, 4, 14)
+    }
 
-    // Mặt bàn gỗ nhìn nghiêng
+    const topX1 = hasLeft ? 0 : 7
+    const topX2 = hasRight ? 32 : 23
+    const topY1 = hasUp ? 0 : 4
+    const topY2 = hasDown ? 32 : 17
     ctx.fillStyle = '#b45309'
-    ctx.fillRect(7, 4, 16, 13)
-
-    // Bề mặt gỗ phản quang
+    ctx.fillRect(topX1, topY1, topX2 - topX1, topY2 - topY1)
     ctx.fillStyle = '#d97706'
-    ctx.fillRect(8, 5, 14, 11)
+    ctx.fillRect(topX1 + 1, topY1 + 1, Math.max(0, topX2 - topX1 - 2), Math.max(0, topY2 - topY1 - 2))
 
-    // Highlight cạnh viền
     ctx.fillStyle = '#fde68a'
-    ctx.fillRect(7, 4, 19, 1)
-    ctx.fillRect(25, 4, 1, 14)
+    if (!hasUp) ctx.fillRect(topX1, topY1, topX2 - topX1, 1)
+    if (!hasRight) ctx.fillRect(25, 4, 1, 14)
 
-    // Vân gỗ dọc
     ctx.fillStyle = '#92400e'
-    ctx.fillRect(12, 6, 1, 9)
-    ctx.fillRect(17, 7, 1, 8)
+    ctx.fillRect(17, topY1 + 2, 1, Math.max(0, topY2 - topY1 - 4))
   }
 
   return canvas
@@ -1113,6 +1202,42 @@ export function registerFurnitureTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('custom_bush')) {
     scene.textures.addCanvas('custom_bush', createBushCanvas(0))
   }
+
+  // 12. Ghế Gỗ Tự Nhiên (Wooden Chair - 4 hướng)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `chair_wood_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createWoodenChairCanvas(dir))
+    }
+  }
+
+  // 13. Ghế Sofa Đơn (Single Sofa / Armchair - 4 hướng với màu mặc định)
+  for (let dir = 0; dir < 4; dir++) {
+    const key = `sofa_single_2563eb_${dir}`
+    if (!scene.textures.exists(key)) {
+      scene.textures.addCanvas(key, createSingleSofaCanvas(dir, '#2563eb'))
+    }
+  }
+
+  // 14. Sofa Nhiều Chỗ / Sofa Ghép (Modular Sofa)
+  for (let dir = 0; dir < 4; dir++) {
+    for (let mask = 0; mask < 4; mask++) {
+      const key = `sofa_multi_2563eb_${dir}_${mask}`
+      if (!scene.textures.exists(key)) {
+        scene.textures.addCanvas(key, createModularSofaCanvas(dir, mask, '#2563eb'))
+      }
+    }
+  }
+
+  // 15. Bàn Ghép Liền Khối (Modular Table - 16 mask kết nối cho 4 hướng)
+  for (let dir = 0; dir < 4; dir++) {
+    for (let mask = 0; mask < 16; mask++) {
+      const key = `modular_table_${dir}_${mask}`
+      if (!scene.textures.exists(key)) {
+        scene.textures.addCanvas(key, createTableCanvas(dir, mask))
+      }
+    }
+  }
 }
 
 export function createFloorDoorCanvas(isUp: boolean = true): HTMLCanvasElement {
@@ -1686,4 +1811,450 @@ export function createBushCanvas(direction: number = 0): HTMLCanvasElement {
 
   return canvas
 }
+
+/**
+ * Helper lấy màu sofa và các sắc độ bóng sáng
+ */
+function getSofaShades(baseHex: string = '#2563eb') {
+  const base = baseHex || '#2563eb'
+  const hi = adjustColor(base, 28)
+  const sun = adjustColor(base, 55)
+  const dark = adjustColor(base, -25)
+  const deeper = adjustColor(base, -45)
+  return { base, hi, sun, dark, deeper, feet: '#1e293b', shadow: 'rgba(0, 0, 0, 0.25)' }
+}
+
+/**
+ * 11. Ghế Gỗ Tự Nhiên (Wooden Chair) - 4 hướng xoay 2.5D
+ * Dựa trên phong cách pixel art tinh xảo từ Pixel Art Atlas
+ */
+export function createWoodenChairCanvas(direction: number = 0): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  // Đổ bóng sàn
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.24)'
+  ctx.beginPath()
+  ctx.ellipse(16, 29, 10, 2.5, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  const WOOD_DARK = '#5c2b09'
+  const WOOD_MED = '#853e0d'
+  const WOOD_LIGHT = '#b45309'
+  const WOOD_HI = '#d97706'
+  const WOOD_SUN = '#fde68a'
+
+  if (dir === 0) {
+    // ===== HƯỚNG 0: MẶT TRƯỚC (Down) =====
+    // Chân sau
+    ctx.fillStyle = WOOD_DARK
+    ctx.fillRect(9, 14, 3, 13)
+    ctx.fillRect(20, 14, 3, 13)
+
+    // Khung lưng ghế & Nan đứng
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(7, 3, 18, 4) // Thanh ngang tựa đầu
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(7, 3, 18, 1) // Vệt sáng trên đỉnh
+
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(8, 7, 2, 9)   // Cột trụ trái
+    ctx.fillRect(22, 7, 2, 9)  // Cột trụ phải
+    ctx.fillRect(12, 7, 2, 9)  // Nan dọc giữa 1
+    ctx.fillRect(18, 7, 2, 9)  // Nan dọc giữa 2
+
+    // Mặt đệm ghế gỗ
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(6, 16, 20, 5)
+    ctx.fillStyle = WOOD_HI
+    ctx.fillRect(7, 17, 18, 3)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(6, 16, 20, 1) // Highlight mép ghế
+
+    // Gờ trước mặt ghế
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(6, 20, 20, 2)
+
+    // Chân trước
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(6, 21, 4, 8)
+    ctx.fillRect(22, 21, 4, 8)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(6, 21, 1, 8)
+    ctx.fillRect(22, 21, 1, 8)
+
+    // Thanh giằng ngang nối 2 chân trước
+    ctx.fillStyle = WOOD_DARK
+    ctx.fillRect(10, 25, 12, 2)
+
+  } else if (dir === 1) {
+    // ===== HƯỚNG 1: MẶT TRÁI (Left) =====
+    // Cột tựa lưng & Chân sau bên phải
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(19, 3, 4, 26)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(19, 3, 1, 26)
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(17, 3, 6, 5)
+
+    // Mặt ghế vươn sang trái
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(8, 16, 12, 5)
+    ctx.fillStyle = WOOD_HI
+    ctx.fillRect(9, 17, 10, 3)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(8, 16, 12, 1)
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(8, 20, 3, 2)
+
+    // Chân trước
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(8, 21, 4, 8)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(8, 21, 1, 8)
+
+    // Thanh giằng ngang
+    ctx.fillStyle = WOOD_DARK
+    ctx.fillRect(12, 25, 8, 2)
+
+  } else if (dir === 2) {
+    // ===== HƯỚNG 2: MẶT SAU (Up) =====
+    // Chân ghế dưới
+    ctx.fillStyle = WOOD_DARK
+    ctx.fillRect(7, 20, 4, 9)
+    ctx.fillRect(21, 20, 4, 9)
+
+    // Lưng tựa gỗ che phía trước
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(6, 4, 20, 16)
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(8, 6, 16, 12)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(6, 4, 20, 1)
+
+    // Các nan gỗ sau lưng
+    ctx.fillStyle = WOOD_DARK
+    for (const sx of [10, 13, 16, 19]) {
+      ctx.fillRect(sx, 6, 2, 12)
+    }
+
+    // Chân sau
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(6, 20, 4, 9)
+    ctx.fillRect(22, 20, 4, 9)
+
+  } else {
+    // ===== HƯỚNG 3: MẶT PHẢI (Right) =====
+    // Cột tựa lưng & Chân sau bên trái
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(9, 3, 4, 26)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(9, 3, 1, 26)
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(9, 3, 6, 5)
+
+    // Mặt ghế vươn sang phải
+    ctx.fillStyle = WOOD_LIGHT
+    ctx.fillRect(12, 16, 12, 5)
+    ctx.fillStyle = WOOD_HI
+    ctx.fillRect(13, 17, 10, 3)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(12, 16, 12, 1)
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(21, 20, 3, 2)
+
+    // Chân trước
+    ctx.fillStyle = WOOD_MED
+    ctx.fillRect(20, 21, 4, 8)
+    ctx.fillStyle = WOOD_SUN
+    ctx.fillRect(20, 21, 1, 8)
+
+    // Thanh giằng ngang
+    ctx.fillStyle = WOOD_DARK
+    ctx.fillRect(12, 25, 9, 2)
+  }
+
+  return canvas
+}
+
+/**
+ * 12. Ghế Sofa Đơn (Single Sofa / Armchair) - 4 hướng xoay 2.5D
+ * Dáng phồng tròn êm ái, bọc đệm ấm áp, tay vịn 2 bên
+ */
+export function createSingleSofaCanvas(
+  direction: number = 0,
+  colorHex: string = '#2563eb'
+): HTMLCanvasElement {
+  return createModularSofaCanvas(direction, 0, colorHex)
+}
+
+/**
+ * 13. Ghế Sofa Nhiều Chỗ / Sofa Ghép (Modular Sofa) - 4 hướng xoay 2.5D
+ * Tự động nối liền mạch khi ghép các ô cạnh nhau (bỏ tay vịn ở giữa)
+ */
+export function createModularSofaCanvas(
+  direction: number = 0,
+  mask: number = 0,
+  colorHex: string = '#2563eb'
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')!
+  const dir = ((direction % 4) + 4) % 4
+
+  const hasLeft = (mask & 1) !== 0
+  const hasRight = (mask & 2) !== 0
+  const c = getSofaShades(colorHex)
+
+  // 1. Đổ bóng sàn
+  ctx.fillStyle = c.shadow
+  const sx1 = hasLeft ? 0 : 3
+  const sx2 = hasRight ? 32 : 29
+  ctx.beginPath()
+  ctx.ellipse((sx1 + sx2) / 2, 28, (sx2 - sx1) / 2 + 1, 3, 0, 0, Math.PI * 2)
+  ctx.fill()
+
+  if (dir === 0) {
+    // ===== HƯỚNG 0: MẶT TRƯỚC (Down) =====
+    // Chân đế sát sàn
+    ctx.fillStyle = c.feet
+    if (!hasLeft) ctx.fillRect(4, 27, 4, 2)
+    if (!hasRight) ctx.fillRect(24, 27, 4, 2)
+
+    // Lưng tựa sofa (Y: 5 đến 16)
+    const bx1 = hasLeft ? 0 : 3
+    const bx2 = hasRight ? 32 : 29
+    ctx.fillStyle = c.dark
+    ctx.fillRect(bx1, 5, bx2 - bx1, 11)
+    ctx.fillStyle = c.base
+    ctx.fillRect(bx1, 7, bx2 - bx1, 9)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(bx1, 5, bx2 - bx1, 1)
+    ctx.fillStyle = c.hi
+    ctx.fillRect(bx1, 6, bx2 - bx1, 1)
+
+    // Vệt chần múi tựa lưng ở giữa
+    if (!hasLeft && !hasRight) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(15, 7, 2, 7)
+    }
+
+    // Đệm ngồi trung tâm (Y: 15 đến 24)
+    const cx1 = hasLeft ? 0 : 4
+    const cx2 = hasRight ? 32 : 28
+    ctx.fillStyle = c.dark
+    ctx.fillRect(cx1, 15, cx2 - cx1, 10)
+    ctx.fillStyle = c.base
+    ctx.fillRect(cx1, 16, cx2 - cx1, 8)
+    ctx.fillStyle = c.hi
+    ctx.fillRect(cx1, 17, cx2 - cx1, 5)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(cx1, 15, cx2 - cx1, 1)
+    ctx.fillStyle = c.deeper
+    ctx.fillRect(cx1, 23, cx2 - cx1, 3)
+
+    // Tay vịn bên trái (chỉ vẽ khi không có sofa bên trái)
+    if (!hasLeft) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(2, 11, 6, 14)
+      ctx.fillStyle = c.base
+      ctx.fillRect(3, 12, 4, 12)
+      ctx.fillStyle = c.hi
+      ctx.fillRect(3, 13, 3, 9)
+      ctx.fillStyle = c.sun
+      ctx.fillRect(3, 11, 4, 1)
+      ctx.fillStyle = c.deeper
+      ctx.fillRect(2, 23, 6, 2)
+    }
+
+    // Tay vịn bên phải (chỉ vẽ khi không có sofa bên phải)
+    if (!hasRight) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(24, 11, 6, 14)
+      ctx.fillStyle = c.base
+      ctx.fillRect(25, 12, 4, 12)
+      ctx.fillStyle = c.hi
+      ctx.fillRect(26, 13, 3, 9)
+      ctx.fillStyle = c.sun
+      ctx.fillRect(25, 11, 4, 1)
+      ctx.fillStyle = c.deeper
+      ctx.fillRect(24, 23, 6, 2)
+    }
+
+  } else if (dir === 1) {
+    // ===== HƯỚNG 1: MẶT TRÁI (Left) =====
+    ctx.fillStyle = c.feet
+    ctx.fillRect(6, 27, 4, 2)
+    ctx.fillRect(22, 27, 4, 2)
+
+    // Lưng tựa bên phải
+    ctx.fillStyle = c.dark
+    ctx.fillRect(19, 5, 9, 21)
+    ctx.fillStyle = c.base
+    ctx.fillRect(20, 6, 7, 19)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(20, 5, 7, 1)
+
+    // Đệm ngồi vươn sang trái
+    ctx.fillStyle = c.dark
+    ctx.fillRect(6, 15, 14, 10)
+    ctx.fillStyle = c.base
+    ctx.fillRect(7, 16, 13, 8)
+    ctx.fillStyle = c.hi
+    ctx.fillRect(8, 17, 11, 5)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(7, 15, 13, 1)
+    ctx.fillStyle = c.deeper
+    ctx.fillRect(6, 23, 5, 3)
+
+    // Tay vịn bên hông nhìn nghiêng
+    if (!hasLeft) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(7, 13, 16, 9)
+      ctx.fillStyle = c.base
+      ctx.fillRect(8, 14, 14, 7)
+      ctx.fillStyle = c.hi
+      ctx.fillRect(9, 15, 13, 4)
+      ctx.fillStyle = c.sun
+      ctx.fillRect(8, 13, 14, 1)
+    }
+
+  } else if (dir === 2) {
+    // ===== HƯỚNG 2: MẶT SAU (Up) =====
+    const bx1 = hasLeft ? 0 : 3
+    const bx2 = hasRight ? 32 : 29
+    ctx.fillStyle = c.feet
+    if (!hasLeft) ctx.fillRect(4, 27, 4, 2)
+    if (!hasRight) ctx.fillRect(24, 27, 4, 2)
+
+    // Mặt sau lưng sofa phẳng phiu cong mềm mại
+    ctx.fillStyle = c.dark
+    ctx.fillRect(bx1, 5, bx2 - bx1, 22)
+    ctx.fillStyle = c.base
+    ctx.fillRect(bx1, 6, bx2 - bx1, 19)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(bx1, 5, bx2 - bx1, 1)
+    ctx.fillStyle = c.hi
+    ctx.fillRect(bx1, 6, bx2 - bx1, 1)
+    ctx.fillStyle = c.deeper
+    ctx.fillRect(bx1, 24, bx2 - bx1, 3)
+
+    if (!hasLeft) {
+      ctx.fillStyle = c.sun
+      ctx.fillRect(bx1 + 1, 6, 1, 18)
+    }
+    if (!hasRight) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(bx2 - 2, 6, 1, 18)
+    }
+
+  } else {
+    // ===== HƯỚNG 3: MẶT PHẢI (Right) =====
+    ctx.fillStyle = c.feet
+    ctx.fillRect(6, 27, 4, 2)
+    ctx.fillRect(22, 27, 4, 2)
+
+    // Lưng tựa bên trái
+    ctx.fillStyle = c.dark
+    ctx.fillRect(4, 5, 9, 21)
+    ctx.fillStyle = c.base
+    ctx.fillRect(5, 6, 7, 19)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(5, 5, 7, 1)
+
+    // Đệm ngồi vươn sang phải
+    ctx.fillStyle = c.dark
+    ctx.fillRect(12, 15, 14, 10)
+    ctx.fillStyle = c.base
+    ctx.fillRect(12, 16, 13, 8)
+    ctx.fillStyle = c.hi
+    ctx.fillRect(13, 17, 11, 5)
+    ctx.fillStyle = c.sun
+    ctx.fillRect(12, 15, 13, 1)
+    ctx.fillStyle = c.deeper
+    ctx.fillRect(21, 23, 5, 3)
+
+    // Tay vịn bên hông nhìn nghiêng
+    if (!hasRight) {
+      ctx.fillStyle = c.dark
+      ctx.fillRect(9, 13, 16, 9)
+      ctx.fillStyle = c.base
+      ctx.fillRect(10, 14, 14, 7)
+      ctx.fillStyle = c.hi
+      ctx.fillRect(10, 15, 13, 4)
+      ctx.fillStyle = c.sun
+      ctx.fillRect(10, 13, 14, 1)
+    }
+  }
+
+  return canvas
+}
+
+/**
+ * Đảm bảo Texture Bàn Ghép Liền Khối
+ */
+export function ensureModularTableTexture(
+  scene: Phaser.Scene,
+  direction: number = 0,
+  mask: number = 0
+): string {
+  const dir = ((direction % 4) + 4) % 4
+  const key = `modular_table_${dir}_${mask}`
+  if (!scene.textures.exists(key)) {
+    scene.textures.addCanvas(key, createTableCanvas(dir, mask))
+  }
+  return key
+}
+
+/**
+ * Đảm bảo Texture Ghế Gỗ
+ */
+export function ensureWoodenChairTexture(scene: Phaser.Scene, direction: number = 0): string {
+  const dir = ((direction % 4) + 4) % 4
+  const key = `chair_wood_${dir}`
+  if (!scene.textures.exists(key)) {
+    scene.textures.addCanvas(key, createWoodenChairCanvas(dir))
+  }
+  return key
+}
+
+/**
+ * Đảm bảo Texture Ghế Sofa Đơn
+ */
+export function ensureSingleSofaTexture(
+  scene: Phaser.Scene,
+  direction: number = 0,
+  colorHex: string = '#2563eb'
+): string {
+  const dir = ((direction % 4) + 4) % 4
+  const cleanHex = (colorHex || '#2563eb').replace('#', '').toLowerCase()
+  const key = `sofa_single_${cleanHex}_${dir}`
+  if (!scene.textures.exists(key)) {
+    scene.textures.addCanvas(key, createSingleSofaCanvas(dir, colorHex))
+  }
+  return key
+}
+
+/**
+ * Đảm bảo Texture Sofa Nhiều Chỗ / Ghép
+ */
+export function ensureModularSofaTexture(
+  scene: Phaser.Scene,
+  direction: number = 0,
+  mask: number = 0,
+  colorHex: string = '#2563eb'
+): string {
+  const dir = ((direction % 4) + 4) % 4
+  const cleanHex = (colorHex || '#2563eb').replace('#', '').toLowerCase()
+  const key = `sofa_multi_${cleanHex}_${dir}_${mask}`
+  if (!scene.textures.exists(key)) {
+    scene.textures.addCanvas(key, createModularSofaCanvas(dir, mask, colorHex))
+  }
+  return key
+}
+
 

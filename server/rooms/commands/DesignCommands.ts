@@ -166,6 +166,9 @@ export class PlaceFurnitureCommand extends Command<
     const validItems = [
       'table',
       'chair',
+      'chair_wood',
+      'chair_sofa',
+      'sofa_multi',
       'computer',
       'vase',
       'whiteboard',
@@ -251,7 +254,12 @@ export class PlaceFurnitureCommand extends Command<
     }
 
     const chairDirections = ['down', 'left', 'up', 'right']
-    if (baseType === 'chair') {
+    if (
+      baseType === 'chair' ||
+      baseType === 'chair_wood' ||
+      baseType === 'chair_sofa' ||
+      baseType === 'sofa_multi'
+    ) {
       itemDirection = chairDirections[((orientation % 4) + 4) % 4]
     }
 

@@ -760,8 +760,11 @@ export default function DesignWorkspaceDialog() {
 
   // Danh sách Nội thất & Ngoại thất cảnh quan
   const furnitureTools = [
-    { type: 'table', label: 'Bàn Làm Việc', emoji: '🪵' },
-    { type: 'chair', label: 'Ghế Ngồi', emoji: '💺' },
+    { type: 'table', label: 'Bàn Ghép Liền Khối', emoji: '🪵' },
+    { type: 'chair', label: 'Ghế Xoay Văn Phòng', emoji: '💺' },
+    { type: 'chair_wood', label: 'Ghế Gỗ Tự Nhiên', emoji: '🪑' },
+    { type: 'chair_sofa', label: 'Sofa Đơn Êm Ái', emoji: '🛋️' },
+    { type: 'sofa_multi', label: 'Sofa Băng Dài / Ghép', emoji: '🛋️🛋️' },
     { type: 'computer', label: 'Máy Tính (Trên Bàn)', emoji: '🖥️' },
     { type: 'vase', label: 'Bình Hoa Tươi', emoji: '🏺' },
     { type: 'rug', label: 'Thảm Trải Sàn', emoji: '🧶', hasColorPicker: true },
@@ -836,11 +839,13 @@ export default function DesignWorkspaceDialog() {
     const chairDirections = ['down', 'left', 'up', 'right']
     const nextDirection = chairDirections[nextOrientation]
 
+    const isChair = ['chair', 'chair_wood', 'chair_sofa', 'sofa_multi'].includes(
+      editingFurniture.itemType
+    )
     const updatedFurniture = {
       ...editingFurniture,
       orientation: nextOrientation,
-      itemDirection:
-        editingFurniture.itemType === 'chair' ? nextDirection : editingFurniture.itemDirection,
+      itemDirection: isChair ? nextDirection : editingFurniture.itemDirection,
     }
 
     bootstrap.network.placeFurniture(updatedFurniture)
@@ -1251,8 +1256,11 @@ export default function DesignWorkspaceDialog() {
   if (!designMode) return null
 
   const furnitureLabels: Record<string, string> = {
-    table: 'Bàn Làm Việc',
-    chair: 'Ghế Ngồi',
+    table: 'Bàn Ghép Liền Khối',
+    chair: 'Ghế Xoay Văn Phòng',
+    chair_wood: 'Ghế Gỗ Tự Nhiên',
+    chair_sofa: 'Sofa Đơn Êm Ái',
+    sofa_multi: 'Sofa Băng Dài / Ghép',
     computer: 'Máy Tính (Trên Bàn)',
     vase: 'Bình Hoa Tươi',
     rug: 'Thảm Trải Sàn',
@@ -1815,9 +1823,11 @@ export default function DesignWorkspaceDialog() {
             <InstructionBox>
               👉 <strong>Click chọn vật thể</strong> rồi click vào ô trên map để đặt (<strong>Máy tính bắt buộc phải đặt trên Bàn</strong>).
               <br /><br />
-              🌳 <strong>CÂY & CẢNH QUAN MỚI:</strong> Thêm <strong>Tường / Vách liền mạch</strong>, <strong>Thảm cỏ liền mạch</strong> (đi lại tự do), <strong>Cây lớn ăn quả</strong> (Ngẫu nhiên Táo, Cam, Chanh, Đào - Bấm <strong>R</strong> để đổi loại quả) và <strong>Bụi cỏ hoa</strong>!
+              🪵 <strong>BÀN GHÉP MỚI:</strong> Ghép nhiều bàn cạnh nhau (ngang, dọc hoặc đảo bàn) sẽ tự động nối liền khối phẳng mịn, không bị chân bàn thừa cản trở hay gờ ngăn cách sượng sùng!
               <br /><br />
-              ⚡ <strong>XÓA NHANH HÀNG LOẠT:</strong> Giữ phím <strong>Shift + Kéo chuột trái</strong> trên bản đồ để quét chọn nhiều nội thất cùng lúc và bấm nút <strong>Xóa Nhanh</strong> hoặc phím <strong>Delete</strong>!
+              🪑 <strong>BỘ SƯU TẬP GHẾ MỚI (Pixel Art):</strong> Thêm <strong>Ghế gỗ tự nhiên</strong>, <strong>Ghế sofa đơn êm ái</strong>, và <strong>Sofa băng dài / ghép nhiều chỗ</strong> (nhiều người có thể cùng ngồi cạnh nhau)!
+              <br /><br />
+              ⚡ <strong>PHÍM TẮT:</strong> Bấm <strong>R</strong> để đổi hướng 2.5D, <strong>Shift + Kéo chuột</strong> để quét chọn nhiều nội thất!
             </InstructionBox>
             <ToolGrid>
               {furnitureTools.map((t) => (

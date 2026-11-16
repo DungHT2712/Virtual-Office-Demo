@@ -21,7 +21,7 @@
     "requireLogin": false,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794761414888,
+    "createdAt": 1794824699091,
     "tasks": [
       {
         "id": "task_default_1",
@@ -146,8 +146,32 @@
         "status": "active"
       }
     ],
-    "createdAt": 1794761414892,
+    "createdAt": 1794824699096,
     "chatHistory": [],
     "pendingRequests": []
+  },
+  {
+    "id": "ZZx8eK-bG",
+    "name": "abc",
+    "description": "abc",
+    "password": null,
+    "hasPassword": false,
+    "sizeType": "SMALL",
+    "width": 20,
+    "height": 20,
+    "ownerId": "usr_X3ACR4",
+    "ownerName": "Guest",
+    "shareMode": "free",
+    "sharedUsers": [
+      "usr_X3ACR4"
+    ],
+    "companyId": "",
+    "companyName": "",
+    "departmentId": "",
+    "departmentName": "",
+    "requireLogin": false,
+    "isParent": true,
+    "parentWorkspaceId": null,
+    "createdAt": 1794824699099
   }
 ]
