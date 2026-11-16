@@ -326,7 +326,22 @@ export default class Game extends Phaser.Scene {
       this.clampCameraZoom()
     })
 
-    this.physics.add.collider(this.myPlayer, this.obstaclesGroup)
+    this.physics.add.collider(this.myPlayer, this.obstaclesGroup, (player, obstacle) => {
+      for (const [roomId, barrier] of this.privateRoomBarriers.entries()) {
+        if (barrier === obstacle) {
+          const now = this.time.now
+          if (now - this.lastRestrictedNoticeTime > 2500) {
+            this.lastRestrictedNoticeTime = now
+            store.dispatch(
+              setErrorNotice(
+                'Phòng này đang họp, bạn không được mời để tham gia cuộc họp này, vui lòng liên hệ chủ phòng'
+              )
+            )
+          }
+          break
+        }
+      }
+    })
 
     this.physics.add.overlap(
       this.playerSelector,
@@ -1330,17 +1345,30 @@ export default class Game extends Phaser.Scene {
       const targetTileX = Math.floor(worldPoint.x / 32)
       const targetTileY = Math.floor(worldPoint.y / 32)
       const restriction = this.isTileRestrictedForMyPlayer(targetTileX, targetTileY)
-      if (restriction.restricted) {
-        store.dispatch(
-          setErrorNotice(
-            `Phòng họp "${restriction.roomName}" đang diễn ra cuộc họp riêng tư của ${restriction.host}! Bạn không có quyền truy cập.`
+
+      let targetWorldX = worldPoint.x
+      let targetWorldY = worldPoint.y
+
+      // Nếu click vào phòng họp đang họp riêng tư: cho phép click di chuyển đến rìa (cổng ra vào của phòng họp)
+      if (restriction.restricted && restriction.room) {
+        const outTile = this.getOutsideDoorTile(restriction.room)
+        targetWorldX = outTile.x * 32 + 16
+        targetWorldY = outTile.y * 32 + 16
+
+        // Nếu người chơi đã đứng ngay sát cửa phòng họp thì thông báo luôn
+        const playerTileX = Math.floor(this.myPlayer.x / 32)
+        const playerTileY = Math.floor(this.myPlayer.y / 32)
+        if (Math.abs(playerTileX - outTile.x) <= 1 && Math.abs(playerTileY - outTile.y) <= 1) {
+          store.dispatch(
+            setErrorNotice(
+              'Phòng này đang họp, bạn không được mời để tham gia cuộc họp này, vui lòng liên hệ chủ phòng'
+            )
           )
-        )
-        return
+        }
       }
 
       const footY = this.myPlayer.y + this.myPlayer.height * 0.35
-      const path = this.pathfinder.findPath(this.myPlayer.x, footY, worldPoint.x, worldPoint.y)
+      const path = this.pathfinder.findPath(this.myPlayer.x, footY, targetWorldX, targetWorldY)
 
       if (path.length > 0) {
         this.myPlayer.setMovePath(path)
@@ -2610,6 +2638,36 @@ export default class Game extends Phaser.Scene {
   }
 
   /**
+   * Tính toán ô tile nằm ngay sát phía ngoài của cổng / cửa phòng họp
+   */
+  getOutsideDoorTile(room: any): { x: number; y: number } {
+    const minX = room.gridX
+    const maxX = room.gridX + room.width - 1
+    const minY = room.gridY
+    const maxY = room.gridY + room.height - 1
+
+    const doorX = room.doorX ?? Math.floor(room.gridX + room.width / 2)
+    const doorY = room.doorY ?? maxY
+
+    let outX = doorX
+    let outY = doorY
+
+    if (doorY === maxY) {
+      outY = doorY + 1
+    } else if (doorY === minY) {
+      outY = doorY - 1
+    } else if (doorX === minX) {
+      outX = doorX - 1
+    } else if (doorX === maxX) {
+      outX = doorX + 1
+    } else {
+      outY = doorY + 1
+    }
+
+    return { x: outX, y: outY }
+  }
+
+  /**
    * Cập nhật nhãn tên phòng để hiển thị trạng thái đang họp riêng tư
    * Đồng thời thiết lập vật cản vật lý tại cửa đối với người không có quyền truy cập
    */
@@ -2744,12 +2802,9 @@ export default class Game extends Phaser.Scene {
           targetX = this.lastSafeTilePos.x * 32 + 16
           targetY = this.lastSafeTilePos.y * 32 + 16
         } else if (restriction.room) {
-          const doorX =
-            restriction.room.doorX ?? Math.floor(restriction.room.gridX + restriction.room.width / 2)
-          const doorY =
-            restriction.room.doorY ?? (restriction.room.gridY + restriction.room.height - 1)
-          targetX = doorX * 32 + 16
-          targetY = (doorY + 1) * 32 + 16
+          const outTile = this.getOutsideDoorTile(restriction.room)
+          targetX = outTile.x * 32 + 16
+          targetY = outTile.y * 32 + 16
         }
 
         if (targetX > 0 && targetY > 0) {
@@ -2768,12 +2823,37 @@ export default class Game extends Phaser.Scene {
           this.lastRestrictedNoticeTime = t
           store.dispatch(
             setErrorNotice(
-              `Phòng họp "${restriction.roomName}" đang diễn ra cuộc họp riêng tư! Chỉ chủ phòng (${restriction.host}) và người tham gia mới được vào.`
+              'Phòng này đang họp, bạn không được mời để tham gia cuộc họp này, vui lòng liên hệ chủ phòng'
             )
           )
         }
       } else {
         this.lastSafeTilePos = { x: playerTileX, y: playerTileY }
+
+        // Kiểm tra khi người chơi đứng sát cổng phòng họp đang họp riêng tư
+        if (this.privateRoomBarriers.size > 0) {
+          for (const [roomId, barrier] of this.privateRoomBarriers.entries()) {
+            const barrierSprite = barrier as Phaser.Physics.Arcade.Sprite
+            if (barrierSprite && barrierSprite.body) {
+              const distToDoor = Phaser.Math.Distance.Between(
+                this.myPlayer.x,
+                this.myPlayer.y,
+                barrierSprite.x,
+                barrierSprite.y
+              )
+              if (distToDoor < 45) {
+                if (t - this.lastRestrictedNoticeTime > 2500) {
+                  this.lastRestrictedNoticeTime = t
+                  store.dispatch(
+                    setErrorNotice(
+                      'Phòng này đang họp, bạn không được mời để tham gia cuộc họp này, vui lòng liên hệ chủ phòng'
+                    )
+                  )
+                }
+              }
+            }
+          }
+        }
       }
 
       // Kiểm tra bước lên cửa chuyển tầng

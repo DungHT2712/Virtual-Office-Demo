@@ -152,9 +152,9 @@
     "pendingRequests": []
   },
   {
-    "id": "5929GRLQr",
+    "id": "q1OJNxuoZ",
     "name": "abc",
-    "description": "aegwrd",
+    "description": "áasa",
     "password": null,
     "hasPassword": false,
     "sizeType": "SMALL",
@@ -164,25 +164,24 @@
     "ownerName": "Jin",
     "shareMode": "free",
     "sharedUsers": [
-      "usr_X3ACR4",
-      "usr_G0568D"
+      "usr_X3ACR4"
     ],
-    "companyId": "comp_voc",
-    "companyName": "abc",
+    "companyId": "",
+    "companyName": "",
     "departmentId": "",
     "departmentName": "",
-    "requireLogin": true,
+    "requireLogin": false,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794861394504,
+    "createdAt": 1794863259494,
     "rooms": [
       {
-        "id": "room_1794861404404",
+        "id": "room_1794863271073",
         "roomType": "meeting",
         "name": "miami",
         "gridX": 0,
         "gridY": 0,
-        "width": 4,
+        "width": 5,
         "height": 4,
         "doorX": 2,
         "doorY": 3,
@@ -203,7 +202,7 @@
         "status": "active"
       },
       {
-        "id": "usr_H0N3NJ",
+        "id": "usr_77VPGE",
         "name": "abc",
         "username": "abc",
         "password": "11111",
@@ -215,19 +214,19 @@
     ],
     "meetingBookings": [
       {
-        "id": "booking_1794861517680_cs9vi",
-        "roomId": "room_1794861404404",
+        "id": "booking_1794863383437_q9l3k",
+        "roomId": "room_1794863271073",
         "roomName": "miami",
-        "createdAt": "17/11/2026 - 03:37:54",
-        "createdAtTimestamp": 1794861517614,
+        "createdAt": "17/11/2026 - 04:08:12",
+        "createdAtTimestamp": 1794863383373,
         "host": "abc",
-        "hostId": "usr_H0N3NJ",
-        "reason": "ghggh",
+        "hostId": "usr_77VPGE",
+        "reason": "vfvv",
         "date": "2026-11-17",
-        "startTime": "03:40",
-        "endTime": "04:00",
-        "startTimestamp": 1794861600000,
-        "endTimestamp": 1794862800000,
+        "startTime": "04:10",
+        "endTime": "04:20",
+        "startTimestamp": 1794863400000,
+        "endTimestamp": 1794864000000,
         "participants": [
           "abc"
         ]
