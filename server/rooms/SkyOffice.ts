@@ -153,6 +153,56 @@ export class SkyOffice extends Room<OfficeState> {
       })
     }
 
+    // Phục hồi cấu hình tầng (floorsConfig) nếu đã lưu
+    if (storedWs?.floorsConfig) {
+      this.state.workspace.floorsConfig = storedWs.floorsConfig
+    }
+
+    // Phục hồi toàn bộ các phân vùng phòng (mapRooms - phòng họp, phòng làm việc...) đã thiết kế
+    if (storedWs?.rooms) {
+      const roomsList = Array.isArray(storedWs.rooms) ? storedWs.rooms : Object.values(storedWs.rooms)
+      roomsList.forEach((r: any) => {
+        if (!r || !r.id) return
+        const roomState = new RoomState()
+        roomState.id = r.id
+        roomState.roomType = r.roomType || 'office'
+        roomState.name = r.name || 'Phòng'
+        roomState.gridX = r.gridX || 0
+        roomState.gridY = r.gridY || 0
+        roomState.width = r.width || 10
+        roomState.height = r.height || 10
+        roomState.doorX = r.doorX ?? Math.floor((r.gridX || 0) + (r.width || 10) / 2)
+        roomState.doorY = r.doorY ?? ((r.gridY || 0) + (r.height || 10) - 1)
+        roomState.floor = r.floor || 1
+        this.state.mapRooms.set(r.id, roomState)
+      })
+    }
+
+    // Phục hồi toàn bộ nội thất (furniture) đã thiết kế
+    if (storedWs?.furnitures) {
+      const furnList = Array.isArray(storedWs.furnitures) ? storedWs.furnitures : Object.values(storedWs.furnitures)
+      furnList.forEach((f: any) => {
+        if (!f || !f.id) return
+        const furnState = new FurnitureState()
+        furnState.id = f.id
+        furnState.itemType = f.itemType || 'chair'
+        furnState.gridX = f.gridX || 0
+        furnState.gridY = f.gridY || 0
+        furnState.orientation = f.orientation || 0
+        furnState.itemDirection = f.itemDirection || 'down'
+        furnState.tint = f.tint || 0xffffff
+        furnState.floor = f.floor || 1
+        this.state.furniture.set(f.id, furnState)
+
+        if (f.itemType === 'computer' && !this.state.computers.has(f.id)) {
+          this.state.computers.set(f.id, new Computer())
+        }
+        if (f.itemType === 'whiteboard' && !this.state.whiteboards.has(f.id)) {
+          this.state.whiteboards.set(f.id, new Whiteboard())
+        }
+      })
+    }
+
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
       this.state.computers.set(String(i), new Computer())
@@ -485,6 +535,19 @@ export class SkyOffice extends Room<OfficeState> {
       name: this.name,
       description: this.description,
     })
+
+    // Gửi ngay dữ liệu phòng họp & lịch đặt phòng họp cho client vừa join
+    try {
+      const storedWs = getWorkspaceById(this.roomId)
+      if (storedWs) {
+        client.send('MEETING_DATA_UPDATED', {
+          meetingRooms: storedWs.meetingRoomsConfig || [],
+          meetingBookings: storedWs.meetingBookings || [],
+        })
+      }
+    } catch (e) {
+      console.error('Error sending meeting data onJoin:', e)
+    }
   }
 
   onLeave(client: Client, consented: boolean) {

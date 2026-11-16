@@ -99,6 +99,10 @@ export default class Bootstrap extends Phaser.Scene {
 
   private launchBackground(backgroundMode: BackgroundMode) {
     this.scene.launch('background', { backgroundMode })
+    this.scene.sendToBack('background')
+    if (this.scene.isActive('game')) {
+      this.scene.bringToTop('game')
+    }
   }
 
   launchGame() {
@@ -108,6 +112,8 @@ export default class Bootstrap extends Phaser.Scene {
     this.scene.launch('game', {
       network: this.network,
     })
+    this.scene.bringToTop('game')
+    this.scene.sendToBack('background')
 
     // update Redux state
     store.dispatch(setRoomJoined(true))
@@ -116,6 +122,7 @@ export default class Bootstrap extends Phaser.Scene {
   leaveGame() {
     this.scene.stop('game')
     this.scene.wake('background')
+    this.scene.bringToTop('background')
     this.network.leaveRoom()
   }
 

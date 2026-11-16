@@ -98,6 +98,9 @@ app.post('/matchmake/joinById/:roomId', async (req, res, next) => {
           tasks: ws.tasks,
           documentTypes: ws.documentTypes,
           documents: ws.documents,
+          rooms: ws.rooms,
+          furnitures: ws.furnitures,
+          floorsConfig: ws.floorsConfig,
           autoDispose: false,
         })
       } catch (err) {

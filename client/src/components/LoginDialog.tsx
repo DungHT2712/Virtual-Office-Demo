@@ -18,7 +18,7 @@ import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
 import Nancy from '../images/login/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { setLoggedIn, setAvatarCustomization } from '../stores/UserStore'
+import { setLoggedIn, setAvatarCustomization, setPlayerName } from '../stores/UserStore'
 import { setRoomJoined } from '../stores/RoomStore'
 import { OutfitType } from '../../../types/IOfficeState'
 import { renderAvatarPreviewCanvas } from '../utils/AvatarCustomizer'
@@ -397,19 +397,44 @@ export default function LoginDialog() {
       setAuthError('Workspace này yêu cầu xác thực tài khoản & mật khẩu User trước khi vào!')
       return
     }
-    if (name === '') {
-      setNameFieldEmpty(true)
-    } else if (roomJoined) {
-      console.log('Join! Name:', name, 'Avatar:', avatars[avatarIndex].name)
-      game.registerKeys()
-      game.myPlayer.setPlayerName(name)
 
+    const finalName = (name || authUsername || 'User').trim()
+    if (!finalName) {
+      setNameFieldEmpty(true)
+      return
+    }
+
+    try {
+      console.log('Join! Name:', finalName, 'Avatar:', avatars[avatarIndex].name)
       const customization = { skinColor, hairColor, outfitType, outfitColor }
       dispatch(setAvatarCustomization(customization))
-      game.myPlayer.setCharacterCustomization(avatars[avatarIndex].name, customization)
-      game.network.updatePlayerName(name, customization)
+      dispatch(setPlayerName(finalName))
 
-      game.network.readyToConnect()
+      const gameScene = phaserGame?.scene?.keys?.game as Game
+      if (gameScene) {
+        try {
+          gameScene.registerKeys?.()
+        } catch (e) {}
+        if (gameScene.myPlayer) {
+          try {
+            gameScene.myPlayer.setPlayerName(finalName)
+          } catch (e) {}
+          try {
+            gameScene.myPlayer.setCharacterCustomization(avatars[avatarIndex].name, customization)
+          } catch (e) {}
+        }
+        if (gameScene.network) {
+          try {
+            gameScene.network.updatePlayerName(finalName, customization)
+          } catch (e) {}
+          try {
+            gameScene.network.readyToConnect()
+          } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.warn('Error during game connect in LoginDialog:', err)
+    } finally {
       dispatch(setLoggedIn(true))
     }
   }
@@ -616,7 +641,8 @@ export default function LoginDialog() {
                   variant="outlined"
                   color="secondary"
                   onClick={() => {
-                    game.network.webRTC?.getUserMedia()
+                    const gameScene = phaserGame?.scene?.keys?.game as Game
+                    gameScene?.network?.webRTC?.getUserMedia()
                   }}
                 >
                   Connect Webcam

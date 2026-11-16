@@ -112,6 +112,30 @@ export interface MeetingBooking {
   participants: string[]
 }
 
+export interface StoredRoomLayout {
+  id: string
+  roomType: string
+  name: string
+  gridX: number
+  gridY: number
+  width: number
+  height: number
+  doorX?: number
+  doorY?: number
+  floor?: number
+}
+
+export interface StoredFurnitureItem {
+  id: string
+  itemType: string
+  gridX: number
+  gridY: number
+  orientation?: number
+  itemDirection?: string
+  tint?: number
+  floor?: number
+}
+
 export interface StoredChatMessage {
   author: string
   content: string
@@ -146,6 +170,9 @@ export interface StoredWorkspace {
   tasks?: WorkspaceTask[]
   documentTypes?: DocumentType[]
   documents?: WorkspaceDocument[]
+  rooms?: StoredRoomLayout[]
+  furnitures?: StoredFurnitureItem[]
+  floorsConfig?: string
   meetingRooms?: MeetingRoomConfig[]
   meetingBookings?: MeetingBooking[]
   chatHistory?: StoredChatMessage[]

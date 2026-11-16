@@ -29,8 +29,11 @@ import {
   setSelectedFurnitureIds,
   clearSelectedFurnitureIds,
   setCurrentFloor,
+  addOrUpdateRoom,
+  addOrUpdateFurniture,
 } from '../stores/WorkspaceStore'
 import { setLoggedIn } from '../stores/UserStore'
+import { setMeetingData } from '../stores/MeetingStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 import { Pathfinder } from '../utils/Pathfinder'
 import { phaserEvents, Event } from '../events/EventCenter'
@@ -98,6 +101,7 @@ export default class Game extends Phaser.Scene {
   private lastSafeTilePos: { x: number; y: number } | null = null
   private lastRestrictedNoticeTime = 0
   private lastMeetingBadgeCheckTime = 0
+  private privateRoomBarriers = new Map<string, Phaser.GameObjects.GameObject>()
 
   constructor() {
     super('game')
@@ -225,6 +229,8 @@ export default class Game extends Phaser.Scene {
         wsHeight = 50
       }
     }
+    wsWidth = Math.max(20, Number(wsWidth) || 50)
+    wsHeight = Math.max(20, Number(wsHeight) || 50)
     const mapWidthInPixels = wsWidth * 32
     const mapHeightInPixels = wsHeight * 32
 
@@ -259,19 +265,38 @@ export default class Game extends Phaser.Scene {
     this.playerSelector = new PlayerSelector(this, spawnX, spawnY, 96, 96)
     this.myPlayer.playerSelector = this.playerSelector
 
-    // Tự động áp dụng tên, ngoại hình và kết nối ngay vào Workspace mà không cần qua LoginDialog
-    this.myPlayer.setPlayerName(charName)
-    if (userState.currentStatus) {
-      this.myPlayer.setPlayerStatus(userState.currentStatus.color, userState.currentStatus.name)
+    // Tự động áp dụng tên, ngoại hình và kết nối ngay vào Workspace
+    try {
+      this.myPlayer.setPlayerName(charName)
+      if (userState.currentStatus) {
+        this.myPlayer.setPlayerStatus(userState.currentStatus.color, userState.currentStatus.name)
+      }
+      this.myPlayer.setCharacterCustomization(charAvatar, customization)
+      const animKey = this.myPlayer.anims?.currentAnim?.key || `${charAvatar}_idle_down`
+      this.network.updatePlayer(spawnX, spawnY, animKey)
+      this.network.updatePlayerName(charName, customization, {
+        statusColor: userState.currentStatus?.color || '#107c41',
+        statusName: userState.currentStatus?.name || 'Sẵn sàng',
+      })
+    } catch (e) {
+      console.warn('Error setting initial player appearance in Game.create:', e)
     }
-    this.myPlayer.setCharacterCustomization(charAvatar, customization)
-    this.network.updatePlayer(spawnX, spawnY, this.myPlayer.anims.currentAnim.key)
-    this.network.updatePlayerName(charName, customization, {
-      statusColor: userState.currentStatus?.color || '#107c41',
-      statusName: userState.currentStatus?.name || 'Sẵn sàng',
-    })
-    this.network.readyToConnect()
-    store.dispatch(setLoggedIn(true))
+
+    // Kiểm tra cấu hình xem Workspace có bắt buộc xác thực tài khoản User hay không
+    const targetRoomId = (this.network as any).room?.id || store.getState().room.roomId
+    const storedAuth = targetRoomId ? sessionStorage.getItem(`ws_auth_${targetRoomId}`) : null
+    const wsRequireLogin = (this.network as any).room?.metadata?.requireLogin
+    const wsOwnerId = (this.network as any).room?.metadata?.ownerId
+    const isOwner = wsOwnerId && wsOwnerId === userState.userId
+
+    // Nếu Workspace không yêu cầu đăng nhập, hoặc user là chủ sở hữu, hoặc user đã xác thực tài khoản:
+    // Tự động kết nối và vào thẳng không gian văn phòng ảo
+    if (!wsRequireLogin || isOwner || storedAuth) {
+      try {
+        this.network.readyToConnect()
+      } catch (e) {}
+      store.dispatch(setLoggedIn(true))
+    }
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
@@ -286,7 +311,16 @@ export default class Game extends Phaser.Scene {
     )
     const initialMinZoom = this.getMinZoom()
     this.cameras.main.zoom = Math.max(1.2, initialMinZoom)
-    this.cameras.main.startFollow(this.myPlayer, true)
+    this.cameras.main.centerOn(spawnX, spawnY)
+    this.cameras.main.startFollow(this.myPlayer, true, 0.1, 0.1)
+    if (this.myPlayer) {
+      this.myPlayer.setVisible(true)
+      this.myPlayer.setAlpha(1)
+      if (this.myPlayer.playerContainer) {
+        this.myPlayer.playerContainer.setVisible(true)
+        this.myPlayer.playerContainer.setAlpha(1)
+      }
+    }
 
     this.scale.on('resize', () => {
       this.clampCameraZoom()
@@ -393,8 +427,83 @@ export default class Game extends Phaser.Scene {
     phaserEvents.on(Event.ROOM_LAYOUT_REMOVED, this.handleRoomLayoutRemoved, this)
     phaserEvents.on(Event.DESIGN_MODE_TOGGLED, this.setDesignModeView, this)
 
+    // Khởi tạo ngay lập tức tất cả các phân vùng phòng (mapRooms - phòng họp, phòng làm việc...) đã có trên bản đồ
+    const existingRooms = store.getState().workspace.rooms || {}
+    Object.values(existingRooms).forEach((room) => {
+      this.handleRoomLayoutAdded(room)
+    })
+    if ((this.network as any).room?.state?.mapRooms) {
+      (this.network as any).room.state.mapRooms.forEach((room: any, key: string) => {
+        const roomData = {
+          id: key,
+          roomType: room.roomType,
+          name: room.name,
+          gridX: room.gridX,
+          gridY: room.gridY,
+          width: room.width,
+          height: room.height,
+          doorX: room.doorX,
+          doorY: room.doorY,
+          floor: room.floor || 1,
+        }
+        store.dispatch(addOrUpdateRoom(roomData))
+        this.handleRoomLayoutAdded(roomData)
+      })
+    }
+
+    // Khởi tạo ngay lập tức tất cả nội thất (furniture) đã có trên bản đồ
+    const existingFurns = store.getState().workspace.furnitures || {}
+    Object.values(existingFurns).forEach((furn) => {
+      this.handleFurniturePlaced(furn)
+    })
+    if ((this.network as any).room?.state?.furniture) {
+      (this.network as any).room.state.furniture.forEach((item: any, key: string) => {
+        const furnData = {
+          id: key,
+          itemType: item.itemType,
+          gridX: item.gridX,
+          gridY: item.gridY,
+          orientation: item.orientation,
+          itemDirection: item.itemDirection,
+          tint: item.tint,
+          floor: item.floor || 1,
+        }
+        store.dispatch(addOrUpdateFurniture(furnData))
+        this.handleFurniturePlaced(furnData)
+      })
+    }
+
+    this.renderFloorDoors()
+    this.refreshFloorVisibility()
+    this.rebuildPathfinder()
+
+    // Tải ngay thông tin phòng họp & lịch họp của Workspace để áp dụng quyền truy cập
+    const currentWsId = (this.network as any).room?.id || store.getState().room.roomId
+    if (currentWsId) {
+      fetch(`/api/workspaces/${currentWsId}/meeting-data`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.success) {
+            store.dispatch(
+              setMeetingData({
+                meetingRooms: data.meetingRooms || [],
+                meetingBookings: data.meetingBookings || [],
+              })
+            )
+            this.updateMeetingRoomBadges()
+          }
+        })
+        .catch((e) => console.warn('Error fetching meeting data on game create:', e))
+    }
+
+    const handleMeetingDataUpdated = () => {
+      this.updateMeetingRoomBadges()
+    }
+    phaserEvents.on('MEETING_DATA_UPDATED', handleMeetingDataUpdated, this)
+
     // Dọn dẹp toàn bộ event listeners và entity khi Scene dừng lại (tránh leak và duplicate listeners)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      phaserEvents.off('MEETING_DATA_UPDATED', handleMeetingDataUpdated, this)
       this.network.offPlayerJoined(this.handlePlayerJoined, this)
       this.network.offPlayerLeft(this.handlePlayerLeft, this)
       this.network.offMyPlayerReady(this.handleMyPlayerReady, this)
@@ -1509,8 +1618,8 @@ export default class Game extends Phaser.Scene {
    */
   refreshFloorVisibility() {
     const state = store.getState()
-    const furnitures = state.workspace.furnitures
-    const rooms = state.workspace.roomLayouts
+    const furnitures = state.workspace.furnitures || {}
+    const rooms = state.workspace.rooms || {}
 
     this.furnitureMap.forEach((obj, id) => {
       const item = furnitures[id]
@@ -2439,6 +2548,8 @@ export default class Game extends Phaser.Scene {
 
   /**
    * Kiểm tra xem vị trí tile (x, y) trên tầng hiện tại có thuộc phòng họp đang bị khóa riêng tư hay không
+   * Quy tắc: Chỉ có chủ phòng (host của lịch đặt) và người được mời tham gia (participants) mới được vào.
+   * Người đặt phòng nếu không phải chủ phòng và không nằm trong danh sách người tham gia cũng bị chặn.
    */
   isTileRestrictedForMyPlayer(
     tileX: number,
@@ -2449,8 +2560,10 @@ export default class Game extends Phaser.Scene {
     const bookings = state.meeting?.meetingBookings || []
     const now = Date.now()
 
-    const myName = state.user.playerName || 'Guest'
-    const myId = state.user.userId || ''
+    const normalize = (v?: string | null) => (v || '').trim().toLowerCase()
+    const myName = normalize(state.user.playerName)
+    const myUsername = normalize((state.user as any).username)
+    const myId = normalize(state.user.userId)
 
     for (const room of currentRooms) {
       const roomFloor = room.floor || 1
@@ -2468,12 +2581,18 @@ export default class Game extends Phaser.Scene {
         )
 
         if (activeBooking) {
+          const bookingHost = normalize(activeBooking.host)
+          const bookingHostId = normalize(activeBooking.hostId)
           const isHost =
-            activeBooking.host === myName ||
-            (activeBooking.hostId && activeBooking.hostId === myId)
+            (bookingHost !== '' && (bookingHost === myName || bookingHost === myUsername)) ||
+            (bookingHostId !== '' && bookingHostId === myId)
+
           const isParticipant =
             Array.isArray(activeBooking.participants) &&
-            activeBooking.participants.some((p) => p === myName || p === myId)
+            activeBooking.participants.some((p) => {
+              const normP = normalize(p)
+              return normP !== '' && (normP === myName || normP === myUsername || normP === myId)
+            })
 
           if (!isHost && !isParticipant) {
             return {
@@ -2492,6 +2611,7 @@ export default class Game extends Phaser.Scene {
 
   /**
    * Cập nhật nhãn tên phòng để hiển thị trạng thái đang họp riêng tư
+   * Đồng thời thiết lập vật cản vật lý tại cửa đối với người không có quyền truy cập
    */
   updateMeetingRoomBadges() {
     const state = store.getState()
@@ -2499,21 +2619,89 @@ export default class Game extends Phaser.Scene {
     const bookings = state.meeting?.meetingBookings || []
     const now = Date.now()
 
+    const normalize = (v?: string | null) => (v || '').trim().toLowerCase()
+    const myName = normalize(state.user.playerName)
+    const myUsername = normalize((state.user as any).username)
+    const myId = normalize(state.user.userId)
+
+    let barriersChanged = false
+
     for (const room of currentRooms) {
       const zone = this.roomZonesMap.get(room.id)
-      if (!zone || !zone.text) continue
-
       const activeBooking = bookings.find(
         (b) => b.roomId === room.id && now >= b.startTimestamp && now <= b.endTimestamp
       )
 
-      if (activeBooking) {
-        zone.text.setText(`🔒 [Đang họp] ${room.name}`)
-        zone.text.setBackgroundColor('#dc2626e6')
-      } else {
-        zone.text.setText(room.name)
-        zone.text.setBackgroundColor('#000000cc')
+      if (zone && zone.text) {
+        if (activeBooking) {
+          zone.text.setText(`🔒 [Đang họp] ${room.name}`)
+          zone.text.setBackgroundColor('#dc2626e6')
+        } else {
+          zone.text.setText(room.name)
+          zone.text.setBackgroundColor('#000000cc')
+        }
       }
+
+      // Kiểm tra rào cản vật lý tại cửa phòng họp
+      const doorX = room.doorX ?? Math.floor(room.gridX + room.width / 2)
+      const doorY = room.doorY ?? (room.gridY + room.height - 1)
+      const roomFloor = room.floor || 1
+
+      if (activeBooking && roomFloor === this.currentFloor) {
+        const bookingHost = normalize(activeBooking.host)
+        const bookingHostId = normalize(activeBooking.hostId)
+        const isHost =
+          (bookingHost !== '' && (bookingHost === myName || bookingHost === myUsername)) ||
+          (bookingHostId !== '' && bookingHostId === myId)
+
+        const isParticipant =
+          Array.isArray(activeBooking.participants) &&
+          activeBooking.participants.some((p) => {
+            const normP = normalize(p)
+            return normP !== '' && (normP === myName || normP === myUsername || normP === myId)
+          })
+
+        if (!isHost && !isParticipant) {
+          // Người chơi KHÔNG được phép vào -> Đặt vật cản vật lý chặn cửa
+          if (!this.privateRoomBarriers.has(room.id)) {
+            const barrier = this.obstaclesGroup.create(
+              doorX * 32 + 16,
+              doorY * 32 + 16,
+              'custom_wall_2'
+            ) as Phaser.Physics.Arcade.Sprite
+            barrier.setVisible(false)
+            if (barrier.body) {
+              barrier.body.setSize(32, 32)
+            }
+            this.privateRoomBarriers.set(room.id, barrier)
+            barriersChanged = true
+          }
+        } else {
+          // Người chơi được phép vào -> Gỡ bỏ vật cản cửa nếu có
+          if (this.privateRoomBarriers.has(room.id)) {
+            const barrier = this.privateRoomBarriers.get(room.id)
+            if (barrier) {
+              this.obstaclesGroup.remove(barrier, true, true)
+            }
+            this.privateRoomBarriers.delete(room.id)
+            barriersChanged = true
+          }
+        }
+      } else {
+        // Không có cuộc họp nào đang diễn ra -> Gỡ bỏ vật cản cửa nếu có
+        if (this.privateRoomBarriers.has(room.id)) {
+          const barrier = this.privateRoomBarriers.get(room.id)
+          if (barrier) {
+            this.obstaclesGroup.remove(barrier, true, true)
+          }
+          this.privateRoomBarriers.delete(room.id)
+          barriersChanged = true
+        }
+      }
+    }
+
+    if (barriersChanged) {
+      this.rebuildPathfinder()
     }
   }
 

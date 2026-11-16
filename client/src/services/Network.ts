@@ -410,7 +410,7 @@ export default class Network {
 
     // Mapmaker: Tile Effect Rooms
     if (this.room.state.mapRooms) {
-      this.room.state.mapRooms.onAdd = (room: IRoomLayout, key: string) => {
+      const setupRoomListener = (room: IRoomLayout, key: string) => {
         const roomData = {
           id: key,
           roomType: room.roomType,
@@ -444,6 +444,14 @@ export default class Network {
         }
       }
 
+      this.room.state.mapRooms.onAdd = (room: IRoomLayout, key: string) => {
+        setupRoomListener(room, key)
+      }
+
+      this.room.state.mapRooms.forEach((room: IRoomLayout, key: string) => {
+        setupRoomListener(room, key)
+      })
+
       this.room.state.mapRooms.onRemove = (room: IRoomLayout, key: string) => {
         store.dispatch(removeRoom(key))
         phaserEvents.emit(Event.ROOM_LAYOUT_REMOVED, key)
@@ -452,7 +460,7 @@ export default class Network {
 
     // Mapmaker: Furniture Objects
     if (this.room.state.furniture) {
-      this.room.state.furniture.onAdd = (item: IFurnitureItem, key: string) => {
+      const setupFurnListener = (item: IFurnitureItem, key: string) => {
         const furnData = {
           id: key,
           itemType: item.itemType,
@@ -481,6 +489,14 @@ export default class Network {
           phaserEvents.emit(Event.FURNITURE_PLACED, updated)
         }
       }
+
+      this.room.state.furniture.onAdd = (item: IFurnitureItem, key: string) => {
+        setupFurnListener(item, key)
+      }
+
+      this.room.state.furniture.forEach((item: IFurnitureItem, key: string) => {
+        setupFurnListener(item, key)
+      })
 
       this.room.state.furniture.onRemove = (item: IFurnitureItem, key: string) => {
         store.dispatch(removeFurniture(key))

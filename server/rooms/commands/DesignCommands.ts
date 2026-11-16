@@ -5,6 +5,64 @@ import { Message } from '../../../types/Messages'
 import { RoomState } from '../schema/RoomState'
 import { FurnitureState } from '../schema/FurnitureState'
 import { Computer, Whiteboard } from '../schema/OfficeState'
+import { updateWorkspace, StoredRoomLayout, StoredFurnitureItem } from '../../data/workspaceStorage'
+
+export function persistWorkspaceDesign(roomInstance: any) {
+  try {
+    const roomId = roomInstance?.roomId || roomInstance?.id
+    if (!roomId) return
+
+    const rooms: StoredRoomLayout[] = []
+    if (roomInstance.state?.mapRooms) {
+      roomInstance.state.mapRooms.forEach((r: any, key: string) => {
+        rooms.push({
+          id: key,
+          roomType: r.roomType,
+          name: r.name,
+          gridX: r.gridX,
+          gridY: r.gridY,
+          width: r.width,
+          height: r.height,
+          doorX: r.doorX,
+          doorY: r.doorY,
+          floor: r.floor || 1,
+        })
+      })
+    }
+
+    const furnitures: StoredFurnitureItem[] = []
+    if (roomInstance.state?.furniture) {
+      roomInstance.state.furniture.forEach((f: any, key: string) => {
+        furnitures.push({
+          id: key,
+          itemType: f.itemType,
+          gridX: f.gridX,
+          gridY: f.gridY,
+          orientation: f.orientation,
+          itemDirection: f.itemDirection,
+          tint: f.tint,
+          floor: f.floor || 1,
+        })
+      })
+    }
+
+    const floorsConfig = roomInstance.state?.workspace?.floorsConfig
+    const width = roomInstance.state?.workspace?.width
+    const height = roomInstance.state?.workspace?.height
+    const sizeType = roomInstance.state?.workspace?.sizeType
+
+    updateWorkspace(roomId, {
+      rooms,
+      furnitures,
+      floorsConfig,
+      width,
+      height,
+      sizeType,
+    })
+  } catch (err) {
+    console.error('Error persisting workspace design:', err)
+  }
+}
 
 export class ResizeWorkspaceCommand extends Command<
   IOfficeState,
@@ -45,6 +103,7 @@ export class ResizeWorkspaceCommand extends Command<
     this.room.state.workspace.width = width
     this.room.state.workspace.height = height
     this.room.state.workspace.sizeType = sizeType
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -133,12 +192,14 @@ export class UpdateRoomCommand extends Command<
     room.floor = floor
 
     this.room.state.mapRooms.set(id, room)
+    persistWorkspaceDesign(this.room)
   }
 }
 
 export class RemoveRoomCommand extends Command<IOfficeState, { client: Client; id: string }> {
   execute(data: { client: Client; id: string }) {
     this.room.state.mapRooms.delete(data.id)
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -315,6 +376,7 @@ export class PlaceFurnitureCommand extends Command<
     if (itemType === 'whiteboard' && !this.room.state.whiteboards.has(id)) {
       this.room.state.whiteboards.set(id, new Whiteboard())
     }
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -352,6 +414,7 @@ export class RemoveFurnitureCommand extends Command<IOfficeState, { client: Clie
     }
 
     this.room.state.furniture.delete(data.id)
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -418,6 +481,7 @@ export class CreateFloorCommand extends Command<
     })
 
     workspace.floorsConfig = JSON.stringify(config)
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -503,6 +567,7 @@ export class DeleteFloorCommand extends Command<
         p.floor = remainingFirstFloor
       }
     })
+    persistWorkspaceDesign(this.room)
   }
 }
 
@@ -542,6 +607,7 @@ export class UpdateFloorDoorCommand extends Command<
     door.gridX = gridX
     door.gridY = gridY
     workspace.floorsConfig = JSON.stringify(config)
+    persistWorkspaceDesign(this.room)
   }
 }
 

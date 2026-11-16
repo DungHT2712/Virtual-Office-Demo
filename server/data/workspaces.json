@@ -21,7 +21,7 @@
     "requireLogin": false,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794831776621,
+    "createdAt": 1794849278496,
     "tasks": [
       {
         "id": "task_default_1",
@@ -147,75 +147,89 @@
         "status": "active"
       }
     ],
-    "createdAt": 1794831776625,
+    "createdAt": 1794849278502,
     "chatHistory": [],
     "pendingRequests": []
   },
   {
-    "id": "QuXxuVAoZ",
-    "name": "test",
-    "description": "just for test",
+    "id": "5929GRLQr",
+    "name": "abc",
+    "description": "aegwrd",
     "password": null,
     "hasPassword": false,
     "sizeType": "SMALL",
     "width": 20,
     "height": 20,
     "ownerId": "usr_X3ACR4",
-    "ownerName": "Guest",
+    "ownerName": "Jin",
     "shareMode": "free",
     "sharedUsers": [
-      "usr_X3ACR4"
+      "usr_X3ACR4",
+      "usr_G0568D"
     ],
-    "companyId": "",
-    "companyName": "",
+    "companyId": "comp_voc",
+    "companyName": "abc",
     "departmentId": "",
     "departmentName": "",
-    "requireLogin": false,
+    "requireLogin": true,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794841681434,
-    "meetingRooms": [
+    "createdAt": 1794861394504,
+    "rooms": [
       {
-        "roomId": "room_1794841695574",
-        "roomName": "Agenda",
-        "maxUsers": 10
+        "id": "room_1794861404404",
+        "roomType": "meeting",
+        "name": "miami",
+        "gridX": 0,
+        "gridY": 0,
+        "width": 4,
+        "height": 4,
+        "doorX": 2,
+        "doorY": 3,
+        "floor": 1
+      }
+    ],
+    "furnitures": [],
+    "floorsConfig": "{\"floors\":[{\"floorNumber\":1,\"name\":\"Tầng 1\"}],\"doors\":[]}",
+    "users": [
+      {
+        "id": "usr_X3ACR4",
+        "name": "Jin",
+        "username": "jin",
+        "password": "",
+        "email": "jin@office.local",
+        "role": "Workspace Owner",
+        "departmentId": "dept_bod",
+        "status": "active"
+      },
+      {
+        "id": "usr_H0N3NJ",
+        "name": "abc",
+        "username": "abc",
+        "password": "11111",
+        "email": "abc@office.local",
+        "departmentId": "dept_bod",
+        "role": "Member",
+        "status": "active"
       }
     ],
     "meetingBookings": [
       {
-        "id": "booking_1794841799145_kq1j9",
-        "roomId": "room_1794841695574",
-        "roomName": "Agenda",
-        "createdAt": "16/11/2026 - 22:08:53",
-        "createdAtTimestamp": 1794841799024,
-        "host": "Guest",
-        "hostId": "usr_X3ACR4",
-        "reason": "abc",
-        "date": "2026-11-16",
-        "startTime": "23:00",
-        "endTime": "23:30",
-        "startTimestamp": 1794844800000,
-        "endTimestamp": 1794846600000,
+        "id": "booking_1794861517680_cs9vi",
+        "roomId": "room_1794861404404",
+        "roomName": "miami",
+        "createdAt": "17/11/2026 - 03:37:54",
+        "createdAtTimestamp": 1794861517614,
+        "host": "abc",
+        "hostId": "usr_H0N3NJ",
+        "reason": "ghggh",
+        "date": "2026-11-17",
+        "startTime": "03:40",
+        "endTime": "04:00",
+        "startTimestamp": 1794861600000,
+        "endTimestamp": 1794862800000,
         "participants": [
-          "Guest"
-        ]
-      },
-      {
-        "id": "booking_1794841856757_i5xic",
-        "roomId": "room_1794841695574",
-        "roomName": "Agenda",
-        "createdAt": "16/11/2026 - 22:10:12",
-        "createdAtTimestamp": 1794841856681,
-        "host": "Guest",
-        "hostId": "usr_X3ACR4",
-        "reason": "abc",
-        "date": "2026-11-16",
-        "startTime": "23:31",
-        "endTime": "23:50",
-        "startTimestamp": 1794846660000,
-        "endTimestamp": 1794847800000,
-        "participants": [
-          "Guest"
+          "abc"
         ]
       }
     ]

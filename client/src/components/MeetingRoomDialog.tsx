@@ -465,13 +465,17 @@ export default function MeetingRoomDialog({ users = [] }: Props) {
       return
     }
 
+    const targetHostName = (bookingHost || currentUserName).trim()
+    const foundHostUser = users.find((u) => (u.name || u.username) === targetHostName)
+    const hostId = foundHostUser ? foundHostUser.id : (targetHostName === currentUserName ? currentUserId : '')
+
     const payload: Partial<MeetingBooking> = {
       roomId: selectedRoom.id,
       roomName: selectedRoom.name,
       createdAt: creationTimeString,
       createdAtTimestamp: Date.now(),
-      host: bookingHost || currentUserName,
-      hostId: currentUserId,
+      host: targetHostName,
+      hostId: hostId,
       reason: bookingReason.trim(),
       date: bookingDate,
       startTime: bookingStartTime,
@@ -556,8 +560,13 @@ export default function MeetingRoomDialog({ users = [] }: Props) {
       return
     }
 
+    const targetEditHost = (editHost || editingBooking.host).trim()
+    const foundEditUser = users.find((u) => (u.name || u.username) === targetEditHost)
+    const editHostId = foundEditUser ? foundEditUser.id : (targetEditHost === currentUserName ? currentUserId : '')
+
     const updatePayload = {
-      host: editHost,
+      host: targetEditHost,
+      hostId: editHostId,
       reason: editReason.trim(),
       date: editDate,
       startTime: editStartTime,
