@@ -38,6 +38,7 @@ import {
   removeFurniture,
   setErrorNotice,
 } from '../stores/WorkspaceStore'
+import { setMeetingData } from '../stores/MeetingStore'
 
 export default class Network {
   private client: Client
@@ -497,6 +498,12 @@ export default class Network {
       await this.leaveRoom()
       store.dispatch(setRoomJoined(false))
       store.dispatch(setLoggedIn(false))
+    })
+
+    // Meeting data updated notification
+    this.room.onMessage('MEETING_DATA_UPDATED', ({ meetingRooms, meetingBookings }) => {
+      store.dispatch(setMeetingData({ meetingRooms, meetingBookings }))
+      phaserEvents.emit('MEETING_DATA_UPDATED', { meetingRooms, meetingBookings })
     })
   }
 

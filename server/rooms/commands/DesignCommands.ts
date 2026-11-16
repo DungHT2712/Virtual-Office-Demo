@@ -102,6 +102,20 @@ export class UpdateRoomCommand extends Command<
       return
     }
 
+    // Kiểm tra không cho phép các phòng đè nhau trên cùng 1 tầng
+    for (const [existingId, existingRoom] of this.room.state.mapRooms.entries()) {
+      if (existingId !== id && (existingRoom.floor || 1) === floor) {
+        const overlapX = gridX < existingRoom.gridX + existingRoom.width && gridX + width > existingRoom.gridX
+        const overlapY = gridY < existingRoom.gridY + existingRoom.height && gridY + height > existingRoom.gridY
+        if (overlapX && overlapY) {
+          client.send(Message.DESIGN_ERROR, {
+            message: `Không thể tạo hoặc sửa phòng: Vị trí bị trùng đè lên "${existingRoom.name}"!`,
+          })
+          return
+        }
+      }
+    }
+
     let room = this.room.state.mapRooms.get(id)
     if (!room) {
       room = new RoomState()

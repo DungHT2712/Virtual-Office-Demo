@@ -260,3 +260,36 @@ export const DEFAULT_DOCUMENTS: WorkspaceDocument[] = [
     description: 'Bảng tính chi tiết dự toán chi phí quảng bá đa kênh',
   },
 ]
+
+export interface MeetingRoomConfig {
+  roomId: string
+  roomName: string
+  maxUsers: number
+}
+
+export interface MeetingBooking {
+  id: string
+  roomId: string
+  roomName: string
+  createdAt: string // format dd/mm/yyyy - h:m:s
+  createdAtTimestamp: number
+  host: string
+  hostId?: string
+  reason: string
+  date: string // YYYY-MM-DD
+  startTime: string // HH:mm
+  endTime: string // HH:mm
+  startTimestamp: number
+  endTimestamp: number
+  participants: string[]
+}
+
+export function formatCreationDateTime(date: Date = new Date()): string {
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${dd}/${mm}/${yyyy} - ${h}:${m}:${s}`
+}

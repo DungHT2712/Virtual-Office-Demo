@@ -11,6 +11,8 @@ import {
   updateWorkspace,
   removeWorkspace,
   StoredWorkspace,
+  MeetingRoomConfig,
+  MeetingBooking,
 } from './data/workspaceStorage'
 import {
   getAllCompanies,
@@ -1660,6 +1662,264 @@ app.delete('/api/workspaces/:id/documents/:docId', (req, res) => {
   }
 
   res.json({ success: true, message: 'Đã xóa tài liệu' })
+})
+
+// ==========================================
+// API Tiện Ích Phòng Họp & Đặt Phòng (Meeting Rooms & Booking)
+// ==========================================
+
+// GET /api/workspaces/:id/meeting-data
+app.get('/api/workspaces/:id/meeting-data', (req, res) => {
+  const { id } = req.params
+  const ws = getWorkspaceById(id)
+  if (!ws) {
+    return res.status(404).json({ success: false, message: 'Workspace không tồn tại' })
+  }
+  res.json({
+    success: true,
+    meetingRooms: ws.meetingRooms || [],
+    meetingBookings: ws.meetingBookings || [],
+  })
+})
+
+// POST /api/workspaces/:id/meeting-rooms-config
+app.post('/api/workspaces/:id/meeting-rooms-config', (req, res) => {
+  const { id } = req.params
+  const { meetingRooms } = req.body
+  if (!Array.isArray(meetingRooms)) {
+    return res.status(400).json({ success: false, message: 'meetingRooms phải là mảng' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const updated = updateWorkspace(targetId, { meetingRooms })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { meetingRooms })
+  }
+
+  if (active && typeof active.broadcast === 'function') {
+    active.broadcast('MEETING_DATA_UPDATED', {
+      meetingRooms,
+      meetingBookings: updated?.meetingBookings || ws?.meetingBookings || [],
+    })
+  }
+
+  res.json({ success: true, meetingRooms: updated?.meetingRooms || meetingRooms })
+})
+
+// POST /api/workspaces/:id/meeting-bookings
+app.post('/api/workspaces/:id/meeting-bookings', (req, res) => {
+  const { id } = req.params
+  const {
+    roomId,
+    roomName,
+    createdAt,
+    createdAtTimestamp,
+    host,
+    hostId,
+    reason,
+    date,
+    startTime,
+    endTime,
+    startTimestamp,
+    endTimestamp,
+    participants,
+  } = req.body
+
+  if (!roomId || !date || !startTime || !endTime) {
+    return res.status(400).json({ success: false, message: 'Thiếu thông tin đặt phòng bắt buộc' })
+  }
+
+  if (startTimestamp >= endTimestamp) {
+    return res.status(400).json({ success: false, message: 'Thời gian bắt đầu phải sớm hơn thời gian kết thúc' })
+  }
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const currentBookings: MeetingBooking[] = ws?.meetingBookings || []
+
+  // Kiểm tra trùng thời gian đối với cùng 1 phòng họp
+  const hasOverlap = currentBookings.some((b) => {
+    if (b.roomId !== roomId) return false
+    return startTimestamp < b.endTimestamp && endTimestamp > b.startTimestamp
+  })
+
+  if (hasOverlap) {
+    return res.status(400).json({
+      success: false,
+      message: 'Khoảng thời gian này đã có cuộc họp khác được đặt! Vui lòng chọn khung giờ khác.',
+    })
+  }
+
+  const newBooking: MeetingBooking = {
+    id: `booking_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    roomId,
+    roomName: roomName || 'Phòng Họp',
+    createdAt: createdAt || new Date().toLocaleString('vi-VN'),
+    createdAtTimestamp: createdAtTimestamp || Date.now(),
+    host: host || ws?.ownerName || 'Guest',
+    hostId,
+    reason: reason || 'Họp nội bộ',
+    date,
+    startTime,
+    endTime,
+    startTimestamp,
+    endTimestamp,
+    participants: Array.isArray(participants) ? participants : [],
+  }
+
+  const newBookings = [...currentBookings, newBooking]
+  const updated = updateWorkspace(targetId, { meetingBookings: newBookings })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { meetingBookings: newBookings })
+  }
+
+  if (active && typeof active.broadcast === 'function') {
+    active.broadcast('MEETING_DATA_UPDATED', {
+      meetingRooms: updated?.meetingRooms || ws?.meetingRooms || [],
+      meetingBookings: newBookings,
+    })
+  }
+
+  res.json({
+    success: true,
+    booking: newBooking,
+    meetingBookings: newBookings,
+  })
+})
+
+// PUT /api/workspaces/:id/meeting-bookings/:bookingId
+app.put('/api/workspaces/:id/meeting-bookings/:bookingId', (req, res) => {
+  const { id, bookingId } = req.params
+  const {
+    host,
+    hostId,
+    reason,
+    date,
+    startTime,
+    endTime,
+    startTimestamp,
+    endTimestamp,
+    participants,
+  } = req.body
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const currentBookings: MeetingBooking[] = ws?.meetingBookings || []
+  const bookingIndex = currentBookings.findIndex((b) => b.id === bookingId)
+  if (bookingIndex === -1) {
+    return res.status(404).json({ success: false, message: 'Lịch đặt phòng không tồn tại' })
+  }
+
+  const existingBooking = currentBookings[bookingIndex]
+
+  // Yêu cầu: Đặt phòng họp có thể bị xóa hoặc sửa nếu chưa đến thời gian họp được đặt
+  if (Date.now() >= existingBooking.startTimestamp) {
+    return res.status(400).json({
+      success: false,
+      message: 'Không thể sửa cuộc họp đã đến hoặc qua thời gian bắt đầu họp.',
+    })
+  }
+
+  if (startTimestamp && endTimestamp && startTimestamp >= endTimestamp) {
+    return res.status(400).json({ success: false, message: 'Thời gian bắt đầu phải sớm hơn thời gian kết thúc' })
+  }
+
+  const finalStartTs = startTimestamp || existingBooking.startTimestamp
+  const finalEndTs = endTimestamp || existingBooking.endTimestamp
+
+  // Kiểm tra trùng thời gian với các booking khác cùng phòng (loại trừ chính nó)
+  const hasOverlap = currentBookings.some((b) => {
+    if (b.id === bookingId || b.roomId !== existingBooking.roomId) return false
+    return finalStartTs < b.endTimestamp && finalEndTs > b.startTimestamp
+  })
+
+  if (hasOverlap) {
+    return res.status(400).json({
+      success: false,
+      message: 'Khoảng thời gian này đã có cuộc họp khác được đặt! Vui lòng chọn khung giờ khác.',
+    })
+  }
+
+  const updatedBooking: MeetingBooking = {
+    ...existingBooking,
+    host: host !== undefined ? host : existingBooking.host,
+    hostId: hostId !== undefined ? hostId : existingBooking.hostId,
+    reason: reason !== undefined ? reason : existingBooking.reason,
+    date: date !== undefined ? date : existingBooking.date,
+    startTime: startTime !== undefined ? startTime : existingBooking.startTime,
+    endTime: endTime !== undefined ? endTime : existingBooking.endTime,
+    startTimestamp: finalStartTs,
+    endTimestamp: finalEndTs,
+    participants: Array.isArray(participants) ? participants : existingBooking.participants,
+  }
+
+  currentBookings[bookingIndex] = updatedBooking
+  const updated = updateWorkspace(targetId, { meetingBookings: currentBookings })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { meetingBookings: currentBookings })
+  }
+
+  if (active && typeof active.broadcast === 'function') {
+    active.broadcast('MEETING_DATA_UPDATED', {
+      meetingRooms: updated?.meetingRooms || ws?.meetingRooms || [],
+      meetingBookings: currentBookings,
+    })
+  }
+
+  res.json({
+    success: true,
+    booking: updatedBooking,
+    meetingBookings: currentBookings,
+  })
+})
+
+// DELETE /api/workspaces/:id/meeting-bookings/:bookingId
+app.delete('/api/workspaces/:id/meeting-bookings/:bookingId', (req, res) => {
+  const { id, bookingId } = req.params
+
+  const ws = getWorkspaceById(id)
+  const active = findActiveRoom(id)
+  const targetId = ws?.id || active?.roomId || id
+
+  const currentBookings: MeetingBooking[] = ws?.meetingBookings || []
+  const booking = currentBookings.find((b) => b.id === bookingId)
+  if (!booking) {
+    return res.status(404).json({ success: false, message: 'Lịch đặt phòng không tồn tại' })
+  }
+
+  // Yêu cầu: Đặt phòng họp có thể bị xóa hoặc sửa nếu chưa đến thời gian họp được đặt
+  if (Date.now() >= booking.startTimestamp) {
+    return res.status(400).json({
+      success: false,
+      message: 'Không thể xóa cuộc họp đã đến hoặc qua thời gian bắt đầu họp.',
+    })
+  }
+
+  const newBookings = currentBookings.filter((b) => b.id !== bookingId)
+  const updated = updateWorkspace(targetId, { meetingBookings: newBookings })
+  if (ws?.name && ws.name !== targetId) {
+    updateWorkspace(ws.name, { meetingBookings: newBookings })
+  }
+
+  if (active && typeof active.broadcast === 'function') {
+    active.broadcast('MEETING_DATA_UPDATED', {
+      meetingRooms: updated?.meetingRooms || ws?.meetingRooms || [],
+      meetingBookings: newBookings,
+    })
+  }
+
+  res.json({
+    success: true,
+    message: 'Đã xóa lịch đặt phòng thành công',
+    meetingBookings: newBookings,
+  })
 })
 
 // API xóa Workspace lưu trữ

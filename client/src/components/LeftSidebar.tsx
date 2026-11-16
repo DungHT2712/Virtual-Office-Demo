@@ -4,6 +4,7 @@ import { useAppSelector } from '../hooks'
 import CoreSidebar from './CoreSidebar'
 import ProjectSidebar from './ProjectSidebar'
 import DocumentSidebar from './DocumentSidebar'
+import UtilitySidebar from './UtilitySidebar'
 import { WorkspaceCompany, WorkspaceUser, WorkspaceProject, DEFAULT_COMPANY, DEFAULT_PROJECTS } from '../types/core'
 
 const LeftSidebarContainer = styled.div`
@@ -49,6 +50,7 @@ export default function LeftSidebar() {
       <CoreSidebar onCompanyChange={setCompany} onUsersChange={setUsers} />
       <ProjectSidebar company={company} users={users} onProjectsChange={setProjects} />
       <DocumentSidebar projects={projects} users={users} />
+      <UtilitySidebar users={users} />
     </LeftSidebarContainer>
   )
 }

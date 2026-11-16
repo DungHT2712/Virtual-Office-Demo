@@ -21,7 +21,7 @@
     "requireLogin": false,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794824699091,
+    "createdAt": 1794831776621,
     "tasks": [
       {
         "id": "task_default_1",
@@ -84,7 +84,8 @@
         "status": "Working",
         "priority": "High"
       }
-    ]
+    ],
+    "meetingBookings": []
   },
   {
     "id": "_8LxEklWJ",
@@ -146,14 +147,14 @@
         "status": "active"
       }
     ],
-    "createdAt": 1794824699096,
+    "createdAt": 1794831776625,
     "chatHistory": [],
     "pendingRequests": []
   },
   {
-    "id": "ZZx8eK-bG",
-    "name": "abc",
-    "description": "abc",
+    "id": "QuXxuVAoZ",
+    "name": "test",
+    "description": "just for test",
     "password": null,
     "hasPassword": false,
     "sizeType": "SMALL",
@@ -172,6 +173,51 @@
     "requireLogin": false,
     "isParent": true,
     "parentWorkspaceId": null,
-    "createdAt": 1794824699099
+    "createdAt": 1794841681434,
+    "meetingRooms": [
+      {
+        "roomId": "room_1794841695574",
+        "roomName": "Agenda",
+        "maxUsers": 10
+      }
+    ],
+    "meetingBookings": [
+      {
+        "id": "booking_1794841799145_kq1j9",
+        "roomId": "room_1794841695574",
+        "roomName": "Agenda",
+        "createdAt": "16/11/2026 - 22:08:53",
+        "createdAtTimestamp": 1794841799024,
+        "host": "Guest",
+        "hostId": "usr_X3ACR4",
+        "reason": "abc",
+        "date": "2026-11-16",
+        "startTime": "23:00",
+        "endTime": "23:30",
+        "startTimestamp": 1794844800000,
+        "endTimestamp": 1794846600000,
+        "participants": [
+          "Guest"
+        ]
+      },
+      {
+        "id": "booking_1794841856757_i5xic",
+        "roomId": "room_1794841695574",
+        "roomName": "Agenda",
+        "createdAt": "16/11/2026 - 22:10:12",
+        "createdAtTimestamp": 1794841856681,
+        "host": "Guest",
+        "hostId": "usr_X3ACR4",
+        "reason": "abc",
+        "date": "2026-11-16",
+        "startTime": "23:31",
+        "endTime": "23:50",
+        "startTimestamp": 1794846660000,
+        "endTimestamp": 1794847800000,
+        "participants": [
+          "Guest"
+        ]
+      }
+    ]
   }
 ]

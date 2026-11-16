@@ -1309,106 +1309,21 @@ export function createWallCanvas(direction: number = 0): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')!
   const dir = ((direction % 4) + 4) % 4
 
+  // Tường màu đen cùng màu với viền tường (#3a3a50)
+  ctx.fillStyle = '#3a3a50'
+
   if (dir === 0) {
-    // ===== HƯỚNG 0: SÁT CẠNH TRÊN (Top Edge) =====
-    // Nẹp nhôm sáng đỉnh vách
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillRect(0, 0, 32, 1)
-    ctx.fillStyle = '#94a3b8'
-    ctx.fillRect(0, 1, 32, 2)
-
-    // Thân vách xám ghi hiện đại (y: 3..7)
-    ctx.fillStyle = '#475569'
-    ctx.fillRect(0, 3, 32, 5)
-
-    // Dải chỉ kim loại tinh tế ở giữa
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(0, 5, 32, 1)
-    ctx.fillStyle = '#64748b'
-    ctx.fillRect(0, 6, 32, 1)
-
-    // Chân nẹp vách (y: 8..9)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(0, 8, 32, 2)
-
-    // Đổ bóng mờ nhẹ xuống sàn (y: 10..11)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.fillRect(0, 10, 32, 2)
+    // ===== HƯỚNG 0: SÁT CẠNH TRÊN (Top Edge: y=0..12, x=0..32) =====
+    ctx.fillRect(0, 0, 32, 12)
   } else if (dir === 1) {
-    // ===== HƯỚNG 1: SÁT CẠNH BÊN PHẢI (Right Edge) =====
-    // Đổ bóng sang sàn bên trái (x: 20..21)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.fillRect(20, 0, 2, 32)
-
-    // Chân/gờ nẹp mép trong (x: 22..23)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(22, 0, 2, 32)
-
-    // Thân vách xám ghi hiện đại (x: 24..28)
-    ctx.fillStyle = '#475569'
-    ctx.fillRect(24, 0, 5, 32)
-
-    // Dải chỉ kim loại dọc tinh tế
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(26, 0, 1, 32)
-    ctx.fillStyle = '#64748b'
-    ctx.fillRect(27, 0, 1, 32)
-
-    // Gờ nẹp và nẹp nhôm sáng mép phải ngoài cùng (x: 29..31)
-    ctx.fillStyle = '#94a3b8'
-    ctx.fillRect(29, 0, 2, 32)
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillRect(31, 0, 1, 32)
+    // ===== HƯỚNG 1: SÁT CẠNH BÊN PHẢI (Right Edge: x=18..32, y=0..32) =====
+    ctx.fillRect(18, 0, 14, 32)
   } else if (dir === 2) {
-    // ===== HƯỚNG 2: SÁT CẠNH DƯỚI (Bottom Edge) =====
-    // Đổ bóng sàn phía trên vách (y: 20..21)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.fillRect(0, 20, 32, 2)
-
-    // Nẹp nhôm sáng đỉnh vách (y: 22..24)
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillRect(0, 22, 32, 1)
-    ctx.fillStyle = '#94a3b8'
-    ctx.fillRect(0, 23, 32, 2)
-
-    // Thân vách xám ghi hiện đại (y: 25..29)
-    ctx.fillStyle = '#475569'
-    ctx.fillRect(0, 25, 32, 5)
-
-    // Dải chỉ kim loại ở giữa
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(0, 27, 32, 1)
-    ctx.fillStyle = '#64748b'
-    ctx.fillRect(0, 28, 32, 1)
-
-    // Chân nẹp vách dưới cùng (y: 30..31)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(0, 30, 32, 2)
+    // ===== HƯỚNG 2: SÁT CẠNH DƯỚI (Bottom Edge: y=20..32, x=0..32) =====
+    ctx.fillRect(0, 20, 32, 12)
   } else {
-    // ===== HƯỚNG 3: SÁT CẠNH BÊN TRÁI (Left Edge) =====
-    // Nẹp nhôm sáng ngoài cùng mép trái (x: 0..2)
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillRect(0, 0, 1, 32)
-    ctx.fillStyle = '#94a3b8'
-    ctx.fillRect(1, 0, 2, 32)
-
-    // Thân vách xám ghi hiện đại (x: 3..7)
-    ctx.fillStyle = '#475569'
-    ctx.fillRect(3, 0, 5, 32)
-
-    // Dải chỉ kim loại dọc tinh tế
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(5, 0, 1, 32)
-    ctx.fillStyle = '#64748b'
-    ctx.fillRect(6, 0, 1, 32)
-
-    // Chân/gờ nẹp mép trong (x: 8..9)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(8, 0, 2, 32)
-
-    // Đổ bóng mờ sang sàn bên phải (x: 10..11)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'
-    ctx.fillRect(10, 0, 2, 32)
+    // ===== HƯỚNG 3: SÁT CẠNH BÊN TRÁI (Left Edge: x=0..14, y=0..32) =====
+    ctx.fillRect(0, 0, 14, 32)
   }
 
   return canvas

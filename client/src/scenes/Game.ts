@@ -94,6 +94,11 @@ export default class Game extends Phaser.Scene {
   private floorDoorsMap = new Map<string, { container: Phaser.GameObjects.Container }>()
   private doorCooldown = 0
 
+  // Kiểm soát quyền truy cập phòng họp riêng tư
+  private lastSafeTilePos: { x: number; y: number } | null = null
+  private lastRestrictedNoticeTime = 0
+  private lastMeetingBadgeCheckTime = 0
+
   constructor() {
     super('game')
   }
@@ -599,16 +604,34 @@ export default class Game extends Phaser.Scene {
           const w = Math.abs(clampedX - startX) + 1
           const h = Math.abs(clampedY - startY) + 1
 
+          const existingRooms = Object.values(state.workspace.rooms || {})
+          const isOverlap = existingRooms.some(
+            (r) =>
+              (r.floor || 1) === this.currentFloor &&
+              minX < r.gridX + r.width &&
+              minX + w > r.gridX &&
+              minY < r.gridY + r.height &&
+              minY + h > r.gridY
+          )
+
           if (this.roomDragGraphics) {
             this.roomDragGraphics.clear()
-            this.roomDragGraphics.fillStyle(roomColor, 0.22)
+            const fillCol = isOverlap ? 0xef4444 : roomColor
+            const fillAlpha = isOverlap ? 0.35 : 0.22
+            this.roomDragGraphics.fillStyle(fillCol, fillAlpha)
             this.roomDragGraphics.fillRect(minX * 32, minY * 32, w * 32, h * 32)
-            this.roomDragGraphics.lineStyle(2, roomColor, 0.95)
+            this.roomDragGraphics.lineStyle(2, fillCol, 0.95)
             this.roomDragGraphics.strokeRect(minX * 32, minY * 32, w * 32, h * 32)
           }
 
           if (this.roomDragText) {
-            this.roomDragText.setText(`${w}x${h} ô (${w * 32}x${h * 32}px) - Kéo để mở rộng`)
+            if (isOverlap) {
+              this.roomDragText.setText(`Vùng phòng bị trùng đè lên phòng khác! Không thể đặt`)
+              this.roomDragText.setColor('#ef4444')
+            } else {
+              this.roomDragText.setText(`${w}x${h} ô (${w * 32}x${h * 32}px) - Kéo để mở rộng`)
+              this.roomDragText.setColor('#ffffff')
+            }
             this.roomDragText.setPosition(minX * 32 + 6, minY * 32 + 6)
             this.roomDragText.setVisible(true)
           }
@@ -1195,6 +1218,18 @@ export default class Game extends Phaser.Scene {
       if (state.user.movementMode === 'joystick') return
       if (state.computer.computerDialogOpen || state.whiteboard.whiteboardDialogOpen) return
 
+      const targetTileX = Math.floor(worldPoint.x / 32)
+      const targetTileY = Math.floor(worldPoint.y / 32)
+      const restriction = this.isTileRestrictedForMyPlayer(targetTileX, targetTileY)
+      if (restriction.restricted) {
+        store.dispatch(
+          setErrorNotice(
+            `Phòng họp "${restriction.roomName}" đang diễn ra cuộc họp riêng tư của ${restriction.host}! Bạn không có quyền truy cập.`
+          )
+        )
+        return
+      }
+
       const footY = this.myPlayer.y + this.myPlayer.height * 0.35
       const path = this.pathfinder.findPath(this.myPlayer.x, footY, worldPoint.x, worldPoint.y)
 
@@ -1321,6 +1356,23 @@ export default class Game extends Phaser.Scene {
         // Kiểm tra diện tích phòng tối thiểu: 3x3 ô để có tường và lối đi bên trong
         if (width < 3 || height < 3) {
           store.dispatch(setErrorNotice('Phòng phải có kích thước tối thiểu từ 3x3 ô trở lên!'))
+          return
+        }
+
+        // Kiểm tra không cho phép các phòng đè nhau
+        const existingRooms = Object.values(state.workspace.rooms || {})
+        const isOverlap = existingRooms.some(
+          (r) =>
+            (r.floor || 1) === this.currentFloor &&
+            minX < r.gridX + r.width &&
+            minX + width > r.gridX &&
+            minY < r.gridY + r.height &&
+            minY + height > r.gridY
+        )
+        if (isOverlap) {
+          store.dispatch(
+            setErrorNotice('Không thể tạo phòng đè lên phòng khác! Vui lòng chọn khu vực còn trống.')
+          )
           return
         }
 
@@ -1820,19 +1872,19 @@ export default class Game extends Phaser.Scene {
       if (wall.body) {
         if (dir === 0) {
           // Sát Cạnh Trên
-          wall.body.setSize(32, 10)
+          wall.body.setSize(32, 12)
           wall.body.setOffset(0, 0)
         } else if (dir === 1) {
           // Sát Cạnh Bên Phải
-          wall.body.setSize(10, 32)
-          wall.body.setOffset(22, 0)
+          wall.body.setSize(14, 32)
+          wall.body.setOffset(18, 0)
         } else if (dir === 2) {
           // Sát Cạnh Dưới
-          wall.body.setSize(32, 10)
-          wall.body.setOffset(0, 22)
+          wall.body.setSize(32, 12)
+          wall.body.setOffset(0, 20)
         } else {
           // Sát Cạnh Bên Trái
-          wall.body.setSize(10, 32)
+          wall.body.setSize(14, 32)
           wall.body.setOffset(0, 0)
         }
       }
@@ -2041,25 +2093,47 @@ export default class Game extends Phaser.Scene {
     if (room.roomType === 'lounge') color = 0xfb923c
     if (room.roomType === 'pantry') color = 0xc084fc
 
-    // 1. Nền phòng bán trong suốt và nhãn tên phân vùng (Bỏ viền trắng nét bao quanh)
+    // 1. Nền phòng bán trong suốt và nhãn tên phân vùng (Bao bọc chính xác bên trong chu vi vách tường)
     const graphics = this.add.graphics().setDepth(-800)
     graphics.fillStyle(color, 0.08)
-    graphics.fillRect(room.gridX * 32, room.gridY * 32, room.width * 32, room.height * 32)
 
+    // Chu vi vách tường thực tế:
+    // - Tường trái: x = minX * 32 .. minX * 32 + 14 (sát cạnh trái ô)
+    // - Tường phải: x = (maxX + 1) * 32 - 14 .. (maxX + 1) * 32 (sát cạnh phải ô)
+    // - Tường trên: y = minY * 32 .. minY * 32 + 12 (sát cạnh trên ô)
+    // - Tường dưới: y = (maxY + 1) * 32 - 12 .. (maxY + 1) * 32 (sát cạnh dưới ô)
+    const innerLeft = room.gridX * 32 + 14
+    const innerTop = room.gridY * 32 + 12
+    const innerWidth = room.width * 32 - 28
+    const innerHeight = room.height * 32 - 24
+    if (innerWidth > 0 && innerHeight > 0) {
+      graphics.fillRect(innerLeft, innerTop, innerWidth, innerHeight)
+    } else {
+      graphics.fillRect(room.gridX * 32, room.gridY * 32, room.width * 32, room.height * 32)
+    }
+
+    // Đặt tên phòng ở vị trí cân đối phía trên bên trong phòng, depth cao (1000) để không bị tường hay vật thể che
+    const textCenterX = (room.gridX + room.width / 2) * 32
+    const textY = room.gridY * 32 + 16
     const text = this.add
-      .text(room.gridX * 32 + 8, room.gridY * 32 + 6, room.name, {
+      .text(textCenterX, textY, room.name, {
         fontFamily: 'Arial',
         fontSize: '11px',
         fontStyle: 'bold',
         color: '#ffffff',
         backgroundColor: '#000000cc',
-        padding: { x: 5, y: 2 },
+        padding: { x: 6, y: 2 },
       })
-      .setDepth(-750)
+      .setOrigin(0.5, 0)
+      .setDepth(1000)
 
     this.roomZonesMap.set(room.id, { graphics, text })
 
-    // 2. Tính toán Cửa và dựng Tường bao quanh chu vi (Auto-Tile Liền Mạch & Doorway)
+    // 2. Tính toán Cửa và dựng Tường bao quanh chu vi sát mép ô:
+    // - Phía trên: sát cạnh trên ô (y = 0..12, frame 88)
+    // - Phía bên trái: sát cạnh bên trái ô (x = 0..14, frame 153)
+    // - Phía bên phải: sát cạnh bên phải ô (x = 18..31, frame 151)
+    // - Phía dưới: sát cạnh dưới ô (y = 20..31, frame 216 offset +20)
     const doorX = room.doorX ?? Math.floor(room.gridX + room.width / 2)
     const doorY = room.doorY ?? (room.gridY + room.height - 1)
 
@@ -2069,44 +2143,52 @@ export default class Game extends Phaser.Scene {
     const minY = room.gridY
     const maxY = room.gridY + room.height - 1
 
-    const createWallTile = (x: number, y: number, frame: number) => {
-      if (x === doorX && y === doorY) return
-      const wall = this.obstaclesGroup.create(x * 32 + 16, y * 32 + 16, 'tiles_wall', frame)
+    const createWallTile = (
+      x: number,
+      y: number,
+      textureKey: string,
+      bodyW = 32,
+      bodyH = 32,
+      bodyOffX = 0,
+      bodyOffY = 0
+    ) => {
+      const wall = this.obstaclesGroup.create(x * 32 + 16, y * 32 + 16, textureKey) as Phaser.Physics.Arcade.Sprite
       wall.setDepth(y * 32 + 16)
+      if (wall.body) {
+        wall.body.setSize(bodyW, bodyH)
+        wall.body.setOffset(bodyOffX, bodyOffY)
+      }
       wallSprites.push(wall)
+      return wall
     }
 
-    // 1. Góc trên - trái (Top-left corner)
-    createWallTile(minX, minY, 87)
-
-    // 2. Cạnh trên (Top wall)
-    for (let x = minX + 1; x < maxX; x++) {
-      createWallTile(x, minY, 929)
+    // A. Cạnh trên: Sát cạnh trên ô (y = 0..12, custom_wall_0)
+    for (let x = minX; x <= maxX; x++) {
+      if (!(doorY === minY && x === doorX)) {
+        createWallTile(x, minY, 'custom_wall_0', 32, 12, 0, 0)
+      }
     }
 
-    // 3. Góc trên - phải (Top-right corner)
-    createWallTile(maxX, minY, 89)
-
-    // 4. Cạnh trái (Left vertical wall - Liền mạch thẳng đứng)
-    for (let y = minY + 1; y < maxY; y++) {
-      createWallTile(minX, y, 151)
+    // B. Cạnh dưới: Sát cạnh dưới ô (y = 20..31, custom_wall_2)
+    for (let x = minX; x <= maxX; x++) {
+      if (!(doorY === maxY && x === doorX)) {
+        createWallTile(x, maxY, 'custom_wall_2', 32, 12, 0, 20)
+      }
     }
 
-    // 5. Cạnh phải (Right vertical wall - Liền mạch thẳng đứng)
-    for (let y = minY + 1; y < maxY; y++) {
-      createWallTile(maxX, y, 153)
+    // C. Cạnh trái: Sát cạnh bên trái ô (x = 0..14, custom_wall_3)
+    for (let y = minY; y <= maxY; y++) {
+      if (!(doorX === minX && y === doorY)) {
+        createWallTile(minX, y, 'custom_wall_3', 14, 32, 0, 0)
+      }
     }
 
-    // 6. Góc dưới - trái (Bottom-left corner)
-    createWallTile(minX, maxY, 215)
-
-    // 7. Cạnh dưới (Bottom wall)
-    for (let x = minX + 1; x < maxX; x++) {
-      createWallTile(x, maxY, 216)
+    // D. Cạnh phải: Sát cạnh bên phải ô (x = 18..31, custom_wall_1)
+    for (let y = minY; y <= maxY; y++) {
+      if (!(doorX === maxX && y === doorY)) {
+        createWallTile(maxX, y, 'custom_wall_1', 14, 32, 18, 0)
+      }
     }
-
-    // 8. Góc dưới - phải (Bottom-right corner)
-    createWallTile(maxX, maxY, 217)
 
     const roomFloor = room.floor ?? 1
     const isVisible = roomFloor === this.currentFloor
@@ -2355,6 +2437,86 @@ export default class Game extends Phaser.Scene {
     otherPlayer?.updateDialogBubble(content)
   }
 
+  /**
+   * Kiểm tra xem vị trí tile (x, y) trên tầng hiện tại có thuộc phòng họp đang bị khóa riêng tư hay không
+   */
+  isTileRestrictedForMyPlayer(
+    tileX: number,
+    tileY: number
+  ): { restricted: boolean; roomName?: string; host?: string; room?: any } {
+    const state = store.getState()
+    const currentRooms = Object.values(state.workspace.rooms || {})
+    const bookings = state.meeting?.meetingBookings || []
+    const now = Date.now()
+
+    const myName = state.user.playerName || 'Guest'
+    const myId = state.user.userId || ''
+
+    for (const room of currentRooms) {
+      const roomFloor = room.floor || 1
+      if (roomFloor !== this.currentFloor) continue
+
+      if (
+        tileX >= room.gridX &&
+        tileX < room.gridX + room.width &&
+        tileY >= room.gridY &&
+        tileY < room.gridY + room.height
+      ) {
+        // Kiểm tra xem phòng này có cuộc họp nào đang diễn ra ngay lúc này không
+        const activeBooking = bookings.find(
+          (b) => b.roomId === room.id && now >= b.startTimestamp && now <= b.endTimestamp
+        )
+
+        if (activeBooking) {
+          const isHost =
+            activeBooking.host === myName ||
+            (activeBooking.hostId && activeBooking.hostId === myId)
+          const isParticipant =
+            Array.isArray(activeBooking.participants) &&
+            activeBooking.participants.some((p) => p === myName || p === myId)
+
+          if (!isHost && !isParticipant) {
+            return {
+              restricted: true,
+              roomName: room.name,
+              host: activeBooking.host,
+              room,
+            }
+          }
+        }
+      }
+    }
+
+    return { restricted: false }
+  }
+
+  /**
+   * Cập nhật nhãn tên phòng để hiển thị trạng thái đang họp riêng tư
+   */
+  updateMeetingRoomBadges() {
+    const state = store.getState()
+    const currentRooms = Object.values(state.workspace.rooms || {})
+    const bookings = state.meeting?.meetingBookings || []
+    const now = Date.now()
+
+    for (const room of currentRooms) {
+      const zone = this.roomZonesMap.get(room.id)
+      if (!zone || !zone.text) continue
+
+      const activeBooking = bookings.find(
+        (b) => b.roomId === room.id && now >= b.startTimestamp && now <= b.endTimestamp
+      )
+
+      if (activeBooking) {
+        zone.text.setText(`🔒 [Đang họp] ${room.name}`)
+        zone.text.setBackgroundColor('#dc2626e6')
+      } else {
+        zone.text.setText(room.name)
+        zone.text.setBackgroundColor('#000000cc')
+      }
+    }
+  }
+
   update(t: number, dt: number) {
     const state = store.getState()
     if (state.workspace.designMode) {
@@ -2368,6 +2530,63 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+
+      // Cập nhật nhãn tên phòng họp định kỳ mỗi 2 giây
+      if (t - this.lastMeetingBadgeCheckTime > 2000) {
+        this.lastMeetingBadgeCheckTime = t
+        this.updateMeetingRoomBadges()
+      }
+
+      // Kiểm tra quyền vào phòng họp riêng tư trong khoảng thời gian diễn ra cuộc họp
+      const playerTileX = Math.floor(this.myPlayer.x / 32)
+      const playerTileY = Math.floor(this.myPlayer.y / 32)
+      const restriction = this.isTileRestrictedForMyPlayer(playerTileX, playerTileY)
+
+      if (restriction.restricted) {
+        // Chặn người chơi: Đẩy ra ngoài và ngắt mọi đường đi
+        this.myPlayer.clearMovePath()
+        this.myPlayer.setVelocity(0, 0)
+
+        let targetX = 0
+        let targetY = 0
+        if (
+          this.lastSafeTilePos &&
+          !this.isTileRestrictedForMyPlayer(this.lastSafeTilePos.x, this.lastSafeTilePos.y).restricted
+        ) {
+          targetX = this.lastSafeTilePos.x * 32 + 16
+          targetY = this.lastSafeTilePos.y * 32 + 16
+        } else if (restriction.room) {
+          const doorX =
+            restriction.room.doorX ?? Math.floor(restriction.room.gridX + restriction.room.width / 2)
+          const doorY =
+            restriction.room.doorY ?? (restriction.room.gridY + restriction.room.height - 1)
+          targetX = doorX * 32 + 16
+          targetY = (doorY + 1) * 32 + 16
+        }
+
+        if (targetX > 0 && targetY > 0) {
+          this.myPlayer.setPosition(targetX, targetY)
+          if (this.myPlayer.playerContainer) {
+            this.myPlayer.playerContainer.setPosition(targetX, targetY - 30)
+          }
+          this.network.updatePlayer(
+            targetX,
+            targetY,
+            this.myPlayer.anims.currentAnim?.key || 'adam_idle_down'
+          )
+        }
+
+        if (t - this.lastRestrictedNoticeTime > 2500) {
+          this.lastRestrictedNoticeTime = t
+          store.dispatch(
+            setErrorNotice(
+              `Phòng họp "${restriction.roomName}" đang diễn ra cuộc họp riêng tư! Chỉ chủ phòng (${restriction.host}) và người tham gia mới được vào.`
+            )
+          )
+        }
+      } else {
+        this.lastSafeTilePos = { x: playerTileX, y: playerTileY }
+      }
 
       // Kiểm tra bước lên cửa chuyển tầng
       if (this.doorCooldown > 0) {

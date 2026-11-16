@@ -89,6 +89,29 @@ export interface WorkspaceDocument {
   description?: string
 }
 
+export interface MeetingRoomConfig {
+  roomId: string
+  roomName: string
+  maxUsers: number
+}
+
+export interface MeetingBooking {
+  id: string
+  roomId: string
+  roomName: string
+  createdAt: string
+  createdAtTimestamp: number
+  host: string
+  hostId?: string
+  reason: string
+  date: string
+  startTime: string
+  endTime: string
+  startTimestamp: number
+  endTimestamp: number
+  participants: string[]
+}
+
 export interface StoredChatMessage {
   author: string
   content: string
@@ -123,6 +146,8 @@ export interface StoredWorkspace {
   tasks?: WorkspaceTask[]
   documentTypes?: DocumentType[]
   documents?: WorkspaceDocument[]
+  meetingRooms?: MeetingRoomConfig[]
+  meetingBookings?: MeetingBooking[]
   chatHistory?: StoredChatMessage[]
 }
 
